@@ -1,0 +1,268 @@
+@page "/achievements"
+@rendermode InteractiveServer
+@inject WebUI.Services.IApiService ApiService
+@inject WebUI.Services.VaultsService VaultsService
+
+<PageTitle>成就墙</PageTitle>
+
+<div class="achievements-page">
+    <h1>🏆 成就墙</h1>
+
+    <!-- 学习者选择 -->
+    <div class="learner-bar">
+        @foreach (var learner in learners)
+        {
+            <button class="learner-chip @(selectedLearnerId == learner.Id ? "active" : "")"
+                    style="--learner-color:@learner.Color"
+                    @onclick="() => SelectLearner(learner.Id)">
+                <span class="learner-avatar">@learner.AvatarEmoji</span>
+                <span>@learner.Name</span>
+                @if (learner.IsDefault)
+                {
+                    <span class="default-badge">默认</span>
+                }
+            </button>
+        }
+        <button class="learner-chip add-learner" @onclick="ShowAddLearner">
+            <span>+ 添加</span>
+        </button>
+    </div>
+
+    @if (showAddForm)
+    {
+        <div class="add-learner-form">
+            <input type="text" class="form-control" @bind="newLearnerName" placeholder="名字" />
+            <input type="text" class="form-control" style="width:80px;" @bind="newLearnerEmoji" placeholder="👤" />
+            <input type="color" class="form-control" style="width:60px;padding:0;" @bind="newLearnerColor" />
+            <button class="btn btn-primary btn-sm" @onclick="AddLearner" disabled="@isAdding">添加</button>
+            <button class="btn btn-secondary btn-sm" @onclick="() => showAddForm = false">取消</button>
+        </div>
+    }
+
+    <!-- 统计概览 -->
+    @if (achievements.Count > 0)
+    {
+        var unlocked = achievements.Count(a => a.IsUnlocked);
+        <div class="stats-overview">
+            <div class="stat-card">
+                <div class="stat-value">@unlocked / @achievements.Count</div>
+                <div class="stat-label">已解锁</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-value">@achievements.Count(a => a.IsUnlocked && a.Tier == "gold")</div>
+                <div class="stat-label">金牌</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-value">@achievements.Count(a => a.IsUnlocked && a.Tier == "diamond")</div>
+                <div class="stat-label">钻石</div>
+            </div>
+        </div>
+    }
+
+    <!-- 成就列表 -->
+    @if (isLoading)
+    {
+        <div class="loading">加载中...</div>
+    }
+    else
+    {
+        <div class="achievement-grid">
+            @foreach (var ach in achievements)
+            {
+                <div class="achievement-card @(ach.IsUnlocked ? "unlocked tier-" + ach.Tier : "locked")">
+                    <div class="achievement-icon">@(ach.IsUnlocked ? ach.Icon : "🔒")</div>
+                    <div class="achievement-title">@ach.Title</div>
+                    <div class="achievement-desc">@ach.Description</div>
+                    @if (ach.IsUnlocked && ach.UnlockedAt.HasValue)
+                    {
+                        <div class="achievement-date">@ach.UnlockedAt.Value.ToString("yyyy-MM-dd")</div>
+                    }
+                </div>
+            }
+        </div>
+    }
+</div>
+
+<style>
+    .achievements-page { max-width: 900px; margin: 0 auto; padding: 1rem; }
+    .achievements-page h1 { margin-bottom: 1rem; }
+
+    .learner-bar {
+        display: flex;
+        gap: 0.5rem;
+        flex-wrap: wrap;
+        margin-bottom: 1rem;
+    }
+
+    .learner-chip {
+        display: inline-flex;
+        align-items: center;
+        gap: 0.35rem;
+        padding: 0.4rem 0.75rem;
+        border-radius: 20px;
+        border: 2px solid transparent;
+        background: #f1f3f5;
+        cursor: pointer;
+        font-size: 0.9rem;
+        transition: all 0.2s;
+    }
+
+    .learner-chip.active {
+        border-color: var(--learner-color, #007bff);
+        background: color-mix(in srgb, var(--learner-color, #007bff) 15%, white);
+    }
+
+    .learner-avatar { font-size: 1.1rem; }
+
+    .default-badge {
+        font-size: 0.65rem;
+        background: var(--learner-color, #007bff);
+        color: white;
+        padding: 0.05rem 0.35rem;
+        border-radius: 8px;
+    }
+
+    .add-learner { color: #666; }
+
+    .add-learner-form {
+        display: flex;
+        gap: 0.5rem;
+        align-items: center;
+        margin-bottom: 1rem;
+        padding: 0.75rem;
+        background: #f8f9fa;
+        border-radius: 8px;
+    }
+
+    .add-learner-form .form-control {
+        padding: 0.4rem;
+        border: 1px solid #ced4da;
+        border-radius: 4px;
+        font-size: 0.9rem;
+    }
+
+    .stats-overview {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+        gap: 0.75rem;
+        margin-bottom: 1.5rem;
+    }
+
+    .stat-card {
+        text-align: center;
+        padding: 1rem;
+        background: white;
+        border: 1px solid #e9ecef;
+        border-radius: 8px;
+    }
+
+    .stat-value { font-size: 1.5rem; font-weight: 700; color: #333; }
+    .stat-label { font-size: 0.8rem; color: #888; margin-top: 0.25rem; }
+
+    .achievement-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
+        gap: 0.75rem;
+    }
+
+    .achievement-card {
+        text-align: center;
+        padding: 1rem;
+        border-radius: 10px;
+        border: 1px solid #e9ecef;
+        background: white;
+        transition: transform 0.2s;
+    }
+
+    .achievement-card.locked {
+        opacity: 0.5;
+        filter: grayscale(0.8);
+    }
+
+    .achievement-card.unlocked {
+        box-shadow: 0 2px 6px rgba(0,0,0,0.06);
+    }
+
+    .achievement-card.tier-bronze { border-color: #cd7f32; }
+    .achievement-card.tier-silver { border-color: #a0a0a0; }
+    .achievement-card.tier-gold { border-color: #ffd700; background: #fffbea; }
+    .achievement-card.tier-diamond { border-color: #b9f2ff; background: #f0fdff; }
+
+    .achievement-icon { font-size: 2rem; margin-bottom: 0.5rem; }
+    .achievement-title { font-weight: 600; font-size: 0.95rem; margin-bottom: 0.25rem; }
+    .achievement-desc { font-size: 0.8rem; color: #666; }
+    .achievement-date { font-size: 0.75rem; color: #aaa; margin-top: 0.35rem; }
+    .loading { text-align: center; padding: 2rem; color: #888; }
+</style>
+
+@code {
+    private List<LearnerDto> learners = new();
+    private int selectedLearnerId;
+    private List<AchievementDto> achievements = new();
+    private bool isLoading = true;
+    private bool showAddForm = false;
+    private string newLearnerName = "";
+    private string newLearnerEmoji = "👤";
+    private string newLearnerColor = "#007bff";
+    private bool isAdding = false;
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (!firstRender) return;
+        await LoadLearnersAsync();
+    }
+
+    private async Task LoadLearnersAsync()
+    {
+        learners = await ApiService.GetLearnersAsync();
+        var defaultLearner = learners.FirstOrDefault(l => l.IsDefault) ?? learners.FirstOrDefault();
+        if (defaultLearner != null)
+        {
+            selectedLearnerId = defaultLearner.Id;
+            await LoadAchievementsAsync();
+        }
+        else
+        {
+            isLoading = false;
+        }
+        await InvokeAsync(StateHasChanged);
+    }
+
+    private async Task SelectLearner(int id)
+    {
+        selectedLearnerId = id;
+        isLoading = true;
+        await LoadAchievementsAsync();
+        await InvokeAsync(StateHasChanged);
+    }
+
+    private async Task LoadAchievementsAsync()
+    {
+        isLoading = true;
+        achievements = await ApiService.GetAchievementsAsync(selectedLearnerId);
+        isLoading = false;
+    }
+
+    private void ShowAddLearner()
+    {
+        showAddForm = true;
+        newLearnerName = "";
+        newLearnerEmoji = "👤";
+        newLearnerColor = "#007bff";
+    }
+
+    private async Task AddLearner()
+    {
+        if (string.IsNullOrWhiteSpace(newLearnerName)) return;
+        isAdding = true;
+        await ApiService.CreateLearnerAsync(new CreateLearnerRequest
+        {
+            Name = newLearnerName.Trim(),
+            AvatarEmoji = newLearnerEmoji,
+            Color = newLearnerColor
+        });
+        showAddForm = false;
+        await LoadLearnersAsync();
+        isAdding = false;
+    }
+}

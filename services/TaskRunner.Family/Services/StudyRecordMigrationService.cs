@@ -1,0 +1,128 @@
+using Microsoft.EntityFrameworkCore;
+using TaskRunner.Data;
+using TaskRunner.Data.Entities;
+
+namespace TaskRunner.Services;
+
+/// <summary>
+/// 学习记录迁移服务：将旧文件系统记录（.study/daily-*.json）迁移到 SQLite StudyActivities
+/// </summary>
+public class StudyRecordMigrationService : BackgroundService
+{
+    private readonly IServiceProvider _serviceProvider;
+    private readonly ILogger<StudyRecordMigrationService> _logger;
+
+    public StudyRecordMigrationService(IServiceProvider serviceProvider, ILogger<StudyRecordMigrationService> logger)
+    {
+        _serviceProvider = serviceProvider;
+        _logger = logger;
+    }
+
+    protected override async Task ExecuteAsync(CancellationToken stoppingToken)
+    {
+        // 延迟启动，等待其他服务就绪
+        await Task.Delay(TimeSpan.FromSeconds(5), stoppingToken);
+
+        try
+        {
+            await MigrateAsync(stoppingToken);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "学习记录迁移失败");
+        }
+    }
+
+    public async Task MigrateAsync(CancellationToken cancellationToken = default)
+    {
+        using var scope = _serviceProvider.CreateScope();
+        var dbFactory = scope.ServiceProvider.GetRequiredService<IDbContextFactory<AppDbContext>>();
+        var settings = scope.ServiceProvider.GetRequiredService<SettingsService>();
+        var learnerService = scope.ServiceProvider.GetRequiredService<LearnerService>();
+
+        using var db = await dbFactory.CreateDbContextAsync(cancellationToken);
+
+        // 检查是否已有 StudyActivities 记录
+        var hasExistingRecords = await db.StudyActivities.AnyAsync(cancellationToken);
+        if (hasExistingRecords)
+        {
+            _logger.LogInformation("StudyActivities 已有记录，跳过迁移");
+            return;
+        }
+
+        // 确保有默认学习者
+        var defaultLearner = await learnerService.GetDefaultAsync();
+        if (defaultLearner == null)
+        {
+            _logger.LogInformation("没有学习者，跳过迁移（等待用户创建学习者）");
+            return;
+        }
+
+        var vaults = settings.GetVaults();
+        int totalMigrated = 0;
+
+        foreach (var vault in vaults)
+        {
+            var cardsPath = Path.Combine(vault.Path, "cards");
+            var studyDir = Path.Combine(cardsPath, ".study");
+            if (!Directory.Exists(studyDir)) continue;
+
+            var files = Directory.GetFiles(studyDir, "daily-*.json");
+            foreach (var file in files)
+            {
+                var fileName = Path.GetFileNameWithoutExtension(file);
+                if (!fileName.StartsWith("daily-") || !DateTime.TryParseExact(
+                    fileName[6..], "yyyy-MM-dd", null, System.Globalization.DateTimeStyles.None, out var date))
+                {
+                    continue;
+                }
+
+                try
+                {
+                    var json = await File.ReadAllTextAsync(file, cancellationToken);
+                    var daily = System.Text.Json.JsonSerializer.Deserialize<DailyRecord>(json);
+                    if (daily?.Answers == null || daily.Answers.Count == 0) continue;
+
+                    foreach (var kv in daily.Answers)
+                    {
+                        // 去重：同一天同一卡片同一学习者只迁移一次
+                        var alreadyExists = await db.StudyActivities.AnyAsync(
+                            a => a.LearnerId == defaultLearner.Id
+                                 && a.VaultId == vault.Id
+                                 && a.CardId == kv.Key
+                                 && a.CreatedAt.Date == date.Date
+                                 && a.ActivityType == "study",
+                            cancellationToken);
+
+                        if (alreadyExists) continue;
+
+                        db.StudyActivities.Add(new StudyActivity
+                        {
+                            LearnerId = defaultLearner.Id,
+                            VaultId = vault.Id,
+                            ActivityType = "study",
+                            CardId = kv.Key,
+                            Result = kv.Value,
+                            CreatedAt = date.Date.AddHours(12) // 默认中午 12 点
+                        });
+                        totalMigrated++;
+                    }
+                }
+                catch (Exception ex)
+                {
+                    _logger.LogWarning(ex, "迁移文件失败：{File}", file);
+                }
+            }
+        }
+
+        if (totalMigrated > 0)
+        {
+            await db.SaveChangesAsync(cancellationToken);
+            _logger.LogInformation("学习记录迁移完成：共迁移 {Count} 条记录", totalMigrated);
+        }
+        else
+        {
+            _logger.LogInformation("没有需要迁移的旧学习记录");
+        }
+    }
+}

@@ -1,0 +1,15 @@
+{
+  "cookies": [
+    {
+      "name": "webui_auth",
+      "value": "FvBqftEEyUb8Rd825gxVdAdlWzEn4lJj",
+      "domain": "127.0.0.1",
+      "path": "/",
+      "expires": 1779703537,
+      "httpOnly": true,
+      "secure": false,
+      "sameSite": "Lax"
+    }
+  ],
+  "origins": []
+}

@@ -1,0 +1,1361 @@
+@page "/settings"
+@rendermode InteractiveServer
+@using TaskRunner.Contracts.LocalModels
+@inject WebUI.Services.SettingsService SettingsService
+@inject WebUI.Services.IApiService ApiService
+@inject WebUI.Services.IUserPreferencesService UserPreferencesService
+@inject WebUI.Services.AIStatusService AIStatusService
+@inject WebUI.Hubs.StatusUpdateService StatusUpdateService
+@inject WebUI.Services.CapabilityService CapabilityService
+@inject NavigationManager Navigation
+@inject IJSRuntime JSRuntime
+@inject Microsoft.Extensions.Logging.ILogger<Settings> Logger
+
+<PageTitle>AI配置</PageTitle>
+
+<h1>🤖 AI配置</h1>
+
+<div class="settings-form">
+    
+    @if (isEditing)
+    {
+        <!-- 编辑视图 -->
+        <div class="ai-edit-form">
+            <h4>@(string.IsNullOrEmpty(editingProvider.Id) ? "添加 AI 提供商" : "编辑 AI 提供商")</h4>
+            
+            @if (string.IsNullOrEmpty(editingProvider.Id))
+            {
+                <!-- 预设选择 - 仅新建时显示 -->
+                <div class="form-group">
+                    <label>选择预设提供商</label>
+                    <select class="form-control" @onchange="OnPresetSelected">
+                        <option value="">-- 手动输入（自定义）--</option>
+                        @foreach (var preset in providerPresets)
+                        {
+                            <option value="@preset.Id">@preset.Name</option>
+                        }
+                    </select>
+                    <small class="form-text">选择知名提供商可自动填充 API 地址和推荐模型</small>
+                </div>
+            }
+
+            <div class="form-group">
+                <label>提供商 ID</label>
+                <input type="text" class="form-control" @bind="editingProvider.Id" 
+                       disabled="@(!string.IsNullOrEmpty(editingProvider.Id))" 
+                       placeholder="如：siliconflow, aliyun" />
+                <small class="form-text">唯一标识，创建后不可修改</small>
+            </div>
+
+            <div class="form-group">
+                <label>显示名称</label>
+                <input type="text" class="form-control" @bind="editingProvider.Name" 
+                       placeholder="如：硅基流动" />
+            </div>
+
+            <div class="form-group">
+                <label>API 基础地址</label>
+                <input type="text" class="form-control" @bind="editingProvider.BaseUrl" 
+                       placeholder="https://api.example.com/v1" />
+            </div>
+
+            <div class="form-group">
+                <label>Anthropic 协议地址（可选，用于 DeepSeek 返回为空时 fallback）</label>
+                <input type="text" class="form-control" @bind="editingProvider.AnthropicBaseUrl" 
+                       placeholder="https://api.anthropic.com" />
+                <small class="form-text text-muted">
+                    仅在当前提供商返回空响应时自动切换到 Anthropic 协议
+                </small>
+            </div>
+
+            <div class="form-group">
+                <label>模型层级</label>
+                <div class="btn-group btn-group-sm" role="group">
+                    <button type="button" class="btn @(editingProvider.Tier == AiModelTier.Unset ? "btn-primary" : "btn-outline-primary")" @onclick="@(() => editingProvider.Tier = AiModelTier.Unset)">未设置</button>
+                    <button type="button" class="btn @(editingProvider.Tier == AiModelTier.Tier1_Embedding ? "btn-primary" : "btn-outline-primary")" @onclick="@(() => editingProvider.Tier = AiModelTier.Tier1_Embedding)">固本</button>
+                    <button type="button" class="btn @(editingProvider.Tier == AiModelTier.Tier2_Local ? "btn-primary" : "btn-outline-primary")" @onclick="@(() => editingProvider.Tier = AiModelTier.Tier2_Local)">问道</button>
+                    <button type="button" class="btn @(editingProvider.Tier == AiModelTier.Tier3_Cloud ? "btn-primary" : "btn-outline-primary")" @onclick="@(() => editingProvider.Tier = AiModelTier.Tier3_Cloud)">通玄</button>
+                </div>
+                <small class="form-text">
+                    固本 = Embedding 向量模型 / 问道 = 本地大模型 / 通玄 = 云端 API
+                </small>
+            </div>
+
+            <div class="form-group">
+                <label>API Key</label>
+                <input type="password" class="form-control" @bind="editingProvider.ApiKey" 
+                       placeholder="sk-..." />
+                @if (!string.IsNullOrEmpty(editingProvider.ExistingKeyMask))
+                {
+                    <small class="form-text">留空保留现有密钥：@editingProvider.ExistingKeyMask</small>
+                }
+                
+                <small class="form-text text-muted">
+                    API Key 将加密后存储在本地
+                </small>
+            </div>
+
+            <div class="form-group checkbox-group">
+                <label class="checkbox-label">
+                    <input type="checkbox" @bind="editingProvider.IsMain" />
+                    <span>设为主提供商</span>
+                </label>
+            </div>
+
+            <h5>模型列表</h5>
+            @if (IsLocalProviderUrl(editingProvider.BaseUrl))
+            {
+                <div class="mb-2">
+                    <button class="btn btn-outline-primary btn-sm" @onclick="AutoFetchModelsAsync" disabled="@isFetchingModels">
+                        @if (isFetchingModels)
+                        {
+                            <span class="spinner-border spinner-border-sm me-1" role="status"></span>
+                            <span>获取中...</span>
+                        }
+                        else
+                        {
+                            <span>🔄 自动获取模型</span>
+                        }
+                    </button>
+                    @if (isFetchingModels)
+                    {
+                        <button class="btn btn-outline-danger btn-sm ms-1" @onclick="StopFetchModels">取消</button>
+                    }
+                    @if (!string.IsNullOrEmpty(fetchModelsError))
+                    {
+                        <span class="text-danger ms-2 small">@fetchModelsError</span>
+                    }
+                </div>
+            }
+            <div class="models-editor">
+                @foreach (var model in editingProvider.Models)
+                {
+                    <div class="model-edit-row">
+                        <input type="text" class="form-control model-name" 
+                               @bind="model.Name" placeholder="模型名称" />
+                        <label class="checkbox-label">
+                            <input type="checkbox" @bind="model.IsPaid" />
+                            <span>付费</span>
+                        </label>
+                        <label class="checkbox-label">
+                            <input type="checkbox" @bind="model.IsMain" 
+                                   @onclick="() => SetMainModel(model)" />
+                            <span>默认</span>
+                        </label>
+                        <button class="btn btn-icon" @onclick="() => RemoveModel(model)">删除</button>
+                    </div>
+                }
+                <button class="btn btn-secondary" @onclick="AddModel">+ 添加模型</button>
+            </div>
+
+            <div class="form-actions">
+                <button class="btn btn-primary" @onclick="SaveProvider" disabled="@isSaving">
+                    @(isSaving ? "保存中..." : "保存")
+                </button>
+                <button class="btn btn-secondary" @onclick="CancelEdit" disabled="@isSaving">取消</button>
+            </div>
+
+            @if (!string.IsNullOrEmpty(editErrorMessage))
+            {
+                <div class="alert alert-error">@editErrorMessage</div>
+            }
+        </div>
+    }
+    else
+    {
+        <!-- 本地模型缺失提示 -->
+        @if (missingModels.Count > 0)
+        {
+            <div class="alert alert-warning" style="margin-bottom: 1.5rem;">
+                <div style="font-weight: 600; margin-bottom: 0.5rem;">
+                    ⚠️ 以下配置的模型在本地工具中未找到：
+                </div>
+                <div style="margin-bottom: 0.75rem;">
+                    @foreach (var group in missingModels.GroupBy(m => m.ProviderName))
+                    {
+                        <div style="margin-bottom: 0.35rem;">
+                            <strong>@group.Key</strong>：
+                            <code>@string.Join("</code>, <code>", group.Select(m => m.ModelName))</code>
+                        </div>
+                    }
+                </div>
+                <div style="display: flex; gap: 0.75rem; flex-wrap: wrap;">
+                    <button class="btn btn-warning btn-sm" @onclick="RemoveMissingModelsAsync" disabled="@isRemovingMissingModels">
+                        @if (isRemovingMissingModels)
+                        {
+                            <span class="spinner-border spinner-border-sm me-1" role="status"></span>
+                            <span>处理中...</span>
+                        }
+                        else
+                        {
+                            <span>🗑️ 从配置中删除缺失模型</span>
+                        }
+                    </button>
+                    @if (isRemovingMissingModels)
+                    {
+                        <button class="btn btn-outline-danger btn-sm ms-1" @onclick="StopRemoveMissingModels">取消</button>
+                    }
+                    <button class="btn btn-primary btn-sm" @onclick="GoToLocalModels">
+                        📦 前往下载模型
+                    </button>
+                    <button class="btn btn-secondary btn-sm" @onclick="DismissMissingModelsWarning">
+                        忽略
+                    </button>
+                </div>
+            </div>
+        }
+
+        <!-- 列表视图 -->
+        @if (aiProviders.Count == 0)
+        {
+            <div class="alert alert-warning">
+                暂无 AI 提供商配置，点击"添加提供商"创建一个。
+            </div>
+        }
+        else
+        {
+            <div class="ai-providers-list">
+                @foreach (var provider in aiProviders)
+                {
+                    <div class="ai-provider-card">
+                        <div class="provider-header">
+                            <div class="provider-title">
+                                <span class="provider-name">@provider.Name</span>
+                                @if (provider.IsMain)
+                                {
+                                    <span class="badge badge-primary">主</span>
+                                }
+                                @switch (provider.Tier)
+                                {
+                                    case AiModelTier.Tier1_Embedding:
+                                        <span class="badge" style="background:#e8d5f2;color:#6b2c91;">固本</span>
+                                        break;
+                                    case AiModelTier.Tier2_Local:
+                                        <span class="badge" style="background:#d4edda;color:#155724;">问道</span>
+                                        break;
+                                    case AiModelTier.Tier3_Cloud:
+                                        <span class="badge" style="background:#cce5ff;color:#004085;">通玄</span>
+                                        break;
+                                }
+                            </div>
+                            <div class="provider-actions">
+                                <button class="btn btn-icon" @onclick="() => EditProvider(provider)" title="编辑">
+                                    编辑
+                                </button>
+                                <button class="btn btn-icon btn-danger" @onclick="() => DeleteProvider(provider)" title="删除">
+                                    删除
+                                </button>
+                            </div>
+                        </div>
+                        
+                        <div class="provider-info">
+                            <code class="provider-id">@provider.Id</code>
+                            <span class="provider-url">@provider.BaseUrl</span>
+                        </div>
+
+                        <div class="api-key-status">
+                            @if (provider.HasApiKey)
+                            {
+                                <span class="badge badge-success" title="已加密存储">
+                                    已配置：@(provider.KeyMask ?? "***")
+                                </span>
+                            }
+                            else
+                            {
+                                <span class="badge badge-warning">未配置 API Key</span>
+                            }
+                        </div>
+
+                        <div class="provider-models">
+                            @foreach (var model in provider.Models)
+                            {
+                                <div class="model-item">
+                                    <span class="model-name">@(model.Name.Split('/').LastOrDefault() ?? model.Name)</span>
+                                    @if (model.IsMain)
+                                    {
+                                        <span class="badge badge-secondary">默认</span>
+                                    }
+                                    @if (model.IsPaid)
+                                    {
+                                        <span class="badge badge-paid">付费</span>
+                                    }
+                                    else
+                                    {
+                                        <span class="badge badge-free">免费</span>
+                                    }
+                                </div>
+                            }
+                        </div>
+                    </div>
+                }
+            </div>
+        }
+
+        <div class="list-actions">
+            <button class="btn btn-primary" @onclick="AddNewProvider">+ 添加AI提供商</button>
+            <button class="btn btn-secondary" @onclick="ReloadProviders">刷新</button>
+        </div>
+
+        <p class="config-note">
+            API Key 加密存储在本地。
+        </p>
+    }
+
+    <!-- Embedding 配置（一级·固本模型） -->
+    <div class="embedding-config-section" style="margin-top: 2rem; padding-top: 1.5rem; border-top: 2px solid #e9ecef;">
+        <h2>🔍 Embedding 配置（一级·固本）</h2>
+        <p style="color:#666;font-size:0.9rem;margin-bottom:1rem;">
+            配置 RAG 知识库检索所需的 Embedding 模型。纯 CPU 即可运行，推荐 nomic-embed-text 或 bge-small-zh-v1.5。
+        </p>
+        <div class="form-group">
+            <label>提供商</label>
+            <div class="btn-group btn-group-sm" role="group">
+                <button type="button" class="btn @(embeddingConfig.ProviderId == "ollama" ? "btn-primary" : "btn-outline-primary")" @onclick="@(() => embeddingConfig.ProviderId = "ollama")">Ollama（本地）</button>
+                <button type="button" class="btn @(embeddingConfig.ProviderId == "openai" ? "btn-primary" : "btn-outline-primary")" @onclick="@(() => embeddingConfig.ProviderId = "openai")">OpenAI API</button>
+                <button type="button" class="btn @(embeddingConfig.ProviderId == "siliconflow" ? "btn-primary" : "btn-outline-primary")" @onclick="@(() => embeddingConfig.ProviderId = "siliconflow")">硅基流动</button>
+                <button type="button" class="btn @(embeddingConfig.ProviderId == "custom" ? "btn-primary" : "btn-outline-primary")" @onclick="@(() => embeddingConfig.ProviderId = "custom")">自定义</button>
+            </div>
+        </div>
+        <div class="form-group">
+            <label>模型名称</label>
+            <input type="text" class="form-control" @bind="embeddingConfig.Model" placeholder="nomic-embed-text" />
+            <small class="form-text">推荐：nomic-embed-text, bge-small-zh-v1.5, text-embedding-3-small</small>
+        </div>
+        <div class="form-group">
+            <label>API 基础地址</label>
+            <input type="text" class="form-control" @bind="embeddingConfig.BaseUrl" placeholder="http://localhost:11434/v1" />
+        </div>
+        <div class="form-group">
+            <label>API Key（本地 Ollama 可留空）</label>
+            <input type="password" class="form-control" @bind="embeddingConfig.ApiKey" placeholder="sk-..." />
+            @if (!string.IsNullOrEmpty(embeddingConfig.KeyMask))
+            {
+                <small class="form-text">已配置：@embeddingConfig.KeyMask</small>
+            }
+        </div>
+        <div class="form-group checkbox-group">
+            <label class="checkbox-label">
+                <input type="checkbox" @bind="embeddingConfig.IsEnabled" />
+                <span>启用 Embedding 检索</span>
+            </label>
+        </div>
+        <div class="form-actions">
+            <button class="btn btn-primary" @onclick="SaveEmbeddingConfig" disabled="@isSavingEmbedding">
+                @(isSavingEmbedding ? "保存中..." : "保存 Embedding 配置")
+            </button>
+        </div>
+        @if (!string.IsNullOrEmpty(embeddingConfigMessage))
+        {
+            <div class="alert @(embeddingConfigSuccess ? "alert-success" : "alert-error")" style="margin-top: 0.75rem;">
+                @embeddingConfigMessage
+            </div>
+        }
+    </div>
+
+    @if (_canShowLocalModelSettings)
+    {
+    <!-- 本地模型设置 -->
+    <div class="local-model-settings" style="margin-top: 2rem; padding-top: 1.5rem; border-top: 2px solid #e9ecef;">
+        <h2>🖥️ 本地模型设置</h2>
+        <div class="form-group">
+            <label>模型下载目录</label>
+            <input type="text" class="form-control" @bind="localModelDownloadDir"
+                   placeholder="留空使用平台默认值" />
+            <small class="form-text">
+                平台默认值: @platformDefaultDownloadDir
+                @if (!string.IsNullOrEmpty(localModelDownloadDir))
+                {
+                    <span> | 当前: @localModelDownloadDir</span>
+                }
+            </small>
+        </div>
+        <div class="form-group">
+            <label>下载源偏好</label>
+            <div class="btn-group btn-group-sm flex-wrap" role="group">
+                <button type="button" class="btn @(preferredDownloadSource == "auto" ? "btn-primary" : "btn-outline-primary")" @onclick="@(() => preferredDownloadSource = "auto")">自动</button>
+                <button type="button" class="btn @(preferredDownloadSource == "ollama" ? "btn-primary" : "btn-outline-primary")" @onclick="@(() => preferredDownloadSource = "ollama")">Ollama</button>
+                <button type="button" class="btn @(preferredDownloadSource == "lmstudio" ? "btn-primary" : "btn-outline-primary")" @onclick="@(() => preferredDownloadSource = "lmstudio")">LM Studio</button>
+                <button type="button" class="btn @(preferredDownloadSource == "huggingface" ? "btn-primary" : "btn-outline-primary")" @onclick="@(() => preferredDownloadSource = "huggingface")">HuggingFace</button>
+                <button type="button" class="btn @(preferredDownloadSource == "hf-mirror" ? "btn-primary" : "btn-outline-primary")" @onclick="@(() => preferredDownloadSource = "hf-mirror")">HF 镜像</button>
+                <button type="button" class="btn @(preferredDownloadSource == "modelscope" ? "btn-primary" : "btn-outline-primary")" @onclick="@(() => preferredDownloadSource = "modelscope")">魔搭</button>
+            </div>
+        </div>
+        <div class="form-group checkbox-group">
+            <label class="checkbox-label">
+                <input type="checkbox" @bind="useChinaMirror" />
+                <span>优先使用国内镜像加速下载</span>
+            </label>
+        </div>
+        <div class="form-actions">
+            <button class="btn btn-primary" @onclick="SaveLocalModelConfig" disabled="@isSavingLocalConfig">
+                @(isSavingLocalConfig ? "保存中..." : "保存本地模型设置")
+            </button>
+        </div>
+        @if (!string.IsNullOrEmpty(localModelConfigMessage))
+        {
+            <div class="alert @(localModelConfigSuccess ? "alert-success" : "alert-error")" style="margin-top: 0.75rem;">
+                @localModelConfigMessage
+            </div>
+        }
+    </div>
+    }
+
+</div>
+
+<style>
+    /* AI 提供商列表 */
+    .ai-providers-list {
+        display: flex;
+        flex-direction: column;
+        gap: 1rem;
+        margin-bottom: 1.5rem;
+    }
+
+    .ai-provider-card {
+        background: #f8f9fa;
+        border: 1px solid #e9ecef;
+        border-radius: 8px;
+        padding: 1rem;
+    }
+
+    .provider-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-bottom: 0.5rem;
+    }
+
+    .provider-title {
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+    }
+
+    .provider-name {
+        font-size: 1.1rem;
+        font-weight: 600;
+        color: #333;
+    }
+
+    .provider-actions {
+        display: flex;
+        gap: 0.5rem;
+    }
+
+    .provider-info {
+        display: flex;
+        flex-direction: column;
+        gap: 0.25rem;
+        margin-bottom: 0.5rem;
+        font-size: 0.85rem;
+    }
+
+    .provider-id {
+        color: #666;
+        background: #e9ecef;
+        padding: 0.1rem 0.4rem;
+        border-radius: 3px;
+    }
+
+    .provider-url {
+        color: #888;
+    }
+
+    .api-key-status {
+        margin-bottom: 0.75rem;
+    }
+
+    .provider-models {
+        display: flex;
+        flex-direction: column;
+        gap: 0.5rem;
+    }
+
+    .model-item {
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+        padding: 0.35rem 0.5rem;
+        background: white;
+        border-radius: 4px;
+        border: 1px solid #dee2e6;
+    }
+
+    .model-name {
+        flex: 1;
+        font-family: monospace;
+        font-size: 0.9rem;
+        color: #555;
+    }
+
+    /* 编辑表单 */
+    .ai-edit-form {
+        background: #f8f9fa;
+        border: 1px solid #e9ecef;
+        border-radius: 8px;
+        padding: 1.5rem;
+        margin-bottom: 1.5rem;
+    }
+
+    .ai-edit-form h4 {
+        margin-top: 0;
+        margin-bottom: 1rem;
+    }
+
+    .ai-edit-form h5 {
+        margin: 1.5rem 0 0.75rem 0;
+    }
+
+    .form-group {
+        margin-bottom: 1rem;
+    }
+
+    .form-group label {
+        display: block;
+        margin-bottom: 0.35rem;
+        font-weight: 500;
+        color: #333;
+    }
+
+    .form-control {
+        width: 100%;
+        padding: 0.5rem;
+        border: 1px solid #ced4da;
+        border-radius: 4px;
+        font-size: 0.95rem;
+    }
+
+    .form-control:focus {
+        outline: none;
+        border-color: #80bdff;
+        box-shadow: 0 0 0 0.2rem rgba(0,123,255,.25);
+    }
+
+    .form-text {
+        display: block;
+        margin-top: 0.25rem;
+        font-size: 0.85rem;
+        color: #6c757d;
+    }
+
+    .checkbox-group {
+        display: flex;
+        align-items: center;
+    }
+
+    .checkbox-label {
+        display: flex;
+        align-items: center;
+        gap: 0.35rem;
+        cursor: pointer;
+        font-weight: normal;
+    }
+
+    .models-editor {
+        display: flex;
+        flex-direction: column;
+        gap: 0.5rem;
+    }
+
+    .model-edit-row {
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+        padding: 0.5rem;
+        background: white;
+        border: 1px solid #dee2e6;
+        border-radius: 4px;
+    }
+
+    .model-edit-row .model-name {
+        flex: 1;
+    }
+
+    .form-actions {
+        display: flex;
+        gap: 0.75rem;
+        margin-top: 1.5rem;
+        padding-top: 1rem;
+        border-top: 1px solid #dee2e6;
+    }
+
+    .list-actions {
+        display: flex;
+        gap: 0.75rem;
+        margin-bottom: 1.5rem;
+    }
+
+    /* 按钮 */
+    .btn {
+        padding: 0.5rem 1rem;
+        border: none;
+        border-radius: 4px;
+        cursor: pointer;
+        font-size: 0.9rem;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+    }
+
+    .btn:disabled {
+        opacity: 0.6;
+        cursor: not-allowed;
+    }
+
+    .btn-primary {
+        background: #007bff;
+        color: white;
+    }
+
+    .btn-primary:hover:not(:disabled) {
+        background: #0056b3;
+    }
+
+    .btn-secondary {
+        background: #6c757d;
+        color: white;
+    }
+
+    .btn-secondary:hover:not(:disabled) {
+        background: #545b62;
+    }
+
+    .btn-danger {
+        background: #dc3545;
+        color: white;
+    }
+
+    .btn-danger:hover:not(:disabled) {
+        background: #c82333;
+    }
+
+    .btn-icon {
+        padding: 0.35rem 0.75rem;
+        font-size: 0.85rem;
+    }
+
+    /* 标签 */
+    .badge {
+        display: inline-flex;
+        align-items: center;
+        padding: 0.2rem 0.5rem;
+        border-radius: 4px;
+        font-size: 0.75rem;
+        font-weight: 500;
+    }
+
+    .badge-primary {
+        background: #007bff;
+        color: white;
+    }
+
+    .badge-secondary {
+        background: #6c757d;
+        color: white;
+    }
+
+    .badge-paid {
+        background: #fff3cd;
+        color: #856404;
+        border: 1px solid #ffc107;
+    }
+
+    .badge-free {
+        background: #d4edda;
+        color: #155724;
+        border: 1px solid #28a745;
+    }
+
+    .badge-success {
+        background: #28a745;
+        color: white;
+    }
+
+    .badge-info {
+        background: #17a2b8;
+        color: white;
+    }
+
+    .badge-warning {
+        background: #ffc107;
+        color: #212529;
+    }
+
+    /* 提示框 */
+    .alert {
+        padding: 0.75rem 1rem;
+        border-radius: 4px;
+        margin-bottom: 1rem;
+    }
+
+    .alert-warning {
+        background: #fff3cd;
+        border: 1px solid #ffc107;
+        color: #856404;
+    }
+
+    .alert-error {
+        background: #f8d7da;
+        border: 1px solid #f5c6cb;
+        color: #721c24;
+        margin-top: 1rem;
+    }
+
+    .status-message {
+        padding: 0.75rem 1rem;
+        border-radius: 4px;
+        margin-top: 1rem;
+    }
+
+    .status-message.success {
+        background: #d4edda;
+        color: #155724;
+    }
+
+    .status-message.error {
+        background: #f8d7da;
+        color: #721c24;
+    }
+
+    .code-block {
+        background: #f4f4f4;
+        border: 1px solid #ddd;
+        border-radius: 4px;
+        padding: 0.75rem 1rem;
+        font-family: 'Consolas', 'Monaco', monospace;
+        font-size: 0.85rem;
+        color: #333;
+        margin-bottom: 0.75rem;
+        overflow-x: auto;
+    }
+
+    .code-block code {
+        display: block;
+        line-height: 1.6;
+    }
+
+    .config-note {
+        color: #666;
+        font-size: 0.9rem;
+        margin: 0;
+    }
+</style>
+
+@code {
+    private string backendUrl = "http://127.0.0.1:8788";
+    private string statusMessage = "";
+    private bool isSuccess = false;
+    private bool _canShowLocalModelSettings = true;
+    
+    private List<AiConfigProvider> aiProviders = new();
+    private bool isLoadingAiProviders = false;
+
+    // 视图状态
+    private bool isEditing = false;
+    private bool isSaving = false;
+    private bool isFetchingModels = false;
+    private bool isRemovingMissingModels = false;
+    private CancellationTokenSource? _fetchCts;
+    private CancellationTokenSource? _removeCts;
+    private string editErrorMessage = "";
+    private string fetchModelsError = "";
+    private EditProviderModel editingProvider = new();
+    private List<MissingModelInfo> missingModels = new();
+
+    // 预设提供商列表
+    private List<AiProviderPreset> providerPresets = new();
+
+    // 服务连接状态
+
+
+    protected override void OnInitialized()
+    {
+        backendUrl = "http://127.0.0.1:8788";
+        isLoadingAiProviders = true;
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (!firstRender) return;
+
+        // 后台并行加载
+        _ = Task.Run(async () =>
+        {
+            try
+            {
+                _canShowLocalModelSettings = await CapabilityService.CanShowAsync("SettingsLocalModelDownload");
+                await Task.WhenAll(
+                    LoadAiProviders(),
+                    LoadLocalModelConfigAsync(),
+                    LoadEmbeddingConfigAsync()
+                );
+            }
+            catch (Exception ex)
+            {
+                Logger.LogWarning(ex, "后台加载失败");
+            }
+        });
+    }
+
+    private async Task LoadAiProviders()
+    {
+        try
+        {
+            aiProviders = await ApiService.GetAiConfigProvidersAsync();
+            await CheckMissingLocalModelsAsync();
+        }
+        catch (Exception ex)
+        {
+            Logger.LogWarning(ex, "加载 AI 提供商失败");
+            aiProviders = new List<AiConfigProvider>();
+        }
+        finally
+        {
+            await InvokeAsync(() =>
+            {
+                isLoadingAiProviders = false;
+                StateHasChanged();
+            });
+        }
+    }
+
+    private async Task CheckMissingLocalModelsAsync()
+    {
+        missingModels.Clear();
+        foreach (var provider in aiProviders)
+        {
+            var toolId = GetToolIdFromProviderUrl(provider.BaseUrl);
+            if (toolId == null) continue;
+
+            try
+            {
+                var availableModels = await ApiService.GetAvailableModelsAsync(toolId);
+                var availableSet = availableModels.ToHashSet(StringComparer.OrdinalIgnoreCase);
+                foreach (var model in provider.Models)
+                {
+                    if (!availableSet.Contains(model.Name))
+                    {
+                        missingModels.Add(new MissingModelInfo
+                        {
+                            ProviderId = provider.Id,
+                            ProviderName = provider.Name,
+                            ModelName = model.Name,
+                            ToolId = toolId
+                        });
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                Logger.LogWarning(ex, "检查 {ProviderName} 模型列表失败", provider.Name);
+            }
+        }
+    }
+
+    private static string? GetToolIdFromProviderUrl(string baseUrl)
+    {
+        var lower = baseUrl.ToLowerInvariant();
+        if (lower.Contains("11434")) return "ollama";
+        if (lower.Contains("1234")) return "lmstudio";
+        return null;
+    }
+
+    private async Task RemoveMissingModelsAsync()
+    {
+        if (!await JSRuntime.InvokeAsync<bool>("confirm", $"确定要从配置中删除 {missingModels.Count} 个缺失的模型吗？"))
+            return;
+        isRemovingMissingModels = true;
+        _removeCts = new CancellationTokenSource();
+        try
+        {
+            var providerGroups = missingModels.GroupBy(m => m.ProviderId);
+            foreach (var group in providerGroups)
+            {
+                _removeCts.Token.ThrowIfCancellationRequested();
+                var provider = aiProviders.FirstOrDefault(p => p.Id == group.Key);
+                if (provider == null) continue;
+
+                var toRemove = group.Select(m => m.ModelName).ToHashSet(StringComparer.OrdinalIgnoreCase);
+                var remainingModels = provider.Models
+                    .Where(m => !toRemove.Contains(m.Name))
+                    .Select(m => new AiModelRequest
+                    {
+                        Name = m.Name,
+                        IsPaid = m.IsPaid,
+                        IsMain = m.IsMain
+                    })
+                    .ToList();
+
+                // 确保至少有一个默认模型
+                if (remainingModels.Count > 0 && !remainingModels.Any(m => m.IsMain))
+                {
+                    remainingModels[0].IsMain = true;
+                }
+
+                var request = new SaveAiProviderRequest
+                {
+                    Id = provider.Id,
+                    Name = provider.Name,
+                    BaseUrl = provider.BaseUrl,
+                    AnthropicBaseUrl = provider.AnthropicBaseUrl,
+                    IsMain = provider.IsMain,
+                    Models = remainingModels,
+                    ApiKey = null // 保留现有密钥
+                };
+
+                var result = await ApiService.SaveAiConfigProviderAsync(request);
+                if (!result.Success)
+                {
+                    Logger.LogWarning("删除 {ProviderName} 缺失模型失败: {Message}", provider.Name, result.Message);
+                }
+            }
+
+            missingModels.Clear();
+            await LoadAiProviders();
+            await StatusUpdateService.NotifyAIStatusChangedAsync();
+            AIStatusService.NotifyStateChanged();
+        }
+        catch (OperationCanceledException)
+        {
+            // 用户取消，不处理
+        }
+        finally
+        {
+            isRemovingMissingModels = false;
+            _removeCts?.Dispose();
+            _removeCts = null;
+        }
+    }
+
+    private void StopRemoveMissingModels()
+    {
+        _removeCts?.Cancel();
+    }
+
+    private void GoToLocalModels()
+    {
+        Navigation.NavigateTo("local-models");
+    }
+
+    private void DismissMissingModelsWarning()
+    {
+        missingModels.Clear();
+    }
+
+    private async Task AddNewProvider()
+    {
+        // 加载预设列表
+        providerPresets = await ApiService.GetAiProviderPresetsAsync();
+        
+        editingProvider = new EditProviderModel
+        {
+            Id = "",
+            Name = "",
+            BaseUrl = "https://api.example.com/v1",
+            IsMain = aiProviders.Count == 0, // 第一个默认设为主提供商
+            Tier = AiModelTier.Tier3_Cloud, // 默认云端
+            Models = new List<EditModel>(),
+            ApiKey = ""
+        };
+        isEditing = true;
+        editErrorMessage = "";
+    }
+
+    private void OnPresetSelected(ChangeEventArgs e)
+    {
+        var presetId = e.Value?.ToString();
+        if (string.IsNullOrEmpty(presetId))
+        {
+            // 用户选择手动输入，清空所有字段
+            editingProvider.Id = "";
+            editingProvider.Name = "";
+            editingProvider.BaseUrl = "https://api.example.com/v1";
+            editingProvider.Models = new List<EditModel>();
+            return;
+        }
+
+        var preset = providerPresets.FirstOrDefault(p => p.Id == presetId);
+        if (preset != null)
+        {
+            editingProvider.Id = preset.Id;
+            editingProvider.Name = preset.Name;
+            editingProvider.BaseUrl = preset.BaseUrl;
+            editingProvider.Tier = preset.Tier;
+            editingProvider.Models = preset.Models.Select(m => new EditModel
+            {
+                Name = m.Name,
+                IsPaid = m.IsPaid,
+                IsMain = m.IsMain
+            }).ToList();
+        }
+    }
+
+    private void EditProvider(AiConfigProvider provider)
+    {
+        editingProvider = new EditProviderModel
+        {
+            Id = provider.Id,
+            Name = provider.Name,
+            BaseUrl = provider.BaseUrl,
+            AnthropicBaseUrl = provider.AnthropicBaseUrl,
+            IsMain = provider.IsMain,
+            Tier = provider.Tier,
+            Models = provider.Models.Select(m => new EditModel
+            {
+                Name = m.Name,
+                IsPaid = m.IsPaid,
+                IsMain = m.IsMain
+            }).ToList(),
+            ApiKey = "", // 为了安全不填充 API Key
+            ExistingKeyMask = provider.KeyMask
+        };
+        isEditing = true;
+        editErrorMessage = "";
+    }
+
+    private async Task DeleteProvider(AiConfigProvider provider)
+    {
+        if (!await ConfirmDelete($"确定要删除 '{provider.Name}' 吗？"))
+            return;
+
+        if (await ApiService.DeleteAiConfigProviderAsync(provider.Id))
+        {
+            statusMessage = "✅ 提供商删除成功，配置已立即生效！";
+            isSuccess = true;
+            await LoadAiProviders();
+            // 通过 SignalR 推送状态变更到所有客户端
+            await StatusUpdateService.NotifyAIStatusChangedAsync();
+            // 触发事件通知（用于同一页面内的组件更新）
+            AIStatusService.NotifyStateChanged();
+        }
+        else
+        {
+            statusMessage = "删除提供商失败";
+            isSuccess = false;
+        }
+    }
+
+    private async Task SaveProvider()
+    {
+        isSaving = true;
+        editErrorMessage = "";
+
+        try
+        {
+            // 验证
+            if (string.IsNullOrWhiteSpace(editingProvider.Id))
+            {
+                editErrorMessage = "提供商 ID 不能为空";
+                return;
+            }
+
+            if (string.IsNullOrWhiteSpace(editingProvider.Name))
+            {
+                editErrorMessage = "显示名称不能为空";
+                return;
+            }
+
+            if (string.IsNullOrWhiteSpace(editingProvider.BaseUrl))
+            {
+                editErrorMessage = "API 基础地址不能为空";
+                return;
+            }
+
+            var request = new SaveAiProviderRequest
+            {
+                Id = editingProvider.Id.Trim(),
+                Name = editingProvider.Name.Trim(),
+                BaseUrl = editingProvider.BaseUrl.Trim(),
+                AnthropicBaseUrl = editingProvider.AnthropicBaseUrl,
+                IsMain = editingProvider.IsMain,
+                Models = editingProvider.Models.Select(m => new AiModelRequest
+                {
+                    Name = m.Name,
+                    IsPaid = m.IsPaid,
+                    IsMain = m.IsMain
+                }).ToList(),
+                ApiKey = string.IsNullOrWhiteSpace(editingProvider.ApiKey) ? null : editingProvider.ApiKey,
+                Tier = editingProvider.Tier
+            };
+
+            var result = await ApiService.SaveAiConfigProviderAsync(request);
+            if (result.Success)
+            {
+                isEditing = false;
+                statusMessage = "✅ 提供商保存成功，API Key 已加密存储！配置已立即生效";
+                isSuccess = true;
+                await LoadAiProviders();
+                // 通过 SignalR 推送状态变更到所有客户端
+                await StatusUpdateService.NotifyAIStatusChangedAsync();
+                // 触发事件通知（用于同一页面内的组件更新）
+                AIStatusService.NotifyStateChanged();
+            }
+            else
+            {
+                editErrorMessage = $"保存提供商失败: {result.Message}";
+            }
+        }
+        finally
+        {
+            isSaving = false;
+        }
+    }
+
+    private void CancelEdit()
+    {
+        isEditing = false;
+        editingProvider = new EditProviderModel();
+        editErrorMessage = "";
+    }
+
+    private void AddModel()
+    {
+        editingProvider.Models.Add(new EditModel
+        {
+            Name = "",
+            IsPaid = false,
+            IsMain = editingProvider.Models.Count == 0
+        });
+    }
+
+    private void RemoveModel(EditModel model)
+    {
+        editingProvider.Models.Remove(model);
+        // 确保至少有一个默认模型
+        if (model.IsMain && editingProvider.Models.Count > 0)
+        {
+            editingProvider.Models[0].IsMain = true;
+        }
+    }
+
+    private void SetMainModel(EditModel model)
+    {
+        foreach (var m in editingProvider.Models)
+        {
+            m.IsMain = (m == model);
+        }
+    }
+
+    private static bool IsLocalProviderUrl(string baseUrl)
+    {
+        if (string.IsNullOrWhiteSpace(baseUrl)) return false;
+        var lower = baseUrl.ToLowerInvariant();
+        return lower.Contains("localhost:11434") || lower.Contains("127.0.0.1:11434") ||
+               lower.Contains("localhost:1234") || lower.Contains("127.0.0.1:1234");
+    }
+
+    private class MissingModelInfo
+    {
+        public string ProviderId { get; set; } = "";
+        public string ProviderName { get; set; } = "";
+        public string ModelName { get; set; } = "";
+        public string ToolId { get; set; } = "";
+    }
+
+    private async Task AutoFetchModelsAsync()
+    {
+        isFetchingModels = true;
+        fetchModelsError = "";
+        _fetchCts = new CancellationTokenSource();
+        try
+        {
+            string? toolId = null;
+            var lower = editingProvider.BaseUrl.ToLowerInvariant();
+            if (lower.Contains("11434"))
+                toolId = "ollama";
+            else if (lower.Contains("1234"))
+                toolId = "lmstudio";
+
+            if (toolId == null)
+            {
+                fetchModelsError = "无法识别本地工具类型";
+                return;
+            }
+
+            var models = await ApiService.GetAvailableModelsAsync(toolId, _fetchCts.Token);
+            if (models.Count == 0)
+            {
+                fetchModelsError = "未获取到模型，请检查工具是否运行";
+                return;
+            }
+
+            var existingNames = editingProvider.Models.Select(m => m.Name).ToHashSet();
+            int added = 0;
+            foreach (var name in models)
+            {
+                if (existingNames.Contains(name)) continue;
+                editingProvider.Models.Add(new EditModel
+                {
+                    Name = name,
+                    IsPaid = false,
+                    IsMain = editingProvider.Models.Count == 0
+                });
+                existingNames.Add(name);
+                added++;
+            }
+
+            if (added == 0)
+            {
+                fetchModelsError = $"模型列表已是最新（共 {models.Count} 个）";
+            }
+        }
+        catch (OperationCanceledException)
+        {
+            fetchModelsError = "已取消获取";
+        }
+        catch (Exception ex)
+        {
+            fetchModelsError = $"获取失败: {ex.Message}";
+        }
+        finally
+        {
+            isFetchingModels = false;
+            _fetchCts?.Dispose();
+            _fetchCts = null;
+        }
+    }
+
+    private void StopFetchModels()
+    {
+        _fetchCts?.Cancel();
+    }
+
+    private async Task ReloadProviders()
+    {
+        await LoadAiProviders();
+    }
+
+    private async Task<bool> ConfirmDelete(string message)
+    {
+        return await JSRuntime.InvokeAsync<bool>("confirm", message);
+    }
+
+    private class EditProviderModel
+    {
+        public string Id { get; set; } = "";
+        public string Name { get; set; } = "";
+        public string BaseUrl { get; set; } = "";
+        public string? AnthropicBaseUrl { get; set; }
+        public bool IsMain { get; set; }
+        public List<EditModel> Models { get; set; } = new();
+        public string ApiKey { get; set; } = "";
+        public string? ExistingKeyMask { get; set; }
+        public AiModelTier Tier { get; set; } = AiModelTier.Unset;
+    }
+
+    private class EditModel
+    {
+        public string Name { get; set; } = "";
+        public bool IsPaid { get; set; }
+        public bool IsMain { get; set; }
+    }
+
+    // Embedding 配置
+    private EmbeddingConfigDto embeddingConfig = new();
+    private bool isSavingEmbedding = false;
+    private string embeddingConfigMessage = "";
+    private bool embeddingConfigSuccess = false;
+
+    private async Task LoadEmbeddingConfigAsync()
+    {
+        try
+        {
+            embeddingConfig = await ApiService.GetEmbeddingConfigAsync();
+        }
+        catch (Exception ex)
+        {
+            Logger.LogWarning(ex, "加载 Embedding 配置失败");
+        }
+    }
+
+    private async Task SaveEmbeddingConfig()
+    {
+        isSavingEmbedding = true;
+        embeddingConfigMessage = "";
+        try
+        {
+            var request = new SaveEmbeddingConfigRequest
+            {
+                ProviderId = embeddingConfig.ProviderId,
+                Model = embeddingConfig.Model,
+                BaseUrl = embeddingConfig.BaseUrl,
+                ApiKey = string.IsNullOrWhiteSpace(embeddingConfig.ApiKey) ? null : embeddingConfig.ApiKey,
+                IsEnabled = embeddingConfig.IsEnabled,
+                Dimensions = embeddingConfig.Dimensions
+            };
+            var result = await ApiService.SaveEmbeddingConfigAsync(request);
+            embeddingConfigSuccess = result.Success;
+            embeddingConfigMessage = result.Success ? "✅ Embedding 配置已保存" : $"❌ 保存失败: {result.Message}";
+            if (result.Success)
+            {
+                // 重新加载以更新 KeyMask
+                await LoadEmbeddingConfigAsync();
+            }
+        }
+        catch (Exception ex)
+        {
+            embeddingConfigSuccess = false;
+            embeddingConfigMessage = $"保存失败: {ex.Message}";
+        }
+        finally
+        {
+            isSavingEmbedding = false;
+        }
+    }
+
+    // 本地模型配置
+    private string localModelDownloadDir = "";
+    private string platformDefaultDownloadDir = "";
+    private string preferredDownloadSource = "auto";
+    private bool useChinaMirror = true;
+    private bool isSavingLocalConfig = false;
+    private string localModelConfigMessage = "";
+    private bool localModelConfigSuccess = false;
+
+    private async Task LoadLocalModelConfigAsync()
+    {
+        try
+        {
+            var config = await ApiService.GetDownloadConfigAsync();
+            if (config != null)
+            {
+                localModelDownloadDir = config.DownloadDirectory ?? "";
+                platformDefaultDownloadDir = config.PlatformDefaultDirectory ?? "";
+                preferredDownloadSource = config.PreferredSource ?? "auto";
+                useChinaMirror = config.UseChinaMirror;
+            }
+        }
+        catch (Exception ex)
+        {
+            Logger.LogWarning(ex, "加载本地模型配置失败");
+        }
+    }
+
+    private async Task SaveLocalModelConfig()
+    {
+        isSavingLocalConfig = true;
+        localModelConfigMessage = "";
+        try
+        {
+            var config = new DownloadDirectoryConfigDto
+            {
+                DownloadDirectory = localModelDownloadDir,
+                PreferredSource = preferredDownloadSource,
+                UseChinaMirror = useChinaMirror
+            };
+
+            var success = await ApiService.SaveDownloadConfigAsync(config);
+            localModelConfigSuccess = success;
+            localModelConfigMessage = success ? "✅ 本地模型设置已保存" : "❌ 保存失败";
+        }
+        catch (Exception ex)
+        {
+            localModelConfigSuccess = false;
+            localModelConfigMessage = $"保存失败: {ex.Message}";
+        }
+        finally
+        {
+            isSavingLocalConfig = false;
+        }
+    }
+}

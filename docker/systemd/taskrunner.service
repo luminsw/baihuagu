@@ -1,0 +1,17 @@
+[Unit]
+Description=TaskRunner Family
+After=network.target
+
+[Service]
+Type=simple
+WorkingDirectory=/opt/yj/TaskRunner.Family
+EnvironmentFile=/etc/systemd/system/taskrunner.env
+Environment=TASKRUNNER_DATA_DIR=/opt/yj/data
+ExecStart=/usr/bin/dotnet TaskRunner.Family.dll --urls http://0.0.0.0:8788
+Restart=always
+RestartSec=5
+StandardOutput=append:/opt/yj/logs/taskrunner.log
+StandardError=append:/opt/yj/logs/taskrunner.log
+
+[Install]
+WantedBy=multi-user.target

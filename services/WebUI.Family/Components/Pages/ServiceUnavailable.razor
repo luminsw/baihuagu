@@ -1,0 +1,241 @@
+@page "/service-unavailable"
+@using Microsoft.AspNetCore.Hosting
+@inject NavigationManager Navigation
+@inject WebUI.Services.IApiService ApiService
+@inject IWebHostEnvironment Environment
+@rendermode InteractiveServer
+
+<PageTitle>后台服务不可用</PageTitle>
+
+<div class="service-unavailable-container">
+    <div class="error-card">
+        <div class="error-icon">⚠️</div>
+        <h1>后台服务连接失败</h1>
+        <p class="error-description">
+            无法连接到 TaskRunner 后台服务（端口 8788）。<br/>
+            部分功能（任务管理、AI 对话、搜索等）暂时不可用。
+        </p>
+
+        @if (!string.IsNullOrWhiteSpace(errorMessage))
+        {
+            <div class="error-detail">
+                <code>@errorMessage</code>
+            </div>
+        }
+
+        <div class="help-section">
+            <h3>请尝试以下步骤：</h3>
+            <ol>
+                <li>
+                    <strong>启动后台服务</strong>
+                    @if (Environment.IsDevelopment())
+                    {
+                        <div class="command-block">
+                            <code>cd services/TaskRunner.Family && dotnet run --urls "http://localhost:8788"</code>
+                        </div>
+                    }
+                    else
+                    {
+                        <div class="command-block">
+                            <code>./TaskRunner --urls "http://localhost:8788"</code>
+                        </div>
+                        <p class="release-hint">
+                            请运行 TaskRunner 可执行文件，确保端口 8788 可用。
+                        </p>
+                    }
+                </li>
+                <li>等待后台服务启动完成（约 5-10 秒）</li>
+                <li>点击下方的"重试连接"按钮</li>
+            </ol>
+        </div>
+
+        <div class="action-buttons">
+            <button class="btn btn-primary btn-lg" @onclick="RetryConnection" disabled="@isRetrying">
+                @if (isRetrying)
+                {
+                    <span class="spinner-border spinner-border-sm me-2" role="status" aria-hidden="true"></span>
+                    <span>正在检测...</span>
+                }
+                else
+                {
+                    <span>🔄 重试连接</span>
+                }
+            </button>
+
+            <button class="btn btn-outline-secondary" @onclick="GoToHome">
+                返回首页
+            </button>
+        </div>
+
+        @if (retryMessage != null)
+        {
+            <div class="alert @(retrySuccess ? "alert-success" : "alert-danger") mt-3">
+                @retryMessage
+            </div>
+        }
+    </div>
+</div>
+
+<style>
+    .service-unavailable-container {
+        min-height: 100vh;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        padding: 2rem;
+        background: linear-gradient(135deg, #f5f7fa 0%, #c3cfe2 100%);
+    }
+
+    .error-card {
+        background: white;
+        border-radius: 16px;
+        padding: 3rem;
+        max-width: 600px;
+        width: 100%;
+        text-align: center;
+        box-shadow: 0 10px 40px rgba(0,0,0,0.1);
+    }
+
+    .error-icon {
+        font-size: 4rem;
+        margin-bottom: 1rem;
+    }
+
+    h1 {
+        color: #dc3545;
+        font-size: 1.8rem;
+        margin-bottom: 1rem;
+    }
+
+    .error-description {
+        color: #6c757d;
+        font-size: 1.1rem;
+        margin-bottom: 1.5rem;
+        line-height: 1.6;
+    }
+
+    .error-detail {
+        background: #f8f9fa;
+        border-radius: 8px;
+        padding: 1rem;
+        margin-bottom: 1.5rem;
+    }
+
+    .error-detail code {
+        color: #dc3545;
+        font-size: 0.9rem;
+    }
+
+    .help-section {
+        text-align: left;
+        background: #f8f9fa;
+        border-radius: 12px;
+        padding: 1.5rem;
+        margin-bottom: 2rem;
+    }
+
+    .help-section h3 {
+        font-size: 1.1rem;
+        margin-bottom: 1rem;
+        color: #495057;
+    }
+
+    .help-section ol {
+        padding-left: 1.2rem;
+        margin-bottom: 0;
+    }
+
+    .help-section li {
+        margin-bottom: 0.75rem;
+        color: #495057;
+    }
+
+    .help-section li:last-child {
+        margin-bottom: 0;
+    }
+
+    .command-block {
+        background: #212529;
+        color: #d4d4d4;
+        padding: 0.75rem 1rem;
+        border-radius: 6px;
+        margin-top: 0.5rem;
+        font-family: 'Consolas', 'Monaco', monospace;
+        font-size: 0.85rem;
+        overflow-x: auto;
+    }
+
+    .command-block code {
+        color: #d4d4d4;
+        background: none;
+        padding: 0;
+    }
+
+    .release-hint {
+        font-size: 0.85rem;
+        color: #6c757d;
+        margin-top: 0.5rem;
+        margin-bottom: 0;
+    }
+
+    .action-buttons {
+        display: flex;
+        gap: 1rem;
+        justify-content: center;
+        flex-wrap: wrap;
+    }
+
+    .action-buttons .btn-lg {
+        padding: 0.75rem 2rem;
+        font-size: 1.1rem;
+    }
+</style>
+
+@code {
+    private string? errorMessage;
+    private bool isRetrying;
+    private string? retryMessage;
+    private bool retrySuccess;
+
+    protected override void OnInitialized()
+    {
+        // 从查询参数获取错误信息
+        var uri = Navigation.ToAbsoluteUri(Navigation.Uri);
+        if (Microsoft.AspNetCore.WebUtilities.QueryHelpers.ParseQuery(uri.Query).TryGetValue("error", out var error))
+        {
+            errorMessage = error;
+        }
+    }
+
+    private async Task RetryConnection()
+    {
+        isRetrying = true;
+        retryMessage = null;
+
+        try
+        {
+            await ApiService.CheckHealthFastAsync();
+            retrySuccess = true;
+            retryMessage = "✅ 连接成功！即将跳转到首页...";
+
+            // 延迟后跳转
+            await Task.Delay(1500);
+            Navigation.NavigateTo("", forceLoad: true);
+        }
+        catch (Exception ex)
+        {
+            retrySuccess = false;
+            retryMessage = $"❌ 连接失败：{ex.Message}";
+            errorMessage = ex.Message;
+        }
+        finally
+        {
+            isRetrying = false;
+        }
+    }
+
+    private void GoToHome()
+    {
+        Navigation.NavigateTo("");
+    }
+}

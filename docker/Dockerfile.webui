@@ -1,0 +1,49 @@
+# WebUI.Family - 家庭版管理后台（Blazor Server）
+# 基于预构建的基础镜像，加速构建过程
+#
+# 首次构建前需要先构建基础镜像：
+#   docker build -f Dockerfile.base-build -t yj-family/base-build:latest ..
+#   docker build -f Dockerfile.base-runtime -t yj-family/base-runtime:latest ..
+
+# ==================== Build 阶段 ====================
+FROM yj-family/base-build:latest AS build
+WORKDIR /src
+
+# 先复制项目文件以利用 Docker 缓存层
+COPY services/TaskRunner.Contracts/TaskRunner.Contracts.csproj services/TaskRunner.Contracts/
+COPY services/WebUI.Family/WebUI.Family.csproj services/WebUI.Family/
+RUN dotnet restore services/WebUI.Family/WebUI.Family.csproj
+
+# 复制全部源码并发布
+COPY services/ services/
+# 清理宿主机可能带入的 bin/obj 缓存，确保 dotnet publish 完整生成所有文件（包括 _framework）
+RUN find /src/services -type d -name bin -exec rm -rf {} + 2>/dev/null; \
+    find /src/services -type d -name obj -exec rm -rf {} + 2>/dev/null; \
+    dotnet restore services/WebUI.Family/WebUI.Family.csproj && \
+    dotnet publish services/WebUI.Family/WebUI.Family.csproj \
+    -c Release -o /app/publish
+
+# ==================== Runtime 阶段 ====================
+FROM yj-family/base-runtime:latest AS runtime
+WORKDIR /app
+
+COPY --from=build /app/publish .
+
+ARG GIT_COMMIT=unknown
+ARG GIT_BRANCH=unknown
+LABEL git.commit=$GIT_COMMIT
+LABEL git.branch=$GIT_BRANCH
+
+EXPOSE 5177
+
+ENV ASPNETCORE_URLS=http://0.0.0.0:5177
+ENV WEBUI_CONFIG_DIR=/app/data
+# Docker 网络内通过服务名访问 TaskRunner
+# host 网络模式下通过 localhost 访问 TaskRunner
+# bridge 网络模式下改为 http://taskrunner:8788/
+ENV TaskRunnerApi__BaseUrl=http://127.0.0.1:8788/
+
+HEALTHCHECK --interval=30s --timeout=10s --start-period=40s --retries=3 \
+    CMD curl -f http://localhost:5177/ || exit 1
+
+ENTRYPOINT ["dotnet", "WebUI.Family.dll"]

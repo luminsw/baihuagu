@@ -1,0 +1,188 @@
+@page "/orders"
+@rendermode InteractiveServer
+@inject HttpClient HttpClient
+@inject ILogger<Orders> Logger
+
+<PageTitle>订单管理</PageTitle>
+
+<div class="container mt-4">
+    <h2 class="mb-4">📋 订单管理</h2>
+
+    @if (!string.IsNullOrEmpty(message))
+    {
+        <div class="alert alert-@(isSuccess ? "success" : "danger") alert-dismissible fade show">
+            @message
+            <button type="button" class="btn-close" @onclick="() => message = null"></button>
+        </div>
+    }
+
+    <div class="card">
+        <div class="card-header bg-primary bg-opacity-10 d-flex justify-content-between align-items-center">
+            <h5 class="mb-0">💎 购买记录 (@orders.Count)</h5>
+            <button class="btn btn-sm btn-outline-secondary" @onclick="LoadOrdersAsync" disabled="@isLoading">
+                @(isLoading ? "加载中..." : "🔄 刷新")
+            </button>
+        </div>
+        <div class="card-body">
+            @if (isLoading)
+            {
+                <div class="text-center py-4">
+                    <div class="spinner-border text-primary" role="status"></div>
+                    <p class="mt-2 text-muted">加载订单...</p>
+                </div>
+            }
+            else if (!orders.Any())
+            {
+                <div class="text-center py-5 text-muted">
+                    <p class="mb-0">暂无订单记录</p>
+                </div>
+            }
+            else
+            {
+                <div class="table-responsive">
+                    <table class="table table-hover table-sm mb-0">
+                        <thead class="table-light">
+                            <tr>
+                                <th>ID</th>
+                                <th>设备</th>
+                                <th>商品</th>
+                                <th>配额</th>
+                                <th>类型</th>
+                                <th>状态</th>
+                                <th>时间</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            @foreach (var order in orders)
+                            {
+                                <tr>
+                                    <td class="small text-muted">@order.Id</td>
+                                    <td>
+                                        <div>@order.DeviceName</div>
+                                        <div class="text-muted small">@order.DeviceId</div>
+                                    </td>
+                                    <td>@FormatProductId(order.ProductId)</td>
+                                    <td>
+                                        <span class="badge bg-info">+@order.QuotaAdded</span>
+                                    </td>
+                                    <td>
+                                        <span class="badge @(order.QuotaType == "sync" ? "bg-primary" : "bg-success")">
+                                            @(order.QuotaType == "sync" ? "同步" : "AI构建")
+                                        </span>
+                                    </td>
+                                    <td>
+                                        @if (order.IsVerified)
+                                        {
+                                            <span class="badge bg-success">✅ 已验证</span>
+                                        }
+                                        else
+                                        {
+                                            <span class="badge bg-warning text-dark">⏳ 待验证</span>
+                                        }
+                                    </td>
+                                    <td class="small">@order.CreatedAt.ToLocalTime().ToString("MM-dd HH:mm")</td>
+                                </tr>
+                            }
+                        </tbody>
+                    </table>
+                </div>
+            }
+        </div>
+    </div>
+
+    <!-- 统计卡片 -->
+    @if (orders.Any())
+    {
+        <div class="row mt-4">
+            <div class="col-md-3">
+                <div class="card text-center">
+                    <div class="card-body">
+                        <div class="display-6 text-primary">@orders.Count</div>
+                        <div class="text-muted small">总订单数</div>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-3">
+                <div class="card text-center">
+                    <div class="card-body">
+                        <div class="display-6 text-success">@orders.Count(o => o.IsVerified)</div>
+                        <div class="text-muted small">已验证</div>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-3">
+                <div class="card text-center">
+                    <div class="card-body">
+                        <div class="display-6 text-info">@orders.Where(o => o.QuotaType == "sync").Sum(o => o.QuotaAdded)</div>
+                        <div class="text-muted small">同步配额售出</div>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-3">
+                <div class="card text-center">
+                    <div class="card-body">
+                        <div class="display-6 text-warning">@orders.Where(o => o.QuotaType == "ai_build").Sum(o => o.QuotaAdded)</div>
+                        <div class="text-muted small">AI配额售出</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    }
+</div>
+
+@code {
+    private List<OrderRecord> orders = new();
+    private bool isLoading;
+    private string? message;
+    private bool isSuccess;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadOrdersAsync();
+    }
+
+    private async Task LoadOrdersAsync()
+    {
+        try
+        {
+            isLoading = true;
+            var result = await HttpClient.GetFromJsonAsync<List<OrderRecord>>("api/mobile/orders/all");
+            orders = result ?? new List<OrderRecord>();
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "加载订单列表失败");
+            message = $"加载失败: {ex.Message}";
+            isSuccess = false;
+        }
+        finally
+        {
+            isLoading = false;
+        }
+    }
+
+    private static string FormatProductId(string productId)
+    {
+        return productId switch
+        {
+            "sync_5" => "📦 同步包 x5",
+            "sync_20" => "📦 同步包 x20",
+            "ai_build_5" => "🤖 AI包 x5",
+            "ai_build_20" => "🤖 AI包 x20",
+            _ => productId
+        };
+    }
+
+    private class OrderRecord
+    {
+        public int Id { get; set; }
+        public string DeviceId { get; set; } = "";
+        public string? DeviceName { get; set; }
+        public string ProductId { get; set; } = "";
+        public string? OrderId { get; set; }
+        public int QuotaAdded { get; set; }
+        public string QuotaType { get; set; } = "";
+        public bool IsVerified { get; set; }
+        public DateTime CreatedAt { get; set; }
+    }
+}

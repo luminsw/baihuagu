@@ -1,0 +1,203 @@
+@using WebUI.Services
+
+<!-- API 调用性能摘要 -->
+@if (ApiSummary != null)
+{
+    <div class="row g-3 mb-4">
+        <div class="col-md-2">
+            <div class="card bg-primary text-white">
+                <div class="card-body text-center">
+                    <div class="h3 mb-0">@ApiSummary.TotalCalls</div>
+                    <small>总调用次数</small>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-2">
+            <div class="card @(ApiSummary.ErrorCount > 0 ? "bg-danger" : "bg-success") text-white">
+                <div class="card-body text-center">
+                    <div class="h3 mb-0">@ApiSummary.SuccessCount</div>
+                    <small>成功次数</small>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-2">
+            <div class="card @(ApiSummary.ErrorCount > 0 ? "bg-danger" : "bg-success") text-white">
+                <div class="card-body text-center">
+                    <div class="h3 mb-0">@ApiSummary.ErrorCount</div>
+                    <small>失败次数</small>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-2">
+            <div class="card bg-info text-white">
+                <div class="card-body text-center">
+                    <div class="h3 mb-0">@ApiSummary.AvgElapsedMs.ToString("F1")</div>
+                    <small>平均耗时(ms)</small>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-2">
+            <div class="card bg-warning text-dark">
+                <div class="card-body text-center">
+                    <div class="h3 mb-0">@ApiSummary.MaxElapsedMs.ToString("F0")</div>
+                    <small>最大耗时(ms)</small>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-2">
+            <div class="card bg-secondary text-white">
+                <div class="card-body text-center">
+                    <div class="h3 mb-0">@ApiSummary.SuccessRate.ToString("F1")%</div>
+                    <small>成功率</small>
+                </div>
+            </div>
+        </div>
+    </div>
+}
+
+<!-- 瓶颈分析 -->
+@if (EndpointStats?.Any() == true)
+{
+    <div class="card border-warning mb-4">
+        <div class="card-header bg-warning text-dark">
+            <h5 class="mb-0">🐌 API 瓶颈分析</h5>
+        </div>
+        <div class="card-body p-0">
+            <div class="table-responsive">
+                <table class="table table-hover table-sm mb-0">
+                    <thead class="table-light">
+                        <tr>
+                            <th>端点</th>
+                            <th class="text-end">调用次数</th>
+                            <th class="text-end">成功率</th>
+                            <th class="text-end">平均耗时</th>
+                            <th class="text-end">P50</th>
+                            <th class="text-end">P95</th>
+                            <th class="text-end">P99</th>
+                            <th class="text-end">最大耗时</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @foreach (var stat in EndpointStats.OrderByDescending(s => s.AvgElapsedMs).Take(10))
+                        {
+                            <tr class="@(GetRowClass(stat.AvgElapsedMs))">
+                                <td><code class="small">@stat.Method @stat.Endpoint</code></td>
+                                <td class="text-end">@stat.CallCount</td>
+                                <td class="text-end">
+                                    <span class="badge @(stat.SuccessRate >= 99 ? "bg-success" : stat.SuccessRate >= 95 ? "bg-warning" : "bg-danger")">
+                                        @stat.SuccessRate.ToString("F1")%
+                                    </span>
+                                </td>
+                                <td class="text-end font-monospace">
+                                    <span class="badge @GetBadgeClass(stat.AvgElapsedMs)">
+                                        @stat.AvgElapsedMs ms
+                                    </span>
+                                </td>
+                                <td class="text-end font-monospace text-muted">@stat.P50ElapsedMs ms</td>
+                                <td class="text-end font-monospace">@stat.P95ElapsedMs ms</td>
+                                <td class="text-end font-monospace @(stat.P99ElapsedMs > 1000 ? "text-danger fw-bold" : "")">@stat.P99ElapsedMs ms</td>
+                                <td class="text-end font-monospace text-danger">@stat.MaxElapsedMs ms</td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+}
+
+<!-- 最慢调用 -->
+@if (ApiMetrics?.Any() == true)
+{
+    <div class="card mb-4">
+        <div class="card-header">
+            <h5 class="mb-0">🐢 最慢 API 调用 Top @(ApiMetrics.Count)</h5>
+        </div>
+        <div class="card-body p-0">
+            <div class="table-responsive" style="max-height: 400px; overflow-y: auto;">
+                <table class="table table-hover table-sm mb-0">
+                    <thead class="table-light sticky-top">
+                        <tr>
+                            <th>时间</th>
+                            <th>方法</th>
+                            <th>端点</th>
+                            <th class="text-end">耗时</th>
+                            <th>状态</th>
+                            <th>错误</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @foreach (var call in ApiMetrics)
+                        {
+                            <tr class="@(call.ElapsedMilliseconds > 1000 ? "table-danger" : call.ElapsedMilliseconds > 500 ? "table-warning" : "")">
+                                <td class="small text-nowrap">@call.Timestamp.ToLocalTime().ToString("HH:mm:ss")</td>
+                                <td><span class="badge bg-secondary">@call.Method</span></td>
+                                <td><code class="small">@call.Endpoint</code></td>
+                                <td class="text-end font-monospace">
+                                    <span class="badge @GetBadgeClass(call.ElapsedMilliseconds)">
+                                        @call.ElapsedMilliseconds ms
+                                    </span>
+                                </td>
+                                <td>
+                                    @if (call.Success)
+                                    {
+                                        <span class="badge bg-success">成功</span>
+                                    }
+                                    else
+                                    {
+                                        <span class="badge bg-danger">失败</span>
+                                    }
+                                </td>
+                                <td class="small text-danger">@(call.Error?.Length > 50 ? call.Error.Substring(0, 50) + "..." : call.Error)</td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+}
+else
+{
+    <div class="card">
+        <div class="card-body text-center py-5 text-muted">
+            <div class="mb-3">📭</div>
+            <p>暂无 API 调用数据</p>
+            <p class="small">数据会在 WebUI 调用 TaskRunner API 时自动收集</p>
+        </div>
+    </div>
+}
+
+<!-- 使用说明 -->
+<div class="alert alert-info mt-4">
+    <h6>💡 性能优化建议</h6>
+    <ul class="mb-0 small">
+        <li><strong>平均耗时 > 500ms</strong>：考虑添加缓存或优化查询</li>
+        <li><strong>P99 > 2000ms</strong>：存在长尾延迟，检查偶发慢请求</li>
+        <li><strong>成功率 &lt; 99%</strong>：检查 TaskRunner 服务稳定性</li>
+        <li><strong>调用次数过多</strong>：考虑批量请求或添加客户端缓存</li>
+    </ul>
+</div>
+
+@code {
+    [Parameter] public ApiCallMetricsSummary? ApiSummary { get; set; }
+    [Parameter] public List<ApiCallMetric>? ApiMetrics { get; set; }
+    [Parameter] public List<EndpointStats>? EndpointStats { get; set; }
+    [Parameter] public EventCallback OnRefresh { get; set; }
+    [Parameter] public EventCallback OnClear { get; set; }
+
+    private string GetBadgeClass(long elapsedMs)
+    {
+        if (elapsedMs > 2000) return "bg-danger";
+        if (elapsedMs > 1000) return "bg-warning text-dark";
+        if (elapsedMs > 500) return "bg-info";
+        return "bg-success";
+    }
+
+    private string GetRowClass(long avgElapsedMs)
+    {
+        if (avgElapsedMs > 1000) return "table-danger";
+        if (avgElapsedMs > 500) return "table-warning";
+        return "";
+    }
+}

@@ -1,0 +1,783 @@
+@page "/daily-card"
+@rendermode InteractiveServer
+@inject WebUI.Services.IApiService ApiService
+@inject WebUI.Services.VaultsService VaultsService
+@inject NavigationManager Navigation
+
+<PageTitle>每日一帖</PageTitle>
+
+<div class="daily-card-page">
+    <h1>📚 每日一帖</h1>
+
+    @if (!string.IsNullOrEmpty(errorMessage))
+    {
+        <div class="alert alert-error">@errorMessage</div>
+    }
+
+    <!-- 知识库选择 -->
+    <div class="vault-selector" style="margin-bottom:1rem;">
+        <label>知识库：</label>
+        <select class="form-control" style="display:inline-block;width:auto;min-width:200px;" @bind="selectedVaultId" @bind:after="OnVaultChanged">
+            @foreach (var vault in vaults)
+            {
+                <option value="@vault.Id">@vault.Name</option>
+            }
+        </select>
+    </div>
+
+    <!-- 进度与 streak -->
+    @if (progress != null)
+    {
+        <div class="progress-section">
+            <div class="streak-badge">
+                <span class="streak-flame">🔥</span>
+                <span class="streak-count">@(progress.Streak)</span>
+                <span class="streak-label">连续 @(progress.Streak) 天</span>
+            </div>
+            <div class="progress-bar-wrap">
+                <div class="progress-bar">
+                    <div class="progress-fill" style="width: @(progress.Target > 0 ? (progress.Completed * 100 / progress.Target) : 0)%"></div>
+                </div>
+                <span class="progress-text">@progress.Completed / @progress.Target</span>
+            </div>
+        </div>
+    }
+
+    <!-- 卡片区域 -->
+    @if (isLoading)
+    {
+        <div class="card-loading">加载中...</div>
+    }
+    else if (currentCard == null)
+    {
+        <div class="no-card">
+            <div class="no-card-icon">🎉</div>
+            <div>今日卡片已全部完成！</div>
+            @if (progress != null && progress.TotalCards == 0)
+            {
+                <div style="margin-top:0.5rem;color:#666;font-size:0.9rem;">暂无卡片，请先生成卡片</div>
+            }
+        </div>
+    }
+    else
+    {
+        <div class="card-container @(isFlipped ? "flipped" : "")" @onclick="FlipCard">
+            <div class="card-inner">
+                <div class="card-face card-front">
+                    <div class="card-deck">@currentCard.Deck</div>
+                    <div class="card-content">@currentCard.Front</div>
+                    <div class="card-hint">点击翻转</div>
+                </div>
+                <div class="card-face card-back">
+                    <div class="card-deck">@currentCard.Deck</div>
+                    <div class="card-content">@currentCard.Back</div>
+                    @if (currentCard.Tags?.Count > 0)
+                    {
+                        <div class="card-tags">
+                            @foreach (var tag in currentCard.Tags)
+                            {
+                                <span class="tag">@tag</span>
+                            }
+                        </div>
+                    }
+                </div>
+            </div>
+        </div>
+
+        @if (isFlipped)
+        {
+            <div class="answer-buttons">
+                <button class="btn btn-forgot" @onclick='() => SubmitAnswer("forgot")' disabled="@isSubmitting">
+                    ❌ 忘记
+                </button>
+                <button class="btn btn-hard" @onclick='() => SubmitAnswer("hard")' disabled="@isSubmitting">
+                    🤔 模糊
+                </button>
+                <button class="btn btn-remember" @onclick='() => SubmitAnswer("remember")' disabled="@isSubmitting">
+                    ✅ 记得
+                </button>
+            </div>
+        }
+        else
+        {
+            <div class="flip-hint">点击卡片查看答案</div>
+        }
+    }
+
+    <!-- 家长出题 -->
+    <div class="custom-card-section" style="margin-top:2rem;">
+        <details>
+            <summary class="custom-card-toggle">✏️ 家长出题</summary>
+            <div class="custom-card-form">
+                <div class="form-group">
+                    <label>题目（正面）</label>
+                    <textarea class="form-control" @bind="customFront" rows="3" placeholder="输入问题..."></textarea>
+                </div>
+                <div class="form-group">
+                    <label>答案（背面）</label>
+                    <textarea class="form-control" @bind="customBack" rows="3" placeholder="输入答案..."></textarea>
+                </div>
+                <div class="form-group">
+                    <label>牌组</label>
+                    <input type="text" class="form-control" @bind="customDeck" placeholder="家长出题" />
+                </div>
+                <div class="form-actions">
+                    <button class="btn btn-primary" @onclick="SaveCustomCard" disabled="@isSavingCustom">
+                        @(isSavingCustom ? "保存中..." : "保存卡片")
+                    </button>
+                </div>
+                @if (!string.IsNullOrEmpty(customMessage))
+                {
+                    <div class="alert @(customSuccess ? "alert-success" : "alert-error")" style="margin-top:0.5rem;">
+                        @customMessage
+                    </div>
+                }
+            </div>
+        </details>
+    </div>
+</div>
+
+<!-- 成就解锁弹窗 -->
+@if (showAchievementPopup && CurrentPopupAchievement != null)
+{
+    <div class="achievement-overlay" @onclick="DismissPopup">
+        <div class="achievement-popup" @onclick:stopPropagation="true">
+            <div class="achievement-shine"></div>
+            <div class="achievement-content">
+                <div class="achievement-header">🏆 成就解锁</div>
+                <div class="achievement-icon">@CurrentPopupAchievement.Icon</div>
+                <div class="achievement-title">@CurrentPopupAchievement.Title</div>
+                <div class="achievement-desc">@CurrentPopupAchievement.Description</div>
+                <div class="achievement-tier @($"tier-{CurrentPopupAchievement.Tier}")">@GetTierLabel(CurrentPopupAchievement.Tier)</div>
+                @if (newAchievements.Count > 1)
+                {
+                    <div class="achievement-counter">@(currentAchievementIndex + 1) / @newAchievements.Count</div>
+                }
+            </div>
+            <div class="achievement-actions">
+                @if (currentAchievementIndex < newAchievements.Count - 1)
+                {
+                    <button class="btn-achievement-next" @onclick="NextAchievement">下一个 ➡️</button>
+                }
+                else
+                {
+                    <button class="btn-achievement-close" @onclick="DismissPopup">太棒了！🎉</button>
+                }
+            </div>
+        </div>
+    </div>
+}
+
+<style>
+    .daily-card-page {
+        max-width: 720px;
+        margin: 0 auto;
+        padding: 1rem;
+    }
+
+    .daily-card-page h1 {
+        margin-bottom: 1rem;
+    }
+
+    .progress-section {
+        display: flex;
+        align-items: center;
+        gap: 1rem;
+        margin-bottom: 1.5rem;
+        padding: 0.75rem 1rem;
+        background: #f8f9fa;
+        border-radius: 8px;
+    }
+
+    .streak-badge {
+        display: flex;
+        align-items: center;
+        gap: 0.25rem;
+        font-weight: 600;
+        color: #e65100;
+        white-space: nowrap;
+    }
+
+    .streak-flame {
+        font-size: 1.3rem;
+    }
+
+    .streak-count {
+        font-size: 1.2rem;
+    }
+
+    .streak-label {
+        font-size: 0.8rem;
+        color: #888;
+    }
+
+    .progress-bar-wrap {
+        flex: 1;
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+    }
+
+    .progress-bar {
+        flex: 1;
+        height: 10px;
+        background: #e9ecef;
+        border-radius: 5px;
+        overflow: hidden;
+    }
+
+    .progress-fill {
+        height: 100%;
+        background: linear-gradient(90deg, #28a745, #20c997);
+        border-radius: 5px;
+        transition: width 0.3s ease;
+    }
+
+    .progress-text {
+        font-size: 0.85rem;
+        color: #666;
+        min-width: 3rem;
+        text-align: right;
+    }
+
+    .card-container {
+        perspective: 1000px;
+        cursor: pointer;
+        margin-bottom: 1.5rem;
+    }
+
+    .card-inner {
+        position: relative;
+        width: 100%;
+        min-height: 220px;
+        transition: transform 0.5s;
+        transform-style: preserve-3d;
+    }
+
+    .card-container.flipped .card-inner {
+        transform: rotateY(180deg);
+    }
+
+    .card-face {
+        position: absolute;
+        width: 100%;
+        min-height: 220px;
+        backface-visibility: hidden;
+        background: white;
+        border: 1px solid #dee2e6;
+        border-radius: 12px;
+        padding: 1.5rem;
+        display: flex;
+        flex-direction: column;
+        box-shadow: 0 2px 8px rgba(0,0,0,0.06);
+    }
+
+    .card-back {
+        transform: rotateY(180deg);
+        background: #f8f9fa;
+    }
+
+    .card-deck {
+        font-size: 0.8rem;
+        color: #888;
+        margin-bottom: 0.75rem;
+    }
+
+    .card-content {
+        flex: 1;
+        font-size: 1.15rem;
+        line-height: 1.7;
+        white-space: pre-wrap;
+    }
+
+    .card-hint {
+        text-align: center;
+        font-size: 0.8rem;
+        color: #aaa;
+        margin-top: 0.5rem;
+    }
+
+    .card-tags {
+        margin-top: 0.75rem;
+        display: flex;
+        flex-wrap: wrap;
+        gap: 0.35rem;
+    }
+
+    .tag {
+        font-size: 0.75rem;
+        background: #e9ecef;
+        color: #555;
+        padding: 0.15rem 0.5rem;
+        border-radius: 3px;
+    }
+
+    .flip-hint {
+        text-align: center;
+        color: #888;
+        font-size: 0.9rem;
+    }
+
+    .answer-buttons {
+        display: flex;
+        gap: 0.75rem;
+        justify-content: center;
+    }
+
+    .answer-buttons .btn {
+        padding: 0.6rem 1.5rem;
+        border: none;
+        border-radius: 6px;
+        font-size: 1rem;
+        cursor: pointer;
+        transition: opacity 0.2s;
+    }
+
+    .answer-buttons .btn:disabled {
+        opacity: 0.5;
+        cursor: not-allowed;
+    }
+
+    .btn-forgot {
+        background: #f8d7da;
+        color: #721c24;
+    }
+
+    .btn-hard {
+        background: #fff3cd;
+        color: #856404;
+    }
+
+    .btn-remember {
+        background: #d4edda;
+        color: #155724;
+    }
+
+    .no-card {
+        text-align: center;
+        padding: 3rem 1rem;
+        color: #666;
+    }
+
+    .no-card-icon {
+        font-size: 3rem;
+        margin-bottom: 0.5rem;
+    }
+
+    .card-loading {
+        text-align: center;
+        padding: 3rem;
+        color: #888;
+    }
+
+    .custom-card-toggle {
+        font-weight: 600;
+        cursor: pointer;
+        padding: 0.5rem 0;
+        color: #333;
+    }
+
+    .custom-card-form {
+        padding: 1rem;
+        background: #f8f9fa;
+        border-radius: 8px;
+        margin-top: 0.5rem;
+    }
+
+    .custom-card-form .form-group {
+        margin-bottom: 0.75rem;
+    }
+
+    .custom-card-form label {
+        display: block;
+        font-size: 0.9rem;
+        margin-bottom: 0.25rem;
+        color: #555;
+    }
+
+    .custom-card-form textarea,
+    .custom-card-form input {
+        width: 100%;
+        padding: 0.5rem;
+        border: 1px solid #ced4da;
+        border-radius: 4px;
+        font-size: 0.95rem;
+    }
+
+    .custom-card-form .form-actions {
+        margin-top: 0.75rem;
+    }
+
+    .vault-selector label {
+        font-weight: 500;
+        margin-right: 0.5rem;
+    }
+
+    /* 成就解锁弹窗 */
+    .achievement-overlay {
+        position: fixed;
+        inset: 0;
+        background: rgba(0, 0, 0, 0.6);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        z-index: 2000;
+        animation: fadeIn 0.3s ease;
+    }
+
+    .achievement-popup {
+        position: relative;
+        background: linear-gradient(135deg, #fff9e6 0%, #fff 60%);
+        border: 2px solid #ffd700;
+        border-radius: 16px;
+        padding: 2rem;
+        max-width: 360px;
+        width: 90%;
+        text-align: center;
+        box-shadow: 0 12px 40px rgba(255, 193, 7, 0.3), 0 0 0 4px rgba(255, 215, 0, 0.15);
+        animation: popIn 0.5s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+        overflow: hidden;
+    }
+
+    .achievement-shine {
+        position: absolute;
+        top: -50%;
+        left: -50%;
+        width: 200%;
+        height: 200%;
+        background: linear-gradient(
+            45deg,
+            transparent 40%,
+            rgba(255, 215, 0, 0.15) 50%,
+            transparent 60%
+        );
+        animation: shine 2s ease-in-out infinite;
+        pointer-events: none;
+    }
+
+    .achievement-header {
+        font-size: 1rem;
+        font-weight: 600;
+        color: #b8860b;
+        margin-bottom: 0.75rem;
+        letter-spacing: 2px;
+    }
+
+    .achievement-icon {
+        font-size: 3.5rem;
+        margin: 0.5rem 0;
+        animation: bounce 1s ease infinite;
+    }
+
+    .achievement-title {
+        font-size: 1.4rem;
+        font-weight: 700;
+        color: #333;
+        margin-bottom: 0.5rem;
+    }
+
+    .achievement-desc {
+        font-size: 0.9rem;
+        color: #666;
+        margin-bottom: 1rem;
+        line-height: 1.4;
+    }
+
+    .achievement-tier {
+        display: inline-block;
+        padding: 0.25rem 0.75rem;
+        border-radius: 20px;
+        font-size: 0.75rem;
+        font-weight: 600;
+        text-transform: uppercase;
+        letter-spacing: 1px;
+    }
+
+    .tier-bronze { background: #f0e0c8; color: #8b6914; }
+    .tier-silver { background: #e8e8e8; color: #666; }
+    .tier-gold { background: #fff3cd; color: #b8860b; }
+    .tier-platinum { background: #e0e8f0; color: #4a5568; }
+
+    .achievement-counter {
+        margin-top: 0.75rem;
+        font-size: 0.8rem;
+        color: #999;
+    }
+
+    .achievement-actions {
+        margin-top: 1.25rem;
+    }
+
+    .btn-achievement-next,
+    .btn-achievement-close {
+        padding: 0.6rem 1.5rem;
+        border: none;
+        border-radius: 8px;
+        font-size: 0.95rem;
+        font-weight: 600;
+        cursor: pointer;
+        transition: transform 0.2s, box-shadow 0.2s;
+    }
+
+    .btn-achievement-next {
+        background: linear-gradient(135deg, #ffd700, #ffaa00);
+        color: #fff;
+    }
+
+    .btn-achievement-close {
+        background: linear-gradient(135deg, #4caf50, #2e7d32);
+        color: #fff;
+    }
+
+    .btn-achievement-next:hover,
+    .btn-achievement-close:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 4px 12px rgba(0,0,0,0.2);
+    }
+
+    @@keyframes fadeIn {
+        from { opacity: 0; }
+        to { opacity: 1; }
+    }
+
+    @@keyframes popIn {
+        0% { opacity: 0; transform: scale(0.5); }
+        70% { transform: scale(1.05); }
+        100% { opacity: 1; transform: scale(1); }
+    }
+
+    @@keyframes shine {
+        0% { transform: translateX(-100%) rotate(45deg); }
+        100% { transform: translateX(100%) rotate(45deg); }
+    }
+
+    @@keyframes bounce {
+        0%, 100% { transform: translateY(0); }
+        50% { transform: translateY(-8px); }
+    }
+</style>
+
+@code {
+    private string selectedVaultId = "";
+    private List<TaskRunner.Contracts.Vaults.VaultConfig> vaults = new();
+    private DailyCardResultDto? dailyResult;
+    private CardItemDto? currentCard;
+    private DailyProgressDto? progress;
+    private bool isLoading = true;
+    private bool isFlipped = false;
+    private bool isSubmitting = false;
+    private string errorMessage = "";
+
+    // 家长出题
+    private string customFront = "";
+    private string customBack = "";
+    private string customDeck = "家长出题";
+    private bool isSavingCustom = false;
+    private string customMessage = "";
+    private bool customSuccess = false;
+
+    // 成就解锁弹窗
+    private List<LearnerDto> learners = new();
+    private List<AchievementDto> newAchievements = new();
+    private bool showAchievementPopup = false;
+    private int currentAchievementIndex = 0;
+    private AchievementDto? CurrentPopupAchievement => newAchievements.Count > 0 && currentAchievementIndex < newAchievements.Count
+        ? newAchievements[currentAchievementIndex] : null;
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (!firstRender) return;
+        await LoadVaultsAsync();
+        await LoadLearnersAsync();
+    }
+
+    private async Task LoadVaultsAsync()
+    {
+        try
+        {
+            var response = await VaultsService.GetVaultsAsync();
+            vaults = response.Vaults?.ToList() ?? new();
+            selectedVaultId = vaults.FirstOrDefault()?.Id ?? "";
+            if (!string.IsNullOrEmpty(selectedVaultId))
+            {
+                await LoadCardAsync();
+            }
+            else
+            {
+                isLoading = false;
+                errorMessage = "请先创建或选择一个知识库";
+            }
+            await InvokeAsync(StateHasChanged);
+        }
+        catch (Exception ex)
+        {
+            isLoading = false;
+            errorMessage = $"加载知识库失败: {ex.Message}";
+            await InvokeAsync(StateHasChanged);
+        }
+    }
+
+    private async Task LoadLearnersAsync()
+    {
+        try
+        {
+            learners = await ApiService.GetLearnersAsync();
+        }
+        catch { /* 静默失败 */ }
+    }
+
+    private async Task CheckNewAchievementsAsync()
+    {
+        try
+        {
+            var defaultLearner = learners.FirstOrDefault(l => l.IsDefault);
+            if (defaultLearner == null) return;
+
+            // 稍作延迟，等待后端 fire-and-forget 完成
+            await Task.Delay(300);
+            var unlocked = await ApiService.CheckAchievementsAsync(defaultLearner.Id);
+            if (unlocked?.Count > 0)
+            {
+                newAchievements = unlocked;
+                currentAchievementIndex = 0;
+                showAchievementPopup = true;
+                await InvokeAsync(StateHasChanged);
+            }
+        }
+        catch { /* 静默失败，不影响主流程 */ }
+    }
+
+    private void NextAchievement()
+    {
+        if (currentAchievementIndex < newAchievements.Count - 1)
+        {
+            currentAchievementIndex++;
+        }
+    }
+
+    private void DismissPopup()
+    {
+        showAchievementPopup = false;
+        newAchievements.Clear();
+        currentAchievementIndex = 0;
+    }
+
+    private string GetTierLabel(string tier)
+    {
+        return tier?.ToLowerInvariant() switch
+        {
+            "bronze" => "铜",
+            "silver" => "银",
+            "gold" => "金",
+            "platinum" => "铂金",
+            _ => tier ?? ""
+        };
+    }
+
+    private async Task OnVaultChanged()
+    {
+        isLoading = true;
+        isFlipped = false;
+        errorMessage = "";
+        await LoadCardAsync();
+        await InvokeAsync(StateHasChanged);
+    }
+
+    private async Task LoadCardAsync()
+    {
+        isLoading = true;
+        try
+        {
+            dailyResult = await ApiService.GetDailyCardAsync(selectedVaultId);
+            currentCard = dailyResult?.Card;
+            progress = dailyResult?.TodayProgress;
+            isFlipped = false;
+        }
+        catch (Exception ex)
+        {
+            errorMessage = $"加载卡片失败: {ex.Message}";
+            currentCard = null;
+        }
+        finally
+        {
+            isLoading = false;
+        }
+    }
+
+    private void FlipCard()
+    {
+        isFlipped = !isFlipped;
+    }
+
+    private async Task SubmitAnswer(string result)
+    {
+        if (currentCard == null || isSubmitting) return;
+        isSubmitting = true;
+        try
+        {
+            var (success, newProgress) = await ApiService.SubmitDailyAnswerAsync(selectedVaultId, currentCard.Id, result);
+            if (success)
+            {
+                progress = newProgress ?? progress;
+                await LoadCardAsync();
+                await CheckNewAchievementsAsync();
+            }
+            else
+            {
+                errorMessage = "提交失败，请重试";
+            }
+        }
+        catch (Exception ex)
+        {
+            errorMessage = $"提交失败: {ex.Message}";
+        }
+        finally
+        {
+            isSubmitting = false;
+        }
+    }
+
+    private async Task SaveCustomCard()
+    {
+        if (string.IsNullOrWhiteSpace(customFront) || string.IsNullOrWhiteSpace(customBack))
+        {
+            customMessage = "题目和答案不能为空";
+            customSuccess = false;
+            return;
+        }
+
+        isSavingCustom = true;
+        customMessage = "";
+        try
+        {
+            var request = new CustomCardRequestDto
+            {
+                Front = customFront.Trim(),
+                Back = customBack.Trim(),
+                Deck = string.IsNullOrWhiteSpace(customDeck) ? "家长出题" : customDeck.Trim(),
+                Tags = new List<string> { "家长出题" }
+            };
+            var success = await ApiService.SaveCustomCardAsync(selectedVaultId, request);
+            customSuccess = success;
+            customMessage = success ? "✅ 卡片已保存" : "❌ 保存失败";
+            if (success)
+            {
+                customFront = "";
+                customBack = "";
+                await LoadCardAsync();
+                await CheckNewAchievementsAsync();
+            }
+        }
+        catch (Exception ex)
+        {
+            customSuccess = false;
+            customMessage = $"保存失败: {ex.Message}";
+        }
+        finally
+        {
+            isSavingCustom = false;
+        }
+    }
+
+
+}

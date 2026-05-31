@@ -1,0 +1,427 @@
+@inherits LayoutComponentBase
+@using WebUI.Services
+@using Microsoft.JSInterop
+@inject AuthService AuthService
+@inject NavigationManager Navigation
+@inject IJSRuntime JSRuntime
+@inject OnboardingService OnboardingService
+@inject GlobalStateService GlobalStateService
+@inject IHttpClientFactory HttpClientFactory
+@inject IConfiguration Configuration
+@inject UserTypeService UserTypeService
+@inject ILogger<MainLayout> Logger
+@implements IDisposable
+
+<div class="page @(!_isAiConfigured ? "ai-not-configured" : "")">
+    @if (_isAiConfigured)
+    {
+        <!-- 移动端菜单按钮（纯 JS 交互，不依赖 Blazor circuit） -->
+        <button class="mobile-menu-toggle" onclick="document.querySelector('.sidebar').classList.toggle('open')">
+            ☰
+        </button>
+        
+        <nav class="sidebar">
+            <div class="sidebar-header">
+                <h3 class="d-flex align-items-center gap-2">
+                    <img src="favicon.png?v=2" width="20" height="20" alt="应用图标" />
+                    <span>百花谷</span>
+                </h3>
+            </div>
+            
+            <NavMenu />
+        </nav>
+    }
+
+    <main class="@(!_isAiConfigured ? "full-width" : "")">
+        <div class="top-row px-4">
+            @if (_isAiConfigured)
+            {
+                <!-- AI 状态显示 -->
+                <HeaderStatusBadge />
+            }
+
+            <div class="ms-auto d-flex align-items-center gap-3">
+                @if (!_isAiConfigured)
+                {
+                    <span class="setup-title">🌿 百花谷 — 首次配置</span>
+                }
+                else
+                {
+                    <span class="top-row-subtitle">🏠 家庭知识港湾</span>
+                }
+
+                <button class="btn btn-sm btn-outline-light" @onclick="LogoutAsync" title="登出">
+                    <i class="bi bi-box-arrow-right"></i>
+                </button>
+            </div>
+        </div>
+
+        <article class="content">
+            @Body
+        </article>
+    </main>
+</div>
+
+<!-- 每日健康自查弹窗 -->
+<DailyHealthCheck />
+
+<script>
+// 移动端侧边栏：导航后自动关闭
+(function() {
+    var observer = new MutationObserver(function() {
+        var sidebar = document.querySelector('.sidebar');
+        if (sidebar && sidebar.classList.contains('open') && window.innerWidth <= 768) {
+            // 检测 URL 变化（Blazor 导航）
+            var links = sidebar.querySelectorAll('a[href]');
+            links.forEach(function(link) {
+                link.removeEventListener('click', closeSidebar);
+                link.addEventListener('click', closeSidebar);
+            });
+        }
+    });
+    function closeSidebar() {
+        var sidebar = document.querySelector('.sidebar');
+        if (sidebar) sidebar.classList.remove('open');
+    }
+    // 初始化：为侧边栏链接添加关闭事件
+    document.addEventListener('DOMContentLoaded', function() {
+        var sidebar = document.querySelector('.sidebar');
+        if (sidebar) {
+            sidebar.querySelectorAll('a[href]').forEach(function(link) {
+                link.addEventListener('click', closeSidebar);
+            });
+        }
+        observer.observe(document.body, { childList: true, subtree: true });
+    });
+})();
+</script>
+
+<style>
+    /* 核心布局 */
+    .page {
+        display: flex;
+        min-height: 100vh;
+    }
+
+    .sidebar {
+        width: 250px;
+        background: #2c3e50;
+        color: white;
+        padding: 20px 0;
+        transition: transform 0.3s ease;
+        flex-shrink: 0;
+    }
+
+    .sidebar-header h3 {
+        margin: 0 20px 30px;
+        font-size: 20px;
+    }
+
+    main {
+        flex: 1;
+        background: #f5f6fa;
+        min-width: 0;
+    }
+
+    /* AI 未配置时全屏布局 */
+    main.full-width {
+        width: 100%;
+    }
+
+    .top-row {
+        background: white;
+        border-bottom: 1px solid #dcdde1;
+        padding: 15px 20px;
+        display: flex;
+        justify-content: flex-end;
+        align-items: center;
+        min-height: 56px;
+    }
+
+    .setup-title {
+        font-size: 1.1rem;
+        font-weight: 600;
+        color: #2c3e50;
+    }
+
+    .content {
+        padding: 20px;
+    }
+
+    /* 移动端菜单按钮 */
+    .mobile-menu-toggle {
+        position: fixed;
+        top: 15px;
+        left: 15px;
+        z-index: 1001;
+        background: #2c3e50;
+        color: white;
+        border: none;
+        border-radius: 5px;
+        width: 40px;
+        height: 40px;
+        font-size: 20px;
+        cursor: pointer;
+        display: none;
+        justify-content: center;
+        align-items: center;
+        box-shadow: 0 2px 5px rgba(0,0,0,0.2);
+    }
+
+    /* AI 状态显示样式 */
+    .ai-status-container {
+        flex: 1;
+        display: flex;
+        align-items: center;
+        cursor: pointer;
+        text-decoration: none;
+    }
+
+    .ai-status-badge {
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+        padding: 0.4rem 0.8rem;
+        border-radius: 20px;
+        font-size: 0.85rem;
+        transition: all 0.2s ease;
+        border: 1px solid transparent;
+    }
+
+    .ai-status-badge:hover {
+        transform: translateY(-1px);
+        box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+    }
+
+    .ai-configured {
+        background: linear-gradient(135deg, #e3f2fd 0%, #bbdefb 100%);
+        border-color: #2196f3;
+    }
+
+    .ai-not-configured {
+        background: linear-gradient(135deg, #ffebee 0%, #ffcdd2 100%);
+        border-color: #f44336;
+    }
+
+    .ai-icon {
+        font-size: 1.1rem;
+    }
+
+    .ai-info {
+        display: flex;
+        flex-direction: column;
+        line-height: 1.2;
+    }
+
+    .ai-provider {
+        font-weight: 600;
+        color: #333;
+    }
+
+    .ai-model {
+        font-size: 0.75rem;
+        color: #666;
+        max-width: 150px;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+    }
+
+    .ai-indicator {
+        font-size: 0.6rem;
+        margin-left: 0.25rem;
+    }
+
+    .ai-indicator.online {
+        color: #4caf50;
+    }
+
+    .ai-indicator.offline {
+        color: #f44336;
+    }
+
+    /* 桌面端：隐藏移动端菜单按钮 */
+    @@media (min-width: 769px) {
+        .mobile-menu-toggle {
+            display: none !important;
+        }
+
+        .top-row {
+            padding-left: 20px !important;
+        }
+    }
+
+    /* 移动端样式 */
+    @@media (max-width: 768px) {
+        .page {
+            flex-direction: column;
+        }
+
+        .sidebar {
+            width: 100%;
+            height: auto;
+            position: relative;
+            display: none;
+        }
+
+        .sidebar.open {
+            display: block;
+        }
+
+        .mobile-menu-toggle {
+            display: flex;
+        }
+
+        .top-row {
+            padding-left: 60px !important;
+        }
+
+        main {
+            width: 100%;
+        }
+    }
+
+    /* 导航后自动关闭移动端侧边栏 */
+    @@media (max-width: 768px) {
+        .sidebar.nav-closed {
+            display: none;
+        }
+    }
+</style>
+
+@code {
+    private bool _isAiConfigured = true;
+    private bool _onboardingChecked = false;
+    private bool _isProfessional = false;
+
+    protected override async Task OnInitializedAsync()
+    {
+        Navigation.LocationChanged += OnLocationChanged;
+        GlobalStateService.StateChanged += OnGlobalStateChanged;
+        UserTypeService.UserTypeChanged += OnUserTypeChanged;
+
+        // 家庭版：初始化用户类型（默认非专业）
+        _isProfessional = UserTypeService.IsProfessional;
+
+        // 异步检测 AI 配置状态（不阻塞渲染，避免后端未启动时白屏）
+        _ = LoadAiStatusAsync();
+
+        // 异步检查 onboarding 状态
+        _ = CheckOnboardingAsync();
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (firstRender)
+        {
+            // 只在交互式渲染后初始化 SignalR，避免 circuit 失败
+            GlobalStateService.Initialize(Navigation.ToAbsoluteUri("/hubs/status").ToString());
+
+            // 交互式渲染后从 localStorage 读取用户类型
+            await UserTypeService.InitializeAsync();
+            _isProfessional = UserTypeService.IsProfessional;
+            await InvokeAsync(StateHasChanged);
+        }
+    }
+
+    private void OnUserTypeChanged(object? sender, EventArgs e)
+    {
+        _isProfessional = UserTypeService.IsProfessional;
+        InvokeAsync(StateHasChanged);
+    }
+
+    private async Task LoadAiStatusAsync()
+    {
+        try
+        {
+            // 直接调用 TaskRunner API 检测 AI 配置状态
+            using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(10));
+            var client = HttpClientFactory.CreateClient("TaskRunnerApi");
+            Logger.LogInformation("[MainLayout] Calling API: {BaseAddress}api/ai/config/providers", client.BaseAddress);
+            var response = await client.GetAsync("api/ai/config/providers", cts.Token);
+            Logger.LogInformation("[MainLayout] API response: {StatusCode}", response.StatusCode);
+            if (response.IsSuccessStatusCode)
+            {
+                var json = await response.Content.ReadAsStringAsync(cts.Token);
+                Logger.LogInformation("[MainLayout] API body length: {Length}", json.Length);
+                var providers = System.Text.Json.JsonSerializer.Deserialize<List<AiProviderCheck>>(json);
+                _isAiConfigured = providers?.Any() ?? false;
+            }
+            Logger.LogInformation("[MainLayout] AI configured status: {IsConfigured}", _isAiConfigured);
+            await InvokeAsync(StateHasChanged);
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "[MainLayout] Failed to check AI status: {Message}", ex.Message);
+            _isAiConfigured = false;
+        }
+    }
+
+    private class AiProviderCheck
+    {
+        public string Id { get; set; } = "";
+        public bool IsMain { get; set; }
+    }
+
+    private void OnGlobalStateChanged(object? sender, EventArgs e)
+    {
+        var aiStatus = GlobalStateService.GetAIStatus();
+        // 只在有明确状态时才更新，避免 null 覆盖初始默认值
+        if (aiStatus != null)
+        {
+            _isAiConfigured = aiStatus.IsConfigured;
+        }
+        InvokeAsync(StateHasChanged);
+    }
+
+    private async Task CheckOnboardingAsync()
+    {
+        if (_onboardingChecked) return;
+        _onboardingChecked = true;
+
+        try
+        {
+            // 等待一小段时间，确保页面已渲染，避免首次加载时闪烁
+            await Task.Delay(500);
+
+            var status = await OnboardingService.GetStatusAsync();
+            if (status.NeedsOnboarding && !Navigation.Uri.Contains("/onboarding") && !Navigation.Uri.Contains("/login"))
+            {
+                await InvokeAsync(() => Navigation.NavigateTo("onboarding"));
+            }
+        }
+        catch (Exception ex)
+        {
+            Logger.LogWarning(ex, "Onboarding 检查失败");
+        }
+    }
+
+    private void OnLocationChanged(object? sender, Microsoft.AspNetCore.Components.Routing.LocationChangedEventArgs e)
+    {
+        // 导航事件（移动端侧边栏关闭由 JS 处理）
+    }
+
+    public void Dispose()
+    {
+        Navigation.LocationChanged -= OnLocationChanged;
+        GlobalStateService.StateChanged -= OnGlobalStateChanged;
+        UserTypeService.UserTypeChanged -= OnUserTypeChanged;
+    }
+
+    private async Task LogoutAsync()
+    {
+        try
+        {
+            var token = await JSRuntime.InvokeAsync<string?>("eval", $"document.cookie.match(/webui_auth=([^;]+)/)?.[1]");
+            if (!string.IsNullOrEmpty(token))
+            {
+                AuthService.RevokeToken(token);
+            }
+            await JSRuntime.InvokeVoidAsync("eval", $"document.cookie = 'webui_auth=; path=/; expires=Thu, 01 Jan 1970 00:00:00 GMT'; location.href = '/login';");
+        }
+        catch
+        {
+            Navigation.NavigateTo("login", forceLoad: true);
+        }
+    }
+}

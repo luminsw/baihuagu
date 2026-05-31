@@ -1,0 +1,1122 @@
+@page "/hardware-benchmark"
+@rendermode InteractiveServer
+@using TaskRunner.Contracts.LocalModels
+@inject WebUI.Services.IApiService ApiService
+@inject Microsoft.Extensions.Logging.ILogger<HardwareBenchmark> Logger
+@implements IDisposable
+
+<PageTitle>硬件评测</PageTitle>
+
+<h1>🖥️ 硬件评测</h1>
+
+<p class="text-muted">
+    评估当前机器的 AI 算力水平，与主流 AI 计算平台进行对比，帮助您了解硬件性能定位。
+</p>
+
+@if (isLoading)
+{
+    <div class="loading-spinner">正在检测硬件信息...</div>
+}
+else
+{
+    <!-- 当前机器概览 -->
+    <div class="section current-machine">
+        <h2>📋 本机配置</h2>
+        <div class="machine-cards">
+            <div class="machine-card @(GetMachineTierClass())">
+                <div class="card-header">
+                    <span class="platform-icon">💻</span>
+                    <span class="platform-name">当前机器</span>
+                    <span class="tier-badge">@GetMachineTierLabel()</span>
+                </div>
+                <div class="spec-grid">
+                    <div class="spec-item">
+                        <span class="spec-label">CPU</span>
+                        <span class="spec-value">@(hardwareInfo?.Cpu.Name ?? "未知")</span>
+                    </div>
+                    <div class="spec-item">
+                        <span class="spec-label">核心数</span>
+                        <span class="spec-value">@(hardwareInfo?.Cpu.LogicalProcessorCount ?? 0) 核</span>
+                    </div>
+                    <div class="spec-item">
+                        <span class="spec-label">内存</span>
+                        <span class="spec-value">@(hardwareInfo?.Memory.TotalGiB.ToString("F1") ?? "-") GB</span>
+                    </div>
+                    <div class="spec-item">
+                        <span class="spec-label">显卡</span>
+                        <span class="spec-value">@(GetGpuSummary())</span>
+                    </div>
+                    <div class="spec-item">
+                        <span class="spec-label">系统</span>
+                        <span class="spec-value">@(hardwareInfo?.OsPlatform ?? "-") @(hardwareInfo?.IsWsl == true ? "(WSL)" : "")</span>
+                    </div>
+                    <div class="spec-item">
+                        <span class="spec-label">磁盘可用</span>
+                        <span class="spec-value">@GetDiskGiB(hardwareInfo?.AvailableDiskSpaceBytes) GB</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- AI 算力对比表 -->
+    <div class="section comparison-section">
+        <h2>⚡ AI 算力对比表</h2>
+        <p class="section-desc">按 Llama-3-8B Q4 估算推理速度排序。数据为理论/实测参考值，供性能定位参考。</p>
+
+        <div class="table-wrapper">
+            <table class="comparison-table">
+                <thead>
+                    <tr>
+                        <th class="col-rank">排名</th>
+                        <th class="col-platform">平台</th>
+                        <th class="col-gpu">GPU / NPU / 加速器</th>
+                        <th class="col-memory">显存 / 统一内存</th>
+                        <th class="col-tops">INT8 算力</th>
+                        <th class="col-tops">INT4 算力</th>
+                        <th class="col-bandwidth">显存带宽</th>
+                        <th class="col-speed">Llama3-8B Q4 估速</th>
+                        <th class="col-power">典型功耗</th>
+                        <th class="col-price">参考价格</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @foreach (var item in sortedPlatforms)
+                    {
+                        <tr class="@(item.IsCurrentMachine ? "current-row" : "")">
+                            <td class="col-rank">
+                                @if (item.Rank == 1)
+                                {
+                                    <span>🥇</span>
+                                }
+                                else if (item.Rank == 2)
+                                {
+                                    <span>🥈</span>
+                                }
+                                else if (item.Rank == 3)
+                                {
+                                    <span>🥉</span>
+                                }
+                                else
+                                {
+                                    <span>@item.Rank</span>
+                                }
+                            </td>
+                            <td class="col-platform">
+                                <div class="platform-cell">
+                                    <span class="platform-badge @item.BadgeClass">@item.VendorEmoji @item.Vendor</span>
+                                    <span class="platform-model">@item.ModelName</span>
+                                </div>
+                            </td>
+                            <td class="col-gpu">@((MarkupString)item.GpuInfo)</td>
+                            <td class="col-memory">@((MarkupString)item.MemoryInfo)</td>
+                            <td class="col-tops">
+                                @if (!string.IsNullOrEmpty(item.TflopsInt8Info))
+                                {
+                                    <span class="tops-value">@item.TflopsInt8Info</span>
+                                }
+                                else
+                                {
+                                    <span class="sub-text">-</span>
+                                }
+                            </td>
+                            <td class="col-tops">
+                                @if (!string.IsNullOrEmpty(item.TflopsInt4Info))
+                                {
+                                    <span class="tops-value">@item.TflopsInt4Info</span>
+                                }
+                                else
+                                {
+                                    <span class="sub-text">-</span>
+                                }
+                            </td>
+                            <td class="col-bandwidth">@item.BandwidthInfo</td>
+                            <td class="col-speed">
+                                <span class="speed-value @(GetSpeedClass(item.EstimatedTokensPerSecond))">@item.SpeedInfo</span>
+                            </td>
+                            <td class="col-power">@item.PowerInfo</td>
+                            <td class="col-price">@item.PriceInfo</td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        </div>
+
+        <div class="data-source-note">
+            <h5>📋 数据来源与估算说明</h5>
+            <ul>
+                <li><strong>GPU 规格</strong>：NVIDIA / AMD / Intel / Apple 官方产品页及 CES 发布会公开资料</li>
+                <li><strong>带宽数据</strong>：显存带宽 = 位宽 × 等效频率 ÷ 8；集显/统一内存带宽来自官方 SoC 规格</li>
+                <li><strong>推理速度估算</strong>：基于 <code>tokens/s ≈ 内存带宽 × 利用率系数</code>，其中
+                    NVIDIA/AMD/Intel 独显取 <strong>0.13</strong>、Apple Silicon 取 <strong>0.16</strong>、集显取 <strong>0.08</strong>
+                </li>
+                <li><strong>基准模型</strong>：Llama-3-8B Q4_K_M（约 4.8GB），自回归 decode 阶段通常为 memory-bound</li>
+                <li><strong>局限性</strong>：实际速度受量化格式、上下文长度、batch 大小、软件优化等影响，估算值仅供参考</li>
+            </ul>
+        </div>
+    </div>
+
+    <!-- 性能等级说明 -->
+    <div class="section tier-explanation">
+        <h2>📊 性能等级说明</h2>
+        <div class="tier-cards">
+            <div class="tier-card tier-cpu">
+                <div class="tier-title">🐢 CPU 推理</div>
+                <div class="tier-range">无独立 GPU 或显存 &lt; 4GB</div>
+                <div class="tier-desc">适合运行 1B-3B 小模型，速度较慢（1-10 tok/s），可作为 fallback 方案。</div>
+            </div>
+            <div class="tier-card tier-entry">
+                <div class="tier-title">🐇 入门 GPU</div>
+                <div class="tier-range">显存 4-8GB (GTX 1660, RTX 3050 等)</div>
+                <div class="tier-desc">可运行 7B Q4 量化模型，速度约 15-40 tok/s，适合个人日常使用。</div>
+            </div>
+            <div class="tier-card tier-mid">
+                <div class="tier-title">🦌 中端 GPU</div>
+                <div class="tier-range">显存 8-16GB (RTX 4060/4070, Arc A770 等)</div>
+                <div class="tier-desc">流畅运行 7B-13B 模型，可尝试 70B Q4，速度 40-100 tok/s。</div>
+            </div>
+            <div class="tier-card tier-high">
+                <div class="tier-title">🐆 高端 GPU</div>
+                <div class="tier-range">显存 16-24GB (RTX 4080/4090/5070, Arc Pro 等)</div>
+                <div class="tier-desc">本地运行 70B 模型无障碍，可运行多模型并行，速度 80-180 tok/s。</div>
+            </div>
+            <div class="tier-card tier-pro">
+                <div class="tier-title">🚀 专业/工作站</div>
+                <div class="tier-range">显存 48GB+ 或 大统一内存 (DGX, M3 Ultra, AI Max+)</div>
+                <div class="tier-desc">可本地运行 405B 级别大模型，或同时加载多个 70B 模型，企业级生产力。</div>
+            </div>
+        </div>
+    </div>
+
+    <!-- 适用场景建议 -->
+    <div class="section scenario-section">
+        <h2>🎯 本机适用场景建议</h2>
+        @if (recommendations.Count == 0)
+        {
+            <div class="alert alert-info">正在分析硬件配置...</div>
+        }
+        else
+        {
+            <div class="recommendation-list">
+                @foreach (var rec in recommendations)
+                {
+                    <div class="recommendation-item @rec.LevelClass">
+                        <div class="rec-icon">@rec.Icon</div>
+                        <div class="rec-content">
+                            <div class="rec-title">@rec.Title</div>
+                            <div class="rec-desc">@rec.Description</div>
+                        </div>
+                        <div class="rec-badge @rec.LevelClass">@rec.LevelText</div>
+                    </div>
+                }
+            </div>
+        }
+    </div>
+
+    <div class="section refresh-section">
+        <button class="btn btn-secondary" @onclick="RefreshHardware" disabled="@isLoading">
+            @(isLoading ? "🔄 刷新中..." : "🔄 刷新硬件信息")
+        </button>
+        <span class="text-muted" style="margin-left: 1rem; font-size: 0.85rem;">
+            数据仅供参考，实际性能受驱动、散热、模型优化等因素影响。
+        </span>
+    </div>
+}
+
+@code {
+    private bool isLoading = true;
+    private HardwareInfoDto? hardwareInfo;
+    private List<RecommendationItem> recommendations = new();
+    private List<PlatformComparisonItem> sortedPlatforms = new();
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadHardwareInfoAsync();
+    }
+
+    private async Task LoadHardwareInfoAsync()
+    {
+        isLoading = true;
+        try
+        {
+            hardwareInfo = await ApiService.GetHardwareInfoAsync();
+            BuildSortedPlatforms();
+            GenerateRecommendations();
+        }
+        catch (Exception ex)
+        {
+            Logger.LogWarning(ex, "获取硬件信息失败");
+        }
+        finally
+        {
+            isLoading = false;
+        }
+    }
+
+    private async Task RefreshHardware()
+    {
+        await LoadHardwareInfoAsync();
+    }
+
+    /// <summary>
+    /// 构建本机 + 参考平台的合并列表，按估算速度排序
+    /// </summary>
+    private void BuildSortedPlatforms()
+    {
+        var platforms = new List<PlatformComparisonItem>();
+
+        // ---- 本机 ----
+        var currentGpu = hardwareInfo?.Gpus?.FirstOrDefault();
+        double currentSpeed = 0;
+        if (currentGpu?.EstimatedTokensPerSecond.HasValue == true)
+            currentSpeed = currentGpu.EstimatedTokensPerSecond.Value;
+        else if (hardwareInfo?.EstimatedCpuTokensPerSecond.HasValue == true)
+            currentSpeed = hardwareInfo.EstimatedCpuTokensPerSecond.Value;
+
+        var currentComputeUnits = currentGpu?.ComputeUnits.HasValue == true
+            ? $"{currentGpu.ComputeUnits} {(currentGpu.Vendor == "NVIDIA" ? "CUDA" : currentGpu.Vendor == "AMD" ? "CU" : currentGpu.Vendor == "Intel" ? "Xe" : "核")}"
+            : (currentGpu != null ? "未知" : "-");
+
+        platforms.Add(new PlatformComparisonItem
+        {
+            IsCurrentMachine = true,
+            Vendor = "本机",
+            VendorEmoji = "💻",
+            BadgeClass = "current",
+            ModelName = "当前机器",
+            GpuInfo = currentGpu != null
+                ? $"{currentGpu.Name}<br><span class=\"sub-text\">{currentComputeUnits}</span>"
+                : "无独立 GPU<br><span class=\"sub-text\">使用 CPU 推理</span>",
+            MemoryInfo = currentGpu?.VramGiB.HasValue == true
+                ? $"{currentGpu.VramGiB:F0} GB<br><span class=\"sub-text\">{(currentGpu.IsIntegrated ? "共享内存" : "专用显存")}</span>"
+                : $"{hardwareInfo?.Memory.TotalGiB:F0} GB<br><span class=\"sub-text\">系统内存</span>",
+            TflopsInt8Info = currentGpu?.EstimatedTflopsInt8.HasValue == true
+                ? $"~{currentGpu.EstimatedTflopsInt8:F0} TFLOPS"
+                : (currentGpu != null ? "未知" : "< 2"),
+            TflopsInt4Info = currentGpu?.EstimatedTflopsInt4.HasValue == true
+                ? $"~{currentGpu.EstimatedTflopsInt4:F0} TFLOPS"
+                : (currentGpu != null ? "未知" : "< 4"),
+            BandwidthInfo = currentGpu?.MemoryBandwidthGBps.HasValue == true
+                ? $"~{currentGpu.MemoryBandwidthGBps:F0} GB/s"
+                : (hardwareInfo?.EstimatedCpuTokensPerSecond.HasValue == true ? "~50 GB/s (DDR)" : "未知"),
+            SpeedInfo = currentSpeed > 0 ? $"~{currentSpeed:F0} tok/s" : "未知",
+            EstimatedTokensPerSecond = currentSpeed,
+            PowerInfo = "-",
+            PriceInfo = "-",
+        });
+
+        // ---- 参考平台 ----
+        platforms.AddRange(GetReferencePlatforms());
+
+        // 按速度降序排序并分配排名
+        sortedPlatforms = platforms
+            .OrderByDescending(p => p.EstimatedTokensPerSecond)
+            .Select((p, idx) => { p.Rank = idx + 1; return p; })
+            .ToList();
+    }
+
+    private static List<PlatformComparisonItem> GetReferencePlatforms()
+    {
+        return new List<PlatformComparisonItem>
+        {
+            new()
+            {
+                Vendor = "NVIDIA", VendorEmoji = "🟢", BadgeClass = "nvidia", ModelName = "RTX 5090",
+                GpuInfo = "Blackwell GB202<br><span class=\"sub-text\">21760 CUDA 核心</span>",
+                MemoryInfo = "32 GB GDDR7<br><span class=\"sub-text\">专用显存</span>",
+                TflopsInt8Info = "~900 TFLOPS", TflopsInt4Info = "~1800 TFLOPS", BandwidthInfo = "~1792 GB/s",
+                SpeedInfo = "~230 tok/s", EstimatedTokensPerSecond = 230,
+                PowerInfo = "~575W", PriceInfo = "~¥16,000",
+            },
+            new()
+            {
+                Vendor = "NVIDIA", VendorEmoji = "🟢", BadgeClass = "nvidia", ModelName = "RTX 4090",
+                GpuInfo = "Ada Lovelace AD102<br><span class=\"sub-text\">16384 CUDA 核心</span>",
+                MemoryInfo = "24 GB GDDR6X<br><span class=\"sub-text\">专用显存</span>",
+                TflopsInt8Info = "~660 TFLOPS", TflopsInt4Info = "~1320 TFLOPS", BandwidthInfo = "~1008 GB/s",
+                SpeedInfo = "~130 tok/s", EstimatedTokensPerSecond = 130,
+                PowerInfo = "~450W", PriceInfo = "~¥13,000",
+            },
+            new()
+            {
+                Vendor = "NVIDIA", VendorEmoji = "🟢", BadgeClass = "nvidia", ModelName = "RTX 5080",
+                GpuInfo = "Blackwell GB203<br><span class=\"sub-text\">10752 CUDA 核心</span>",
+                MemoryInfo = "16 GB GDDR7<br><span class=\"sub-text\">专用显存</span>",
+                TflopsInt8Info = "~440 TFLOPS", TflopsInt4Info = "~880 TFLOPS", BandwidthInfo = "~960 GB/s",
+                SpeedInfo = "~125 tok/s", EstimatedTokensPerSecond = 125,
+                PowerInfo = "~360W", PriceInfo = "~¥8,000",
+            },
+            new()
+            {
+                Vendor = "NVIDIA", VendorEmoji = "🟢", BadgeClass = "nvidia", ModelName = "DGX Spark",
+                GpuInfo = "GB10 Grace Blackwell<br><span class=\"sub-text\">6144 CUDA / 192 Tensor</span>",
+                MemoryInfo = "128 GB<br><span class=\"sub-text\">统一内存</span>",
+                TflopsInt8Info = "~250 TFLOPS", TflopsInt4Info = "~500 TFLOPS", BandwidthInfo = "~273 GB/s",
+                SpeedInfo = "~35 tok/s", EstimatedTokensPerSecond = 35,
+                PowerInfo = "~140W", PriceInfo = "~$4,699",
+            },
+            new()
+            {
+                Vendor = "NVIDIA", VendorEmoji = "🟢", BadgeClass = "nvidia", ModelName = "RTX 4080",
+                GpuInfo = "Ada Lovelace AD103<br><span class=\"sub-text\">9728 CUDA 核心</span>",
+                MemoryInfo = "16 GB GDDR6X<br><span class=\"sub-text\">专用显存</span>",
+                TflopsInt8Info = "~460 TFLOPS", TflopsInt4Info = "~920 TFLOPS", BandwidthInfo = "~717 GB/s",
+                SpeedInfo = "~93 tok/s", EstimatedTokensPerSecond = 93,
+                PowerInfo = "~320W", PriceInfo = "~¥8,000",
+            },
+            new()
+            {
+                Vendor = "NVIDIA", VendorEmoji = "🟢", BadgeClass = "nvidia", ModelName = "RTX 5070 Ti",
+                GpuInfo = "Blackwell GB203<br><span class=\"sub-text\">8960 CUDA 核心</span>",
+                MemoryInfo = "16 GB GDDR7<br><span class=\"sub-text\">专用显存</span>",
+                TflopsInt8Info = "~360 TFLOPS", TflopsInt4Info = "~720 TFLOPS", BandwidthInfo = "~896 GB/s",
+                SpeedInfo = "~117 tok/s", EstimatedTokensPerSecond = 117,
+                PowerInfo = "~300W", PriceInfo = "~¥6,500",
+            },
+            new()
+            {
+                Vendor = "NVIDIA", VendorEmoji = "🟢", BadgeClass = "nvidia", ModelName = "RTX 5070",
+                GpuInfo = "Blackwell GB205<br><span class=\"sub-text\">6144 CUDA 核心</span>",
+                MemoryInfo = "12 GB GDDR7<br><span class=\"sub-text\">专用显存</span>",
+                TflopsInt8Info = "~280 TFLOPS", TflopsInt4Info = "~560 TFLOPS", BandwidthInfo = "~672 GB/s",
+                SpeedInfo = "~87 tok/s", EstimatedTokensPerSecond = 87,
+                PowerInfo = "~250W", PriceInfo = "~¥5,000",
+            },
+            new()
+            {
+                Vendor = "Apple", VendorEmoji = "⚪", BadgeClass = "apple", ModelName = "Mac Studio M3 Ultra",
+                GpuInfo = "80 核 GPU + 32 核 NPU<br><span class=\"sub-text\">Apple Silicon</span>",
+                MemoryInfo = "最高 512 GB<br><span class=\"sub-text\">统一内存</span>",
+                TflopsInt8Info = "~56 TFLOPS", TflopsInt4Info = "~112 TFLOPS", BandwidthInfo = "~819 GB/s",
+                SpeedInfo = "~131 tok/s", EstimatedTokensPerSecond = 131,
+                PowerInfo = "~200-300W", PriceInfo = "~¥35,000+",
+            },
+            new()
+            {
+                Vendor = "AMD", VendorEmoji = "🔴", BadgeClass = "amd", ModelName = "RX 7900 XTX",
+                GpuInfo = "RDNA 3 Navi 31<br><span class=\"sub-text\">96 CU / 192 AI 加速器</span>",
+                MemoryInfo = "24 GB GDDR6<br><span class=\"sub-text\">专用显存</span>",
+                TflopsInt8Info = "~246 TFLOPS", TflopsInt4Info = "~492 TFLOPS", BandwidthInfo = "~960 GB/s",
+                SpeedInfo = "~125 tok/s", EstimatedTokensPerSecond = 125,
+                PowerInfo = "~355W", PriceInfo = "~¥6,000",
+            },
+            new()
+            {
+                Vendor = "NVIDIA", VendorEmoji = "🟢", BadgeClass = "nvidia", ModelName = "RTX 4070",
+                GpuInfo = "Ada Lovelace AD104<br><span class=\"sub-text\">5888 CUDA 核心</span>",
+                MemoryInfo = "12 GB GDDR6X<br><span class=\"sub-text\">专用显存</span>",
+                TflopsInt8Info = "~240 TFLOPS", TflopsInt4Info = "~480 TFLOPS", BandwidthInfo = "~504 GB/s",
+                SpeedInfo = "~65 tok/s", EstimatedTokensPerSecond = 65,
+                PowerInfo = "~200W", PriceInfo = "~¥4,000",
+            },
+            new()
+            {
+                Vendor = "AMD", VendorEmoji = "🔴", BadgeClass = "amd", ModelName = "RX 7900 XT",
+                GpuInfo = "RDNA 3 Navi 31<br><span class=\"sub-text\">84 CU</span>",
+                MemoryInfo = "20 GB GDDR6<br><span class=\"sub-text\">专用显存</span>",
+                TflopsInt8Info = "~190 TFLOPS", TflopsInt4Info = "~380 TFLOPS", BandwidthInfo = "~800 GB/s",
+                SpeedInfo = "~104 tok/s", EstimatedTokensPerSecond = 104,
+                PowerInfo = "~315W", PriceInfo = "~¥5,000",
+            },
+            new()
+            {
+                Vendor = "Apple", VendorEmoji = "⚪", BadgeClass = "apple", ModelName = "MacBook Pro M4 Max",
+                GpuInfo = "40 核 GPU + 16 核 NPU<br><span class=\"sub-text\">Apple Silicon</span>",
+                MemoryInfo = "最高 128 GB<br><span class=\"sub-text\">统一内存</span>",
+                TflopsInt8Info = "~32 TFLOPS", TflopsInt4Info = "~64 TFLOPS", BandwidthInfo = "~546 GB/s",
+                SpeedInfo = "~87 tok/s", EstimatedTokensPerSecond = 87,
+                PowerInfo = "~80W", PriceInfo = "~¥25,000+",
+            },
+            new()
+            {
+                Vendor = "Intel", VendorEmoji = "🔵", BadgeClass = "intel", ModelName = "Arc A770",
+                GpuInfo = "Alchemist ACM-G10<br><span class=\"sub-text\">32 Xe 核心 / 512 XMX</span>",
+                MemoryInfo = "16 GB GDDR6<br><span class=\"sub-text\">专用显存</span>",
+                TflopsInt8Info = "~34 TFLOPS", TflopsInt4Info = "~68 TFLOPS", BandwidthInfo = "~560 GB/s",
+                SpeedInfo = "~73 tok/s", EstimatedTokensPerSecond = 73,
+                PowerInfo = "~225W", PriceInfo = "~¥1,500",
+            },
+            new()
+            {
+                Vendor = "NVIDIA", VendorEmoji = "🟢", BadgeClass = "nvidia", ModelName = "RTX 4060",
+                GpuInfo = "Ada Lovelace AD107<br><span class=\"sub-text\">3072 CUDA 核心</span>",
+                MemoryInfo = "8 GB GDDR6<br><span class=\"sub-text\">专用显存</span>",
+                TflopsInt8Info = "~130 TFLOPS", TflopsInt4Info = "~260 TFLOPS", BandwidthInfo = "~272 GB/s",
+                SpeedInfo = "~35 tok/s", EstimatedTokensPerSecond = 35,
+                PowerInfo = "~115W", PriceInfo = "~¥2,200",
+            },
+            new()
+            {
+                Vendor = "Intel", VendorEmoji = "🔵", BadgeClass = "intel", ModelName = "Arc Pro B70",
+                GpuInfo = "Xe2 Battlemage BMG-G31<br><span class=\"sub-text\">32 Xe2 核心 / 256 XMX</span>",
+                MemoryInfo = "32 GB GDDR6<br><span class=\"sub-text\">专用显存</span>",
+                TflopsInt8Info = "~46 TFLOPS", TflopsInt4Info = "~92 TFLOPS", BandwidthInfo = "~608 GB/s",
+                SpeedInfo = "~79 tok/s", EstimatedTokensPerSecond = 79,
+                PowerInfo = "~230W", PriceInfo = "~$949",
+            },
+            new()
+            {
+                Vendor = "AMD", VendorEmoji = "🔴", BadgeClass = "amd", ModelName = "AI Max+ 395",
+                GpuInfo = "Radeon 8060S<br><span class=\"sub-text\">40 CU / 2560 SU / XDNA 2</span>",
+                MemoryInfo = "最高 128 GB<br><span class=\"sub-text\">统一内存</span>",
+                TflopsInt8Info = "~118 TFLOPS", TflopsInt4Info = "~236 TFLOPS", BandwidthInfo = "~256 GB/s",
+                SpeedInfo = "~33 tok/s", EstimatedTokensPerSecond = 33,
+                PowerInfo = "~120W (整机)", PriceInfo = "~¥15,000+",
+            },
+            new()
+            {
+                Vendor = "Apple", VendorEmoji = "⚪", BadgeClass = "apple", ModelName = "MacBook Pro M3",
+                GpuInfo = "10 核 GPU + 16 核 NPU<br><span class=\"sub-text\">Apple Silicon</span>",
+                MemoryInfo = "最高 24 GB<br><span class=\"sub-text\">统一内存</span>",
+                TflopsInt8Info = "~8 TFLOPS", TflopsInt4Info = "~16 TFLOPS", BandwidthInfo = "~102 GB/s",
+                SpeedInfo = "~10 tok/s", EstimatedTokensPerSecond = 10,
+                PowerInfo = "~30W", PriceInfo = "~¥12,000+",
+            },
+        };
+    }
+
+    private string GetGpuSummary()
+    {
+        if (hardwareInfo?.Gpus == null || hardwareInfo.Gpus.Count == 0)
+            return "未检测到独立 GPU";
+        var gpu = hardwareInfo.Gpus[0];
+        var parts = new List<string> { gpu.Name };
+        if (gpu.ComputeUnits.HasValue)
+            parts.Add($"({gpu.ComputeUnits} {(gpu.Vendor == "NVIDIA" ? "CUDA" : gpu.Vendor == "AMD" ? "CU" : gpu.Vendor == "Intel" ? "Xe" : "核")})");
+        if (gpu.EstimatedTokensPerSecond.HasValue)
+            parts.Add($"~{gpu.EstimatedTokensPerSecond:F0} tok/s");
+        return string.Join(" ", parts);
+    }
+
+    private string GetDiskGiB(long? bytes)
+    {
+        if (!bytes.HasValue || bytes.Value <= 0) return "-";
+        return Math.Round(bytes.Value / (1024.0 * 1024 * 1024), 0).ToString("F0");
+    }
+
+    private string GetMachineTierClass()
+    {
+        var tier = GetHardwareTier();
+        return tier switch
+        {
+            HardwareTier.CpuOnly => "tier-cpu-only",
+            HardwareTier.LowEndGpu => "tier-low-end",
+            HardwareTier.MidRangeGpu => "tier-mid-range",
+            HardwareTier.HighEndGpu => "tier-high-end",
+            HardwareTier.TopTierGpu => "tier-top-tier",
+            _ => "tier-unknown"
+        };
+    }
+
+    private string GetMachineTierLabel()
+    {
+        var tier = GetHardwareTier();
+        return tier switch
+        {
+            HardwareTier.CpuOnly => "CPU 推理",
+            HardwareTier.LowEndGpu => "入门 GPU",
+            HardwareTier.MidRangeGpu => "中端 GPU",
+            HardwareTier.HighEndGpu => "高端 GPU",
+            HardwareTier.TopTierGpu => "顶级 GPU",
+            _ => "未知"
+        };
+    }
+
+    private HardwareTier GetHardwareTier()
+    {
+        if (hardwareInfo?.Gpus == null || hardwareInfo.Gpus.Count == 0)
+            return HardwareTier.CpuOnly;
+
+        // 优先看是否有独立显卡
+        var dedicatedGpu = hardwareInfo.Gpus.FirstOrDefault(g => !g.IsIntegrated && !g.IsAppleSilicon);
+        if (dedicatedGpu != null && dedicatedGpu.VramGiB.HasValue)
+        {
+            var vram = dedicatedGpu.VramGiB.Value;
+            if (vram >= 16) return HardwareTier.TopTierGpu;
+            if (vram >= 8) return HardwareTier.HighEndGpu;
+            if (vram >= 4) return HardwareTier.MidRangeGpu;
+            return HardwareTier.LowEndGpu;
+        }
+
+        // Apple Silicon
+        var appleGpu = hardwareInfo.Gpus.FirstOrDefault(g => g.IsAppleSilicon);
+        if (appleGpu != null && appleGpu.VramGiB.HasValue)
+        {
+            var vram = appleGpu.VramGiB.Value;
+            if (vram >= 16) return HardwareTier.TopTierGpu;
+            if (vram >= 8) return HardwareTier.HighEndGpu;
+            if (vram >= 4) return HardwareTier.MidRangeGpu;
+            return HardwareTier.LowEndGpu;
+        }
+
+        // 集成显卡
+        var igpu = hardwareInfo.Gpus.FirstOrDefault(g => g.IsIntegrated);
+        if (igpu != null)
+        {
+            if (hardwareInfo.Memory.TotalGiB >= 16) return HardwareTier.LowEndGpu;
+            return HardwareTier.CpuOnly;
+        }
+
+        // 无任何 GPU 信息，按内存判断
+        if (hardwareInfo.Memory.TotalGiB >= 32) return HardwareTier.LowEndGpu;
+        return HardwareTier.CpuOnly;
+    }
+
+    private string GetSpeedClass(double? speed)
+    {
+        if (!speed.HasValue) return "";
+        return speed.Value switch
+        {
+            >= 100 => "speed-excellent",
+            >= 50 => "speed-good",
+            >= 20 => "speed-mid",
+            >= 5 => "speed-low",
+            _ => "speed-poor",
+        };
+    }
+
+    private void GenerateRecommendations()
+    {
+        recommendations = new List<RecommendationItem>();
+        var tier = GetHardwareTier();
+        var totalMem = hardwareInfo?.Memory.TotalGiB ?? 0;
+        var currentSpeed = hardwareInfo?.Gpus?.FirstOrDefault()?.EstimatedTokensPerSecond
+            ?? hardwareInfo?.EstimatedCpuTokensPerSecond ?? 0;
+
+        // 本地模型推理
+        if (tier == HardwareTier.CpuOnly)
+        {
+            recommendations.Add(new RecommendationItem
+            {
+                Icon = "🧠", Title = "本地模型推理",
+                Description = $"CPU 推理约 {currentSpeed:F0} tok/s，仅支持 1B-3B 小模型。建议优先使用云端 API。",
+                LevelClass = "level-bad", LevelText = "受限"
+            });
+        }
+        else if (tier == HardwareTier.LowEndGpu)
+        {
+            recommendations.Add(new RecommendationItem
+            {
+                Icon = "🧠", Title = "本地模型推理",
+                Description = $"估算约 {currentSpeed:F0} tok/s，可运行 7B Q4 量化模型。",
+                LevelClass = "level-ok", LevelText = "可用"
+            });
+        }
+        else if (tier == HardwareTier.MidRangeGpu)
+        {
+            recommendations.Add(new RecommendationItem
+            {
+                Icon = "🧠", Title = "本地模型推理",
+                Description = $"估算约 {currentSpeed:F0} tok/s，流畅运行 7B-13B 模型，可尝试 70B Q4。",
+                LevelClass = "level-good", LevelText = "良好"
+            });
+        }
+        else if (tier == HardwareTier.HighEndGpu)
+        {
+            recommendations.Add(new RecommendationItem
+            {
+                Icon = "🧠", Title = "本地模型推理",
+                Description = $"估算约 {currentSpeed:F0} tok/s，可本地运行 70B 模型，适合重度 AI 开发。",
+                LevelClass = "level-good", LevelText = "优秀"
+            });
+        }
+        else
+        {
+            recommendations.Add(new RecommendationItem
+            {
+                Icon = "🧠", Title = "本地模型推理",
+                Description = $"估算约 {currentSpeed:F0} tok/s，顶级性能，可运行大模型或多模型并行。",
+                LevelClass = "level-excellent", LevelText = "顶级"
+            });
+        }
+
+        // 多模态/图像生成
+        if (tier == HardwareTier.CpuOnly)
+        {
+            recommendations.Add(new RecommendationItem
+            {
+                Icon = "🎨", Title = "图像生成 / 多模态",
+                Description = "不支持 Stable Diffusion 等图像生成模型。",
+                LevelClass = "level-bad", LevelText = "不支持"
+            });
+        }
+        else if (tier <= HardwareTier.LowEndGpu)
+        {
+            recommendations.Add(new RecommendationItem
+            {
+                Icon = "🎨", Title = "图像生成 / 多模态",
+                Description = "可尝试 SD 1.5 / SDXL 低分辨率生成，显存可能成为瓶颈。",
+                LevelClass = "level-ok", LevelText = "受限"
+            });
+        }
+        else
+        {
+            recommendations.Add(new RecommendationItem
+            {
+                Icon = "🎨", Title = "图像生成 / 多模态",
+                Description = "可运行 SDXL、FLUX 等主流图像生成模型。",
+                LevelClass = tier >= HardwareTier.HighEndGpu ? "level-good" : "level-ok",
+                LevelText = tier >= HardwareTier.HighEndGpu ? "良好" : "可用"
+            });
+        }
+
+        // 知识库构建
+        if (totalMem < 8)
+        {
+            recommendations.Add(new RecommendationItem
+            {
+                Icon = "📚", Title = "知识库嵌入构建",
+                Description = "内存较低，大量文档处理时可能出现内存不足。",
+                LevelClass = "level-ok", LevelText = "受限"
+            });
+        }
+        else if (totalMem < 16)
+        {
+            recommendations.Add(new RecommendationItem
+            {
+                Icon = "📚", Title = "知识库嵌入构建",
+                Description = "内存充足，可流畅处理中等规模知识库构建。",
+                LevelClass = "level-good", LevelText = "良好"
+            });
+        }
+        else
+        {
+            recommendations.Add(new RecommendationItem
+            {
+                Icon = "📚", Title = "知识库嵌入构建",
+                Description = "大内存优势明显，可高效处理大规模知识库构建。",
+                LevelClass = "level-excellent", LevelText = "优秀"
+            });
+        }
+
+        // RAG / 长上下文
+        if (tier == HardwareTier.CpuOnly || totalMem < 16)
+        {
+            recommendations.Add(new RecommendationItem
+            {
+                Icon = "💬", Title = "RAG 长上下文对话",
+                Description = "建议优先使用云端 API，本地模型上下文窗口和速度可能受限。",
+                LevelClass = tier == HardwareTier.CpuOnly ? "level-bad" : "level-ok",
+                LevelText = tier == HardwareTier.CpuOnly ? "受限" : "可用"
+            });
+        }
+        else
+        {
+            recommendations.Add(new RecommendationItem
+            {
+                Icon = "💬", Title = "RAG 长上下文对话",
+                Description = "可本地运行支持长上下文的模型，实现私有化 RAG。",
+                LevelClass = tier >= HardwareTier.HighEndGpu ? "level-good" : "level-ok",
+                LevelText = tier >= HardwareTier.HighEndGpu ? "优秀" : "良好"
+            });
+        }
+    }
+
+    public void Dispose()
+    {
+    }
+
+    private class PlatformComparisonItem
+    {
+        public bool IsCurrentMachine { get; set; }
+        public int Rank { get; set; }
+        public string Vendor { get; set; } = "";
+        public string VendorEmoji { get; set; } = "";
+        public string BadgeClass { get; set; } = "";
+        public string ModelName { get; set; } = "";
+        public string GpuInfo { get; set; } = "";
+        public string MemoryInfo { get; set; } = "";
+        public string TflopsInt8Info { get; set; } = "";
+        public string TflopsInt4Info { get; set; } = "";
+        public string BandwidthInfo { get; set; } = "";
+        public string SpeedInfo { get; set; } = "";
+        public double EstimatedTokensPerSecond { get; set; }
+        public string PowerInfo { get; set; } = "";
+        public string PriceInfo { get; set; } = "";
+    }
+
+    private class RecommendationItem
+    {
+        public string Icon { get; set; } = "";
+        public string Title { get; set; } = "";
+        public string Description { get; set; } = "";
+        public string LevelClass { get; set; } = "";
+        public string LevelText { get; set; } = "";
+    }
+}
+
+<style>
+    .loading-spinner {
+        text-align: center;
+        padding: 3rem;
+        color: #6c757d;
+        font-size: 1.1rem;
+    }
+
+    .section {
+        background: #fff;
+        border-radius: 8px;
+        padding: 1.25rem;
+        margin-bottom: 1.5rem;
+        box-shadow: 0 1px 3px rgba(0,0,0,0.06);
+    }
+
+    .section h2 {
+        margin-top: 0;
+        margin-bottom: 1rem;
+        font-size: 1.2rem;
+        color: #333;
+    }
+
+    .section-desc {
+        color: #6c757d;
+        font-size: 0.9rem;
+        margin-bottom: 1rem;
+    }
+
+    /* 本机配置卡片 */
+    .machine-cards {
+        display: flex;
+        gap: 1rem;
+    }
+
+    .machine-card {
+        flex: 1;
+        border: 2px solid #e9ecef;
+        border-radius: 10px;
+        padding: 1.25rem;
+        background: #fafbfc;
+        transition: border-color 0.2s ease;
+    }
+
+    .machine-card.tier-cpu-only { border-color: #adb5bd; }
+    .machine-card.tier-low-end { border-color: #ffc107; }
+    .machine-card.tier-mid-range { border-color: #17a2b8; }
+    .machine-card.tier-high-end { border-color: #28a745; }
+    .machine-card.tier-top-tier { border-color: #6f42c1; }
+
+    .card-header {
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+        margin-bottom: 1rem;
+        padding-bottom: 0.75rem;
+        border-bottom: 1px solid #e9ecef;
+    }
+
+    .platform-icon {
+        font-size: 1.5rem;
+    }
+
+    .platform-name {
+        font-weight: 600;
+        font-size: 1.1rem;
+        color: #212529;
+        flex: 1;
+    }
+
+    .tier-badge {
+        font-size: 0.78rem;
+        padding: 0.25rem 0.6rem;
+        border-radius: 12px;
+        font-weight: 600;
+        background: #e9ecef;
+        color: #495057;
+    }
+
+    .machine-card.tier-cpu-only .tier-badge { background: #e2e3e5; color: #383d41; }
+    .machine-card.tier-low-end .tier-badge { background: #fff3cd; color: #856404; }
+    .machine-card.tier-mid-range .tier-badge { background: #d1ecf1; color: #0c5460; }
+    .machine-card.tier-high-end .tier-badge { background: #d4edda; color: #155724; }
+    .machine-card.tier-top-tier .tier-badge { background: #e2d4f0; color: #4a2c7a; }
+
+    .spec-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+        gap: 0.75rem;
+    }
+
+    .spec-item {
+        display: flex;
+        flex-direction: column;
+        gap: 0.15rem;
+    }
+
+    .spec-label {
+        font-size: 0.78rem;
+        color: #6c757d;
+        text-transform: uppercase;
+        letter-spacing: 0.03em;
+    }
+
+    .spec-value {
+        font-size: 0.92rem;
+        font-weight: 500;
+        color: #212529;
+        word-break: break-word;
+    }
+
+    /* 对比表格 */
+    .table-wrapper {
+        overflow-x: auto;
+    }
+
+    .comparison-table {
+        width: 100%;
+        border-collapse: collapse;
+        font-size: 0.88rem;
+        min-width: 1000px;
+    }
+
+    .comparison-table thead th {
+        background: #f8f9fa;
+        padding: 0.75rem 0.6rem;
+        text-align: left;
+        font-weight: 600;
+        color: #495057;
+        border-bottom: 2px solid #dee2e6;
+        white-space: nowrap;
+    }
+
+    .comparison-table tbody td {
+        padding: 0.85rem 0.6rem;
+        border-bottom: 1px solid #e9ecef;
+        vertical-align: top;
+        line-height: 1.5;
+    }
+
+    .comparison-table tbody tr:hover {
+        background: #f8f9fa;
+    }
+
+    .comparison-table tbody tr.current-row {
+        background: #e7f1ff;
+        border-left: 3px solid #0d6efd;
+    }
+
+    .comparison-table tbody tr.current-row td:first-child {
+        border-left: 3px solid #0d6efd;
+    }
+
+    .col-rank {
+        min-width: 40px;
+        text-align: center;
+        font-weight: 600;
+    }
+
+    .platform-cell {
+        display: flex;
+        flex-direction: column;
+        gap: 0.25rem;
+    }
+
+    .platform-badge {
+        font-size: 0.75rem;
+        padding: 0.15rem 0.5rem;
+        border-radius: 10px;
+        font-weight: 600;
+        display: inline-block;
+        width: fit-content;
+    }
+
+    .platform-badge.current { background: #0d6efd; color: #fff; }
+    .platform-badge.nvidia { background: #d4edda; color: #155724; }
+    .platform-badge.intel { background: #cce5ff; color: #004085; }
+    .platform-badge.amd { background: #f8d7da; color: #721c24; }
+    .platform-badge.apple { background: #e2e3e5; color: #383d41; }
+
+    .platform-model {
+        font-weight: 600;
+        font-size: 0.95rem;
+        color: #212529;
+    }
+
+    .sub-text {
+        font-size: 0.78rem;
+        color: #6c757d;
+        display: block;
+    }
+
+    .tops-value {
+        font-weight: 700;
+        font-size: 1rem;
+        color: #0d6efd;
+    }
+
+    .speed-value {
+        font-weight: 600;
+    }
+
+    .speed-value.speed-excellent { color: #28a745; }
+    .speed-value.speed-good { color: #17a2b8; }
+    .speed-value.speed-mid { color: #fd7e14; }
+    .speed-value.speed-low { color: #ffc107; }
+    .speed-value.speed-poor { color: #dc3545; }
+
+    .col-platform { min-width: 140px; }
+    .col-gpu { min-width: 160px; }
+    .col-memory { min-width: 110px; }
+    .col-tops { min-width: 110px; }
+    .col-bandwidth { min-width: 100px; }
+    .col-speed { min-width: 120px; }
+    .col-power { min-width: 80px; }
+    .col-price { min-width: 90px; }
+
+    /* 性能等级说明 */
+    .tier-cards {
+        display: grid;
+        grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+        gap: 1rem;
+    }
+
+    .tier-card {
+        border: 1px solid #e9ecef;
+        border-radius: 8px;
+        padding: 1rem;
+        background: #fafbfc;
+    }
+
+    .tier-card.tier-cpu { border-left: 4px solid #adb5bd; }
+    .tier-card.tier-entry { border-left: 4px solid #ffc107; }
+    .tier-card.tier-mid { border-left: 4px solid #17a2b8; }
+    .tier-card.tier-high { border-left: 4px solid #28a745; }
+    .tier-card.tier-pro { border-left: 4px solid #6f42c1; }
+
+    .tier-title {
+        font-weight: 600;
+        font-size: 1rem;
+        margin-bottom: 0.35rem;
+    }
+
+    .tier-range {
+        font-size: 0.82rem;
+        color: #495057;
+        margin-bottom: 0.5rem;
+        font-weight: 500;
+    }
+
+    .tier-desc {
+        font-size: 0.85rem;
+        color: #6c757d;
+        line-height: 1.5;
+    }
+
+    /* 适用场景建议 */
+    .recommendation-list {
+        display: flex;
+        flex-direction: column;
+        gap: 0.75rem;
+    }
+
+    .recommendation-item {
+        display: flex;
+        align-items: center;
+        gap: 1rem;
+        padding: 0.85rem 1rem;
+        border-radius: 8px;
+        border: 1px solid #e9ecef;
+        background: #fafbfc;
+    }
+
+    .rec-icon {
+        font-size: 1.5rem;
+        width: 2.5rem;
+        text-align: center;
+    }
+
+    .rec-content {
+        flex: 1;
+    }
+
+    .rec-title {
+        font-weight: 600;
+        font-size: 0.95rem;
+        margin-bottom: 0.15rem;
+    }
+
+    .rec-desc {
+        font-size: 0.85rem;
+        color: #6c757d;
+        line-height: 1.4;
+    }
+
+    .rec-badge {
+        font-size: 0.78rem;
+        padding: 0.25rem 0.6rem;
+        border-radius: 12px;
+        font-weight: 600;
+        white-space: nowrap;
+    }
+
+    .rec-badge.level-excellent { background: #d4edda; color: #155724; }
+    .rec-badge.level-good { background: #d1ecf1; color: #0c5460; }
+    .rec-badge.level-ok { background: #fff3cd; color: #856404; }
+    .rec-badge.level-bad { background: #f8d7da; color: #721c24; }
+
+    .recommendation-item.level-excellent { border-left: 4px solid #28a745; }
+    .recommendation-item.level-good { border-left: 4px solid #17a2b8; }
+    .recommendation-item.level-ok { border-left: 4px solid #ffc107; }
+    .recommendation-item.level-bad { border-left: 4px solid #dc3545; }
+
+    .refresh-section {
+        display: flex;
+        align-items: center;
+    }
+
+    .alert {
+        padding: 0.75rem 1rem;
+        border-radius: 6px;
+        margin-bottom: 1rem;
+    }
+
+    .alert-info {
+        background: #e7f1ff;
+        color: #0d6efd;
+        border: 1px solid #b6d4fe;
+    }
+
+    .text-muted {
+        color: #6c757d;
+    }
+
+    @@media (max-width: 768px) {
+        .machine-cards {
+            flex-direction: column;
+        }
+        .spec-grid {
+            grid-template-columns: 1fr;
+        }
+        .tier-cards {
+            grid-template-columns: 1fr;
+        }
+    }
+
+    .data-source-note {
+        margin-top: 1.5rem;
+        padding: 1rem 1.25rem;
+        background: #f8f9fa;
+        border-radius: 8px;
+        border-left: 4px solid #6c757d;
+        font-size: 0.82rem;
+        color: #495057;
+    }
+    .data-source-note h5 {
+        margin: 0 0 0.5rem 0;
+        font-size: 0.9rem;
+        color: #343a40;
+    }
+    .data-source-note ul {
+        margin: 0;
+        padding-left: 1.2rem;
+    }
+    .data-source-note li {
+        margin-bottom: 0.25rem;
+        line-height: 1.5;
+    }
+    .data-source-note code {
+        background: #e9ecef;
+        padding: 0.1rem 0.3rem;
+        border-radius: 3px;
+        font-size: 0.78rem;
+    }
+</style>

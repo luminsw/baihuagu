@@ -1,0 +1,509 @@
+@page "/search"
+@rendermode InteractiveServer
+@using Microsoft.AspNetCore.Components.Web
+@inject NavigationManager Navigation
+@inject WebUI.Services.IApiService ApiService
+@inject WebUI.Services.TemporaryStorageService TempStorage
+@inject WebUI.Services.SearchStateService SearchStateService
+@inject WebUI.Services.ISearchHistoryService SearchHistoryService
+@inject WebUI.Services.ObsidianStatusService ObsidianStatusService
+@inject WebUI.Services.VaultsService VaultsService
+@inject Microsoft.Extensions.Logging.ILogger<Search> Logger
+@using WebUI.Services
+
+<PageTitle>搜索</PageTitle>
+
+<h1>🔍 搜索</h1>
+
+<!-- Obsidian 状态提示 -->
+@if (obsidianStatus != null)
+{
+    @if (obsidianStatus.IsRunning)
+    {
+        <div class="obsidian-hint alert alert-success alert-dismissible fade show" role="alert">
+            <strong>✅ Obsidian 已启动</strong>
+            <p class="mb-0 small mt-1">
+                搜索本地知识库时将使用 Obsidian 的搜索功能，支持更强大的全文检索、标签搜索和链接关系查询。
+            </p>
+            <button type="button" class="btn-close" @onclick="() => obsidianHintDismissed = true" aria-label="Close"></button>
+        </div>
+    }
+    else
+    {
+        <div class="obsidian-hint alert alert-warning alert-dismissible fade show" role="alert">
+            <strong>💡 提示：</strong>Obsidian 桌面客户端未启动
+            <p class="mb-0 small mt-1">
+                启动 Obsidian 后可使用其强大的搜索功能检索本地知识库，支持全文检索、标签搜索和链接关系查询。
+                <a href="https://obsidian.md/download" target="_blank" class="alert-link">下载 Obsidian</a>
+            </p>
+            <button type="button" class="btn-close" @onclick="() => obsidianHintDismissed = true" aria-label="Close"></button>
+        </div>
+    }
+}
+
+<div class="local-search">
+        @if (vaults.Count > 0)
+        {
+            var industries = vaults.Select(v => v.Industry).Where(i => !string.IsNullOrWhiteSpace(i)).Distinct().OrderBy(i => i).ToList();
+            <div class="d-flex align-items-center gap-2 mb-2 flex-wrap">
+                @if (industries.Count > 1)
+                {
+                    <label class="form-label mb-0 text-nowrap" style="font-size:0.9em">🏭 行业：</label>
+                    <select class="form-select form-select-sm" @bind="selectedIndustry" @bind:after="OnIndustryChanged" style="max-width:150px">
+                        <option value="">全部</option>
+                        @foreach (var industry in industries)
+                        {
+                            <option value="@industry">@industry</option>
+                        }
+                    </select>
+                }
+                <label class="form-label mb-0 text-nowrap" style="font-size:0.9em">📚 知识库：</label>
+                <select class="form-select form-select-sm" @bind="selectedVaultId" @bind:after="OnVaultChanged" style="max-width:300px">
+                    @foreach (var vault in FilteredVaults)
+                    {
+                        <option value="@vault.Id">@vault.Name</option>
+                    }
+                </select>
+            </div>
+        }
+        <div class="search-box">
+            <input type="text" 
+                   @bind="searchQuery" 
+                   @bind:event="oninput"
+                   @onkeydown="HandleKeyDown"
+                   placeholder="输入关键词搜索本地笔记..." 
+                   class="form-control" />
+            <button @onclick="PerformSearch" class="btn btn-primary">搜索</button>
+        </div>
+
+        @if (recentSearches != null && recentSearches.Any() && string.IsNullOrWhiteSpace(searchQuery))
+        {
+            <div class="recent-searches">
+                <div class="section-header">
+                    <h3>🔍 最近搜索</h3>
+                    <button @onclick="ClearSearchHistory" class="btn btn-sm btn-link">清空</button>
+                </div>
+                <div class="search-chips">
+                    @foreach (var query in recentSearches)
+                    {
+                        <span class="search-chip" @onclick="(() => SearchWithQuery(query))">
+                            @query
+                            <button @onclick="(() => RemoveSearchQuery(query))" class="chip-remove">×</button>
+                        </span>
+                    }
+                </div>
+            </div>
+        }
+
+        @if (isSearching)
+        {
+            <div class="loading">
+                <div class="spinner"></div>
+                <span>搜索中...</span>
+            </div>
+        }
+        else
+        {
+            @if (searchStatus != null && !string.IsNullOrWhiteSpace(searchStatus.SearchMethod) && searchStatus.SearchMethod != "none")
+            {
+                <div class="mb-2">
+                    <span class="badge @GetSearchMethodBadgeClass(searchStatus.SearchMethod)">
+                        @GetSearchMethodLabel(searchStatus.SearchMethod)
+                    </span>
+                    @if (indexStatus != null)
+                    {
+                        <span class="badge @GetIndexBadgeClass(indexStatus.HasIndex) ms-1">
+                            索引: @(indexStatus.HasIndex ? $"{indexStatus.IndexedCount} 篇" : "未建立")
+                        </span>
+                        @if (!indexStatus.HasIndex)
+                        {
+                            @if (isRebuildingIndex)
+                            {
+                                <button class="btn btn-sm btn-link py-0 text-danger" @onclick="StopRebuildIndexAsync">取消重建</button>
+                            }
+                            else
+                            {
+                                <button class="btn btn-sm btn-link py-0" @onclick="RebuildIndexAsync">重建索引</button>
+                            }
+                        }
+                    }
+                </div>
+            }
+
+            @if (searchResults != null && searchResults.Any())
+            {
+                var groupedResults = BuildGroupedResults();
+                
+                <div class="results">
+                    <h2>搜索结果 (@searchResults.Count 条)</h2>
+                    
+                    @foreach (var group in groupedResults)
+                    {
+                        <div class="result-group">
+                            <div class="group-header" @onclick="(() => ToggleGroup(group.Key))">
+                                <span class="group-icon">@(expandedGroups.Contains(group.Key) ? "📂" : "📁")</span>
+                                <h3>@group.Key (@group.Value.Count 条)</h3>
+                            </div>
+                            
+                            @if (expandedGroups.Contains(group.Key))
+                            {
+                                <div class="group-items">
+                                    @foreach (var result in group.Value)
+                                    {
+                                        <div class="result-item" @onclick="(() => ViewNote(result))" style="cursor: pointer;">
+                                            <div class="result-header">
+                                                <h3>@result.Title</h3>
+                                                <span class="result-hint">点击查看 →</span>
+                                            </div>
+                                            <p class="preview">@result.Preview</p>
+                                            <div class="meta">
+                                                <span class="path">📁 @result.Path</span>
+                                            </div>
+                                        </div>
+                                    }
+                                </div>
+                            }
+                        </div>
+                    }
+                </div>
+            }
+            else if (hasSearched)
+            {
+                <div class="no-results">
+                    @if (searchStatus != null && !string.IsNullOrEmpty(searchStatus.ErrorMessage))
+                    {
+                        <span>⚠️</span>
+                        <p>@searchStatus.ErrorMessage</p>
+                        @if (!searchStatus.VaultConfigured)
+                        {
+                            <p class="text-muted">请前往 <a href="settings" class="btn btn-sm btn-outline-primary mt-2">设置页面</a> 配置知识库路径</p>
+                        }
+                        else if (!searchStatus.VaultExists)
+                        {
+                            <p class="text-muted">请检查知识库路径是否正确，或确认文件夹存在</p>
+                        }
+                    }
+                    else
+                    {
+                        <span>😕</span>
+                        <p>未找到相关结果</p>
+                        @if (searchStatus != null)
+                        {
+                            <p class="text-muted">搜索方式：@(searchStatus.SearchMethod == "obsidian-cli" ? "Obsidian CLI" : searchStatus.SearchMethod == "semantic" ? "语义搜索" : "文件扫描")</p>
+                        }
+                    }
+                </div>
+            }
+            else
+            {
+                <div class="search-tips">
+                    <h3>💡 搜索提示</h3>
+                    <ul>
+                        <li>输入关键词搜索笔记标题和内容</li>
+                        <li>支持搜索知识库内容</li>
+                        <li>例如："桂枝汤"、"发热"、"太阳病"</li>
+                    </ul>
+                </div>
+            }
+        }
+    </div>
+
+@code {
+    private string searchQuery = "";
+    private bool isSearching = false;
+    private bool hasSearched = false;
+    private List<SearchResult> searchResults = new();
+    private SearchStatusInfo? searchStatus;
+    private List<string>? recentSearches;
+    private HashSet<string> expandedGroups = new();
+
+    private ObsidianStatusSummary? obsidianStatus;
+    private bool obsidianHintDismissed = false;
+    private List<VaultConfig> vaults = new();
+    private string selectedVaultId = "";
+    private string selectedIndustry = "";
+    private IndexStatusDto? indexStatus;
+
+    private List<VaultConfig> FilteredVaults => string.IsNullOrWhiteSpace(selectedIndustry)
+        ? vaults
+        : vaults.Where(v => v.Industry == selectedIndustry).ToList();
+    private bool isRebuildingIndex = false;
+    private CancellationTokenSource? _rebuildCts;
+
+    protected override async Task OnInitializedAsync()
+    {
+        var startTime = DateTime.Now;
+        Logger.LogDebug("页面初始化开始: {StartTime:HH:mm:ss.fff}", startTime);
+        
+        // 立即恢复之前的搜索状态（同步操作，很快）
+        var savedState = SearchStateService.Retrieve();
+        if (savedState != null)
+        {
+            searchQuery = savedState.Query;
+            searchResults = savedState.Results;
+            expandedGroups = savedState.ExpandedGroups;
+            hasSearched = true;
+            Logger.LogDebug("恢复搜索状态完成，结果数: {Count}", searchResults?.Count ?? 0);
+        }
+        
+        var renderTime = DateTime.Now;
+        Logger.LogDebug("页面可以渲染，耗时: {ElapsedMs}ms", (renderTime - startTime).TotalMilliseconds);
+        
+        // 后台异步加载数据，不阻塞页面显示
+        _ = Task.Run(async () =>
+        {
+            try
+            {
+                var loadStartTime = DateTime.Now;
+                Logger.LogDebug("后台数据加载开始: {StartTime:HH:mm:ss.fff}", loadStartTime);
+                
+                // 并行加载所有数据
+                var loadRecentSearchesTask = SearchHistoryService.GetRecentSearches();
+                var loadObsidianStatusTask = ObsidianStatusService.GetStatusSummaryAsync();
+                var loadVaultsTask = VaultsService.GetVaultsAsync();
+                
+                await Task.WhenAll(loadRecentSearchesTask, loadObsidianStatusTask, loadVaultsTask);
+                
+                var loadEndTime = DateTime.Now;
+                Logger.LogDebug("后台数据加载完成，耗时: {ElapsedMs}ms", (loadEndTime - loadStartTime).TotalMilliseconds);
+                
+                // 更新UI（需要在UI线程执行）
+                await InvokeAsync(() =>
+                {
+                    recentSearches = loadRecentSearchesTask.Result;
+                    obsidianStatus = loadObsidianStatusTask.Result;
+                    var vaultsResponse = loadVaultsTask.Result;
+                    vaults = vaultsResponse.Vaults;
+                    selectedVaultId = vaults.FirstOrDefault()?.Id ?? "";
+                    StateHasChanged();
+                    Logger.LogDebug("UI更新完成");
+                });
+                
+                // 加载索引状态
+                await LoadIndexStatusAsync();
+            }
+            catch (Exception ex)
+            {
+                Logger.LogWarning(ex, "后台加载失败");
+            }
+        });
+    }
+
+    private async Task HandleKeyDown(KeyboardEventArgs e)
+    {
+        if (e.Key == "Enter")
+        {
+            await PerformSearch();
+        }
+    }
+
+    private async Task OnIndustryChanged()
+    {
+        // 切换行业后，自动选中该行业的第一个知识库
+        var firstVault = FilteredVaults.FirstOrDefault();
+        if (firstVault != null)
+        {
+            selectedVaultId = firstVault.Id;
+            await OnVaultChanged();
+        }
+    }
+
+    private async Task OnVaultChanged()
+    {
+        if (string.IsNullOrEmpty(selectedVaultId)) return;
+
+        // 加载新知识库的索引状态
+        await LoadIndexStatusAsync();
+
+        // 如果已有搜索词，重新搜索
+        if (!string.IsNullOrWhiteSpace(searchQuery) && hasSearched)
+        {
+            await SearchWithQuery(searchQuery);
+        }
+    }
+
+    private async Task LoadIndexStatusAsync()
+    {
+        if (string.IsNullOrEmpty(selectedVaultId)) return;
+        try
+        {
+            indexStatus = await ApiService.GetIndexStatusAsync(selectedVaultId);
+        }
+        catch (Exception ex)
+        {
+            Logger.LogDebug(ex, "加载索引状态失败");
+        }
+    }
+
+    private async Task RebuildIndexAsync()
+    {
+        if (string.IsNullOrEmpty(selectedVaultId) || isRebuildingIndex) return;
+        isRebuildingIndex = true;
+        _rebuildCts = new CancellationTokenSource();
+        try
+        {
+            var result = await ApiService.RebuildIndexAsync(selectedVaultId, _rebuildCts.Token);
+            await LoadIndexStatusAsync();
+        }
+        catch (Exception ex)
+        {
+            Logger.LogWarning(ex, "重建索引失败");
+        }
+        finally
+        {
+            isRebuildingIndex = false;
+            _rebuildCts?.Dispose();
+            _rebuildCts = null;
+        }
+    }
+
+    private void StopRebuildIndexAsync()
+    {
+        _rebuildCts?.Cancel();
+    }
+
+    private string GetSearchMethodBadgeClass(string method) => method switch
+    {
+        "obsidian-cli" => "text-bg-primary",
+        "fts5" => "text-bg-success",
+        "fts5+semantic" => "text-bg-info",
+        "semantic" => "text-bg-warning",
+        _ => "text-bg-secondary"
+    };
+
+    private string GetSearchMethodLabel(string method) => method switch
+    {
+        "obsidian-cli" => "🔮 Obsidian CLI",
+        "fts5" => "📚 FTS5 全文",
+        "fts5+semantic" => "🧠 FTS5 + 语义重排",
+        "semantic" => "🧠 语义搜索",
+        _ => "📁 文件扫描"
+    };
+
+    private string GetIndexBadgeClass(bool hasIndex) => hasIndex ? "text-bg-success" : "text-bg-warning";
+
+    private async Task PerformSearch()
+    {
+        if (string.IsNullOrWhiteSpace(searchQuery)) return;
+        await SearchWithQuery(searchQuery);
+    }
+
+    private async Task SearchWithQuery(string query)
+    {
+        if (string.IsNullOrWhiteSpace(query)) return;
+
+        if (string.IsNullOrWhiteSpace(selectedVaultId))
+        {
+            searchStatus = new SearchStatusInfo { ErrorMessage = "请先选择知识库" };
+            hasSearched = true;
+            return;
+        }
+
+        await SearchHistoryService.AddSearchQuery(query);
+        recentSearches = await SearchHistoryService.GetRecentSearches();
+
+        searchQuery = query;
+        isSearching = true;
+        hasSearched = true;
+        searchStatus = null;
+
+        try
+        {
+            var response = await ApiService.SearchAsync(query, selectedVaultId);
+            searchResults = response.Results;
+            searchStatus = response.Status;
+        }
+        catch (Exception ex)
+        {
+            Logger.LogWarning(ex, "搜索失败");
+            searchResults = new List<SearchResult>();
+            searchStatus = new SearchStatusInfo { ErrorMessage = "搜索服务不可用" };
+        }
+        finally
+        {
+            isSearching = false;
+        }
+    }
+
+    private void ViewNote(SearchResult result)
+    {
+        // 保存搜索状态，以便返回时恢复
+        SearchStateService.Save(searchQuery, searchResults, expandedGroups);
+        var vaultParam = string.IsNullOrEmpty(selectedVaultId) ? "" : $"&vaultId={Uri.EscapeDataString(selectedVaultId)}";
+        Navigation.NavigateTo($"note?id={Uri.EscapeDataString(result.Path)}{vaultParam}");
+    }
+
+    private Dictionary<string, List<SearchResult>> BuildGroupedResults()
+    {
+        var groups = new Dictionary<string, List<SearchResult>>();
+        var used = new HashSet<string>();
+
+        List<SearchResult> Pick(Func<SearchResult, bool> test)
+        {
+            var picked = new List<SearchResult>();
+            foreach (var n in searchResults)
+            {
+                if (used.Contains(n.Path)) continue;
+                if (test(n))
+                {
+                    picked.Add(n);
+                    used.Add(n.Path);
+                }
+            }
+            picked.Sort((a, b) => string.Compare(a.Title, b.Title, StringComparison.Ordinal));
+            return picked;
+        }
+
+        void AddGroup(string title, Func<SearchResult, bool> test)
+        {
+            var items = Pick(test);
+            if (items.Count > 0) groups[title] = items;
+        }
+
+        AddGroup("症状 / 病名", n => n.Path.Contains("症状/") || n.Path.Contains("病名/"));
+        AddGroup("病机 / 病理 / 证型", n => n.Path.Contains("病机/") || n.Path.Contains("病理/") || n.Path.Contains("证型/"));
+        AddGroup("方剂 / 中药", n => n.Path.Contains("方剂/") || n.Path.Contains("中药/"));
+        AddGroup("舌诊 / 脉诊 / 望诊 / 闻诊", n => n.Path.Contains("舌诊/") || n.Path.Contains("脉诊/") || n.Path.Contains("望诊/") || n.Path.Contains("闻诊/"));
+        AddGroup("治法", n => n.Path.StartsWith("治法/"));
+        AddGroup("医案", n => n.Path.StartsWith("医案/"));
+        AddGroup("AI 查询", n => n.Path.Contains("AI 查询/") || n.Path.Contains("AI 生成/"));
+        
+        var other = Pick(n => !used.Contains(n.Path));
+        if (other.Count > 0) groups["其他"] = other;
+
+        return groups;
+    }
+
+    private void ToggleGroup(string groupName)
+    {
+        if (expandedGroups.Contains(groupName)) expandedGroups.Remove(groupName);
+        else expandedGroups.Add(groupName);
+    }
+
+    private async Task ClearSearchHistory()
+    {
+        await SearchHistoryService.ClearSearchHistory();
+        recentSearches = await SearchHistoryService.GetRecentSearches();
+    }
+
+    private async Task RemoveSearchQuery(string query)
+    {
+        await SearchHistoryService.RemoveSearchQuery(query);
+        recentSearches = await SearchHistoryService.GetRecentSearches();
+    }
+}
+
+<style>
+    .obsidian-hint {
+        margin: 1rem 0;
+        padding: 0.75rem 1rem;
+        background: linear-gradient(135deg, #fff3e0 0%, #ffe0b2 100%);
+        border: 1px solid #ff9800;
+        border-radius: 8px;
+    }
+
+    .obsidian-hint .btn-close {
+        padding: 0.5rem;
+        margin: -0.5rem -0.5rem -0.5rem auto;
+    }
+</style>

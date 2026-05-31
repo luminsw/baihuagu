@@ -1,0 +1,128 @@
+services:
+  taskrunner:
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile.taskrunner
+      args:
+        - GIT_COMMIT=${GIT_COMMIT:-unknown}
+        - GIT_BRANCH=${GIT_BRANCH:-unknown}
+    image: yj-family/taskrunner:latest
+    container_name: yj-family-taskrunner
+    restart: unless-stopped
+    # 使用 host 网络：WebUI 可直接通过 127.0.0.1:8788 访问 TaskRunner，
+    # 且 nginx 反向代理配置无需修改。
+    # 家庭版需 host 网络，以便 mDNS 服务发现在局域网中正常工作。
+    network_mode: host
+    user: "${USER_UID:-0}:${USER_GID:-0}"
+    volumes:
+      # 数据持久化到宿主机（SQLite 数据库、配置）
+      - /opt/yj-family/data:/app/data
+      # 日志持久化到宿主机
+      - /opt/yj-family/logs:/app/logs
+      # 可选：宿主机自定义配置覆盖容器内配置（只读）
+      - /opt/yj-family/config/taskrunner:/app/config:ro
+      # 知识库根路径（通过 TASKRUNNER_VAULT_ROOT 环境变量指定）
+      - ${VAULTS_DIR:-/home/lumin/Vaults}:${VAULTS_DIR:-/home/lumin/Vaults}
+    environment:
+      - TASKRUNNER_DATA_DIR=/app/data
+      - TASKRUNNER_SKIP_MUTEX=true
+      - ASPNETCORE_URLS=http://0.0.0.0:8788
+      # OpenObserve 通过宿主机 localhost 访问
+      - OpenObserve__WebUrl=http://127.0.0.1:5080/
+      - OpenObserve__Enabled=false
+      # 知识库根路径（与宿主机实际路径保持一致）
+      - TASKRUNNER_VAULT_ROOT=${VAULTS_DIR:-/home/lumin/Vaults}
+      # 固定加密密钥（可选）
+      # 程序会自动在 /app/data/.yj-key 生成并管理密钥，容器重建后仍然可用
+      # 高级用户可通过环境变量手动指定，覆盖自动生成的密钥
+      # 如果设置后更改，已加密的 API Key 会失效，需要重新在 WebUI 配置
+      - YJ_ENCRYPTION_KEY=${YJ_ENCRYPTION_KEY:-}
+      # 从 .env 文件注入敏感配置
+      - ADMIN_PASSWORD_HASH=${ADMIN_PASSWORD_HASH:-}
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://127.0.0.1:8788/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+
+  webui:
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile.webui
+      args:
+        - GIT_COMMIT=${GIT_COMMIT:-unknown}
+        - GIT_BRANCH=${GIT_BRANCH:-unknown}
+    image: yj-family/webui:latest
+    container_name: yj-family-webui
+    restart: unless-stopped
+    network_mode: host
+    user: "${USER_UID:-0}:${USER_GID:-0}"
+    volumes:
+      - /opt/yj-family/data:/app/data
+      - /opt/yj-family/logs:/app/logs
+      - /opt/yj-family/config/webui:/app/config:ro
+      # 知识库路径（WebUI 需要在容器内验证路径是否存在）
+      - ${VAULTS_DIR:-/home/lumin/Vaults}:${VAULTS_DIR:-/home/lumin/Vaults}
+    environment:
+      - WEBUI_CONFIG_DIR=/app/data
+      - ASPNETCORE_URLS=http://0.0.0.0:5177
+      # 通过宿主机 localhost 访问 TaskRunner（host 网络）
+      - TaskRunnerApi__BaseUrl=http://127.0.0.1:8788/
+      - OpenObserve__WebUrl=http://127.0.0.1:5080/
+      - OpenObserve__Enabled=false
+      - ADMIN_PASSWORD_HASH=${ADMIN_PASSWORD_HASH:-}
+      - ADMIN_IP_WHITELIST=${ADMIN_IP_WHITELIST:-}
+    depends_on:
+      taskrunner:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://127.0.0.1:5177/"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+
+  nginx:
+    image: nginx:1.27-alpine
+    container_name: yj-family-nginx
+    restart: unless-stopped
+    network_mode: host
+    volumes:
+      # Nginx 配置文件
+      - /opt/yj-family/config/nginx/nginx.conf:/etc/nginx/conf.d/default.conf:ro
+      # 静态官网文件
+      - /opt/yj/website:/var/www/shzhengji:ro
+    depends_on:
+      taskrunner:
+        condition: service_healthy
+      webui:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "curl -fs http://127.0.0.1:80/ || exit 1"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+
+  openobserve:
+    # 可观测性服务（日志/指标），非核心，默认不自动启动
+    profiles: ["observability"]
+    image: public.ecr.aws/zinclabs/openobserve:v0.80.1
+    container_name: yj-family-openobserve
+    restart: unless-stopped
+    ports:
+      - "5080:5080"
+      - "5081:5081"
+    volumes:
+      - /opt/yj-family/data/openobserve:/data
+    environment:
+      ZO_ROOT_USER_EMAIL: root@localhost.com
+      ZO_ROOT_USER_PASSWORD: Complexpass#123
+      ZO_DATA_DIR: /data
+    networks:
+      - yj-family-net
+
+networks:
+  yj-family-net:
+    driver: bridge

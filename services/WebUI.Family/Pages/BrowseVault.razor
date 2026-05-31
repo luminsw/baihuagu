@@ -1,0 +1,387 @@
+@page "/browse"
+@rendermode @(new InteractiveServerRenderMode(prerender: false))
+@inject IApiService ApiService
+@inject VaultsService VaultsService
+@inject NavigationManager Navigation
+@inject IJSRuntime JS
+@inject ILogger<BrowseVault> Logger
+@using Markdig
+@using Microsoft.JSInterop
+@using TaskRunner.Contracts.Vaults
+
+<PageTitle>知识库浏览</PageTitle>
+
+<div class="container mt-4">
+    <h2 class="mb-4">📚 知识库浏览</h2>
+
+
+    @if (isLoadingVaults)
+    {
+        <div class="text-center py-5">
+            <div class="spinner-border text-primary" role="status"></div>
+            <p class="mt-2 text-muted">加载中...</p>
+        </div>
+    }
+    else if (vaults.Count == 0)
+    {
+        <div class="alert alert-info">
+            暂无知识库，请先<a href="vaults" class="alert-link">创建或导入知识库</a>。
+        </div>
+    }
+    else if (string.IsNullOrEmpty(selectedVaultId))
+    {
+        <!-- 标签过滤栏 -->
+        @if (allTags.Count > 0)
+        {
+            <div class="mb-3 d-flex flex-wrap gap-2 align-items-center">
+                <span class="text-muted small">🏷️ 过滤：</span>
+                <button class="btn btn-sm @(selectedTags.Count == 0 ? "btn-primary" : "btn-outline-secondary")" @onclick="ClearTagFilter">
+                    全部
+                </button>
+                @foreach (var tag in allTags)
+                {
+                    <button class="btn btn-sm @(selectedTags.Contains(tag) ? "btn-info text-dark" : "btn-outline-info")" @onclick="() => ToggleTagFilter(tag)"
+                    style="font-size: 0.8em; padding: 0.2em 0.6em;"
+                    >
+                        @tag
+                    </button>
+                }
+            </div>
+        }
+
+        <!-- 知识库列表（文件夹卡片形式） -->
+        <div class="row g-3">
+            @foreach (var v in FilteredVaults)
+            {
+                <div class="col-md-3 col-sm-4 col-6">
+                    <div class="card h-100 vault-folder-card" @onclick="() => SelectVault(v.Id)">
+                        <div class="card-body text-center py-4">
+                            <div class="fs-1 mb-2">📚</div>
+                            <div class="fw-bold text-truncate">@v.Name</div>
+                            @if (v.Tags?.Any() == true)
+                            {
+                                <div class="mt-1 d-flex flex-wrap justify-content-center gap-1">
+                                    @foreach (var tag in v.Tags)
+                                    {
+                                        <span class="badge bg-secondary" style="font-size: 0.65em;">@tag</span>
+                                    }
+                                </div>
+                            }
+                        </div>
+                    </div>
+                </div>
+            }
+        </div>
+    }
+    else
+    {
+        <!-- 已选择知识库，显示面包屑 + 目录内容 -->
+        <div class="d-flex align-items-center mb-3 gap-2">
+            <button class="btn btn-sm btn-outline-secondary" @onclick="BackToVaultList">
+                ← 返回知识库列表
+            </button>
+            <span class="text-muted">|</span>
+            <strong>@currentVaultName</strong>
+        </div>
+
+        <!-- 面包屑 -->
+        <nav aria-label="breadcrumb" class="mb-3">
+            <ol class="breadcrumb">
+                <li class="breadcrumb-item">
+                    <a href="javascript:void(0)" @onclick="GoToRoot">📁 @currentVaultName</a>
+                </li>
+                @if (!string.IsNullOrEmpty(currentPath))
+                {
+                    var parts = currentPath.Split('/', StringSplitOptions.RemoveEmptyEntries);
+                    var acc = "";
+                    for (int i = 0; i < parts.Length; i++)
+                    {
+                        acc = string.IsNullOrEmpty(acc) ? parts[i] : $"{acc}/{parts[i]}";
+                        var localAcc = acc;
+                        <li class="breadcrumb-item">
+                            <a href="javascript:void(0)" @onclick="@(() => NavigateTo(localAcc))">@parts[i]</a>
+                        </li>
+                    }
+                }
+            </ol>
+        </nav>
+
+        @if (isLoading)
+        {
+            <div class="text-center py-5">
+                <div class="spinner-border text-primary" role="status"></div>
+                <p class="mt-2 text-muted">加载中...</p>
+            </div>
+        }
+        else if (browseItems.Count == 0)
+        {
+            <div class="alert alert-light border">该目录下暂无内容</div>
+        }
+        else
+        {
+            <div class="row g-3">
+                @foreach (var item in browseItems)
+                {
+                    <div class="col-md-3 col-sm-4 col-6">
+                        @if (item.IsDirectory)
+                        {
+                            <div class="card h-100 vault-folder-card" @onclick="() => NavigateTo(item.Path)">
+                                <div class="card-body text-center py-4">
+                                    <div class="fs-1 mb-2">📁</div>
+                                    <div class="fw-bold text-truncate">@item.Name</div>
+                                    <small class="text-muted">文件夹</small>
+                                </div>
+                            </div>
+                        }
+                        else
+                        {
+                            <div class="card h-100 vault-note-card" @onclick="() => OpenNote(item)">
+                                <div class="card-body text-center py-4">
+                                    <div class="fs-1 mb-2">📝</div>
+                                    <div class="fw-bold text-truncate">@item.Name</div>
+                                    <small class="text-muted">@item.Modified?.ToString("yyyy-MM-dd")</small>
+                                </div>
+                            </div>
+                        }
+                    </div>
+                }
+            </div>
+        }
+    }
+</div>
+
+<!-- 笔记详情弹窗 -->
+@if (showNoteModal && selectedNoteItem != null)
+{
+    <div class="modal fade show" style="display:block; background:rgba(0,0,0,0.5);" tabindex="-1">
+        <div class="modal-dialog modal-lg modal-dialog-scrollable">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">📝 @selectedNoteItem.Name</h5>
+                    <button type="button" class="btn-close" @onclick="CloseNote"></button>
+                </div>
+                <div class="modal-body">
+                    @if (noteContent == null)
+                    {
+                        <div class="text-center py-4">
+                            <div class="spinner-border text-primary"></div>
+                        </div>
+                    }
+                    else
+                    {
+                        @if (noteContent.Tags?.Any() == true)
+                        {
+                            <div class="mb-3">
+                                @foreach (var tag in noteContent.Tags)
+                                {
+                                    <span class="badge bg-secondary me-1">@tag</span>
+                                }
+                            </div>
+                        }
+                        <div class="note-markdown-content">
+                            @((MarkupString)RenderMarkdown(noteContent.Content))
+                        </div>
+                    }
+                </div>
+                <div class="modal-footer">
+                    <button class="btn btn-secondary" @onclick="CloseNote">关闭</button>
+                    <button class="btn btn-primary" @onclick="OpenInDetailPage">在详情页打开</button>
+                </div>
+            </div>
+        </div>
+    </div>
+}
+
+<style>
+    .vault-folder-card, .vault-note-card {
+        cursor: pointer;
+        transition: transform 0.15s ease, box-shadow 0.15s ease;
+        border: 1px solid rgba(0,0,0,0.08);
+    }
+    .vault-folder-card:hover, .vault-note-card:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+    }
+    .vault-note-card {
+        background: #fafbfc;
+    }
+    .note-markdown-content img {
+        max-width: 100%;
+        height: auto;
+    }
+    .note-markdown-content pre {
+        background: #f5f5f5;
+        padding: 1rem;
+        border-radius: 6px;
+        overflow-x: auto;
+    }
+    .note-markdown-content code {
+        background: #f0f0f0;
+        padding: 0.15rem 0.35rem;
+        border-radius: 3px;
+        font-size: 0.9em;
+    }
+    .note-markdown-content blockquote {
+        border-left: 4px solid #dee2e6;
+        padding-left: 1rem;
+        color: #6c757d;
+        margin-left: 0;
+    }
+    .note-markdown-content table {
+        width: 100%;
+        border-collapse: collapse;
+        margin: 1rem 0;
+    }
+    .note-markdown-content th, .note-markdown-content td {
+        border: 1px solid #dee2e6;
+        padding: 0.5rem;
+    }
+    .note-markdown-content th {
+        background: #f8f9fa;
+    }
+</style>
+
+@code {
+    private List<VaultConfig> vaults = new();
+    private string selectedVaultId = "";
+    private string currentPath = "";
+    private List<VaultBrowseItem> browseItems = new();
+    private bool isLoading = false;
+    private bool isLoadingVaults = false;
+    private HashSet<string> selectedTags = new();
+
+    private List<string> allTags => vaults
+        .SelectMany(v => v.Tags ?? new List<string>())
+        .Distinct()
+        .OrderBy(t => t)
+        .ToList();
+
+    private List<VaultConfig> FilteredVaults => selectedTags.Count == 0
+        ? vaults
+        : vaults.Where(v => v.Tags != null && selectedTags.All(tag => v.Tags.Contains(tag))).ToList();
+
+    private string currentVaultName => vaults.FirstOrDefault(v => v.Id == selectedVaultId)?.Name ?? "";
+
+    private bool showNoteModal = false;
+    private VaultBrowseItem? selectedNoteItem = null;
+    private VaultNoteResponse? noteContent = null;
+
+    protected override async Task OnInitializedAsync()
+    {
+        isLoadingVaults = true;
+        try
+        {
+            // forceRefresh: true 确保显示最新推送的移动端知识库
+            var response = await VaultsService.GetVaultsAsync(forceRefresh: true);
+            vaults = response.Vaults;
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "加载知识库列表失败");
+        }
+        isLoadingVaults = false;
+    }
+
+    private void SelectVault(string vaultId)
+    {
+        selectedVaultId = vaultId;
+        currentPath = "";
+        browseItems.Clear();
+        _ = LoadBrowseItems();
+    }
+
+    private void BackToVaultList()
+    {
+        selectedVaultId = "";
+        currentPath = "";
+        browseItems.Clear();
+        selectedTags.Clear();
+    }
+
+    private void ToggleTagFilter(string tag)
+    {
+        if (selectedTags.Contains(tag))
+            selectedTags.Remove(tag);
+        else
+            selectedTags.Add(tag);
+    }
+
+    private void ClearTagFilter()
+    {
+        selectedTags.Clear();
+    }
+
+    private async Task LoadBrowseItems()
+    {
+        if (string.IsNullOrEmpty(selectedVaultId)) return;
+        isLoading = true;
+        try
+        {
+            var response = await ApiService.GetVaultBrowseAsync(selectedVaultId, currentPath);
+            if (response != null)
+            {
+                browseItems = response.Items;
+            }
+            else
+            {
+                browseItems = new List<VaultBrowseItem>();
+            }
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "浏览知识库失败");
+            browseItems = new List<VaultBrowseItem>();
+        }
+        isLoading = false;
+        await InvokeAsync(StateHasChanged);
+    }
+
+    private async Task GoToRoot()
+    {
+        await NavigateTo("");
+    }
+
+    private async Task NavigateTo(string path)
+    {
+        currentPath = path;
+        await LoadBrowseItems();
+    }
+
+    private async Task OpenNote(VaultBrowseItem note)
+    {
+        selectedNoteItem = note;
+        noteContent = null;
+        showNoteModal = true;
+        try
+        {
+            noteContent = await ApiService.ReadVaultNoteAsync(note.Path, selectedVaultId);
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "读取笔记失败: {Path}", note.Path);
+        }
+    }
+
+    private void CloseNote()
+    {
+        showNoteModal = false;
+        selectedNoteItem = null;
+        noteContent = null;
+    }
+
+    private void OpenInDetailPage()
+    {
+        if (selectedNoteItem == null) return;
+        var vaultParam = string.IsNullOrEmpty(selectedVaultId) ? "" : $"&vaultId={Uri.EscapeDataString(selectedVaultId)}";
+        Navigation.NavigateTo($"note?id={Uri.EscapeDataString(selectedNoteItem.Path)}{vaultParam}");
+    }
+
+    private static string RenderMarkdown(string markdown)
+    {
+        if (string.IsNullOrWhiteSpace(markdown)) return "";
+        var pipeline = new MarkdownPipelineBuilder()
+            .UseAdvancedExtensions()
+            .Build();
+        return Markdown.ToHtml(markdown, pipeline);
+    }
+}

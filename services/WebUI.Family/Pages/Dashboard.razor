@@ -1,0 +1,261 @@
+@page "/dashboard"
+@rendermode InteractiveServer
+@inject WebUI.Services.IApiService ApiService
+@inject WebUI.Services.VaultsService VaultsService
+@inject Microsoft.Extensions.Logging.ILogger<Dashboard> Logger
+
+<PageTitle>家长看板</PageTitle>
+
+<div class="dashboard-page">
+    <h1>📊 家长看板</h1>
+
+    @if (isLoading)
+    {
+        <div class="loading">加载中...</div>
+    }
+    else
+    {
+        <!-- 家庭成员统计 -->
+        <div class="section">
+            <h2>👨‍👩‍👧‍👦 本周学习动态</h2>
+            <div class="family-grid">
+                @foreach (var member in data.FamilyStats)
+                {
+                    <div class="member-card" style="border-color:@member.Color">
+                        <div class="member-header">
+                            <span class="member-avatar" style="background:@member.Color">@member.AvatarEmoji</span>
+                            <span class="member-name">@member.Name</span>
+                        </div>
+                        <div class="member-stats">
+                            <div class="m-stat">
+                                <div class="m-value">@member.WeekTotal</div>
+                                <div class="m-label">本周学习</div>
+                            </div>
+                            <div class="m-stat">
+                                <div class="m-value">@member.Accuracy.ToString("F0")%</div>
+                                <div class="m-label">正确率</div>
+                            </div>
+                            <div class="m-stat">
+                                <div class="m-value">🔥 @member.Streak</div>
+                                <div class="m-label">连续</div>
+                            </div>
+                        </div>
+                    </div>
+                }
+            </div>
+        </div>
+
+        <!-- 每周趋势 -->
+        @if (data.WeeklyTrend.Count > 0)
+        {
+            <div class="section">
+                <h2>📈 本周学习趋势</h2>
+                <div class="trend-chart">
+                    @{ var maxCount = data.WeeklyTrend.Max(t => t.Count); if (maxCount == 0) maxCount = 1; }
+                    @foreach (var day in data.WeeklyTrend)
+                    {
+                        <div class="trend-bar-wrap">
+                            <div class="trend-bar" style="height: @(day.Count * 100 / maxCount)%;"></div>
+                            <div class="trend-label">@day.Date</div>
+                            <div class="trend-value">@day.Count</div>
+                        </div>
+                    }
+                </div>
+            </div>
+        }
+
+        <!-- 答题分布 -->
+        @if (data.ResultDistribution.Remember + data.ResultDistribution.Hard + data.ResultDistribution.Forgot > 0)
+        {
+            var total = data.ResultDistribution.Remember + data.ResultDistribution.Hard + data.ResultDistribution.Forgot;
+            <div class="section">
+                <h2>🎯 本周答题分布</h2>
+                <div class="distribution">
+                    <div class="dist-item dist-remember">
+                        <div class="dist-value">@data.ResultDistribution.Remember</div>
+                        <div class="dist-bar" style="width: @(total > 0 ? data.ResultDistribution.Remember * 100 / total : 0)%"></div>
+                        <div class="dist-label">✅ 记得</div>
+                    </div>
+                    <div class="dist-item dist-hard">
+                        <div class="dist-value">@data.ResultDistribution.Hard</div>
+                        <div class="dist-bar" style="width: @(total > 0 ? data.ResultDistribution.Hard * 100 / total : 0)%"></div>
+                        <div class="dist-label">🤔 模糊</div>
+                    </div>
+                    <div class="dist-item dist-forgot">
+                        <div class="dist-value">@data.ResultDistribution.Forgot</div>
+                        <div class="dist-bar" style="width: @(total > 0 ? data.ResultDistribution.Forgot * 100 / total : 0)%"></div>
+                        <div class="dist-label">❌ 忘记</div>
+                    </div>
+                </div>
+            </div>
+        }
+
+        <!-- 最近成就 -->
+        @if (data.RecentAchievements.Count > 0)
+        {
+            <div class="section">
+                <h2>🏆 最近解锁</h2>
+                <div class="recent-achievements">
+                    @foreach (var ach in data.RecentAchievements)
+                    {
+                        <div class="recent-ach">
+                            <span class="ra-icon">@ach.Icon</span>
+                            <span class="ra-title">@ach.Title</span>
+                            <span class="ra-learner">@ach.AvatarEmoji @ach.LearnerName</span>
+                            <span class="ra-time">@ach.UnlockedAt.ToString("MM-dd")</span>
+                        </div>
+                    }
+                </div>
+            </div>
+        }
+    }
+</div>
+
+<style>
+    .dashboard-page { max-width: 900px; margin: 0 auto; padding: 1rem; }
+    .dashboard-page h1 { margin-bottom: 1.5rem; }
+
+    .section { margin-bottom: 2rem; }
+    .section h2 { font-size: 1.1rem; margin-bottom: 0.75rem; color: #333; }
+
+    .family-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+        gap: 0.75rem;
+    }
+
+    .member-card {
+        background: white;
+        border: 2px solid;
+        border-radius: 10px;
+        padding: 1rem;
+    }
+
+    .member-header {
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+        margin-bottom: 0.75rem;
+    }
+
+    .member-avatar {
+        width: 32px;
+        height: 32px;
+        border-radius: 50%;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 1rem;
+    }
+
+    .member-name { font-weight: 600; }
+
+    .member-stats {
+        display: flex;
+        gap: 1rem;
+    }
+
+    .m-stat { text-align: center; flex: 1; }
+    .m-value { font-size: 1.1rem; font-weight: 700; color: #333; }
+    .m-label { font-size: 0.75rem; color: #888; }
+
+    .trend-chart {
+        display: flex;
+        align-items: flex-end;
+        gap: 0.5rem;
+        height: 150px;
+        padding: 1rem;
+        background: #f8f9fa;
+        border-radius: 8px;
+    }
+
+    .trend-bar-wrap {
+        flex: 1;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: flex-end;
+        height: 100%;
+    }
+
+    .trend-bar {
+        width: 100%;
+        background: linear-gradient(180deg, #28a745, #20c997);
+        border-radius: 4px 4px 0 0;
+        min-height: 4px;
+        transition: height 0.5s ease;
+    }
+
+    .trend-label { font-size: 0.75rem; color: #888; margin-top: 0.35rem; }
+    .trend-value { font-size: 0.8rem; font-weight: 600; color: #555; }
+
+    .distribution { display: flex; flex-direction: column; gap: 0.5rem; }
+
+    .dist-item {
+        display: flex;
+        align-items: center;
+        gap: 0.75rem;
+        padding: 0.5rem 0.75rem;
+        background: white;
+        border-radius: 6px;
+        border: 1px solid #e9ecef;
+    }
+
+    .dist-value { width: 2.5rem; font-weight: 600; text-align: right; }
+    .dist-bar { height: 10px; border-radius: 5px; min-width: 4px; transition: width 0.5s; }
+    .dist-remember .dist-bar { background: #28a745; }
+    .dist-hard .dist-bar { background: #ffc107; }
+    .dist-forgot .dist-bar { background: #dc3545; }
+    .dist-label { font-size: 0.85rem; color: #666; min-width: 4rem; }
+
+    .recent-achievements {
+        display: flex;
+        flex-direction: column;
+        gap: 0.4rem;
+    }
+
+    .recent-ach {
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+        padding: 0.5rem 0.75rem;
+        background: white;
+        border-radius: 6px;
+        border: 1px solid #e9ecef;
+    }
+
+    .ra-icon { font-size: 1.2rem; }
+    .ra-title { font-weight: 500; flex: 1; }
+    .ra-learner { font-size: 0.8rem; color: #666; }
+    .ra-time { font-size: 0.75rem; color: #aaa; }
+    .loading { text-align: center; padding: 3rem; color: #888; }
+</style>
+
+@code {
+    private DashboardDataDto data = new();
+    private bool isLoading = true;
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (!firstRender) return;
+        await LoadDashboardAsync();
+    }
+
+    private async Task LoadDashboardAsync()
+    {
+        try
+        {
+            var vaults = await VaultsService.GetVaultsAsync();
+            data = await ApiService.GetDashboardAsync(vaults.Vaults.FirstOrDefault()?.Id);
+        }
+        catch (Exception ex)
+        {
+            Logger.LogWarning(ex, "加载看板失败");
+        }
+        finally
+        {
+            isLoading = false;
+            await InvokeAsync(StateHasChanged);
+        }
+    }
+}

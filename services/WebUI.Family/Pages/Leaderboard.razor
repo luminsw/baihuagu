@@ -1,0 +1,239 @@
+@page "/leaderboard"
+@rendermode InteractiveServer
+@inject WebUI.Services.IApiService ApiService
+@inject WebUI.Services.VaultsService VaultsService
+
+<PageTitle>家庭赛舟榜</PageTitle>
+
+<div class="leaderboard-page">
+    <h1>🐲 家庭赛舟榜</h1>
+
+    <div class="toolbar">
+        <div class="tab-group">
+            @foreach (var tab in tabs)
+            {
+                <button class="tab @(activeTab == tab.Key ? "active" : "")" @onclick="() => SwitchTab(tab.Key)">
+                    @tab.Label
+                </button>
+            }
+        </div>
+    </div>
+
+    @if (isLoading)
+    {
+        <div class="loading">加载中...</div>
+    }
+    else if (entries.Count == 0)
+    {
+        <div class="empty">暂无数据，快去每日一帖学习吧！</div>
+    }
+    else
+    {
+        <div class="leaderboard-table">
+            @foreach (var entry in entries)
+            {
+                <div class="leaderboard-row @(entry.Rank <= 3 ? "top-" + entry.Rank : "")">
+                    <div class="rank">
+                        @if (entry.Rank == 1)
+                        {
+                            <span class="rank-medal">🥇</span>
+                        }
+                        else if (entry.Rank == 2)
+                        {
+                            <span class="rank-medal">🥈</span>
+                        }
+                        else if (entry.Rank == 3)
+                        {
+                            <span class="rank-medal">🥉</span>
+                        }
+                        else
+                        {
+                            <span class="rank-num">@entry.Rank</span>
+                        }
+                    </div>
+                    <div class="avatar" style="background:@entry.Color">
+                        @entry.AvatarEmoji
+                    </div>
+                    <div class="name">@entry.LearnerName</div>
+                    <div class="stats">
+                        <div class="stat">
+                            <span class="stat-value">@entry.CardsStudied</span>
+                            <span class="stat-label">题</span>
+                        </div>
+                        <div class="stat">
+                            <span class="stat-value">@entry.Accuracy.ToString("F0")%</span>
+                            <span class="stat-label">正确率</span>
+                        </div>
+                        <div class="stat">
+                            <span class="stat-value">@entry.Streak</span>
+                            <span class="stat-label">🔥</span>
+                        </div>
+                    </div>
+                    <div class="score">
+                        <div class="score-bar-wrap">
+                            <div class="score-bar" style="width:@(maxScore > 0 ? (entry.Score * 100 / maxScore) : 0)%;background:@entry.Color"></div>
+                        </div>
+                        <span class="score-value">@entry.Score</span>
+                    </div>
+                </div>
+            }
+        </div>
+    }
+</div>
+
+<style>
+    .leaderboard-page { max-width: 800px; margin: 0 auto; padding: 1rem; }
+    .leaderboard-page h1 { margin-bottom: 1rem; }
+
+    .toolbar { margin-bottom: 1rem; }
+
+    .tab-group {
+        display: flex;
+        gap: 0.25rem;
+        background: #f1f3f5;
+        padding: 0.25rem;
+        border-radius: 8px;
+        width: fit-content;
+    }
+
+    .tab {
+        padding: 0.4rem 1rem;
+        border: none;
+        border-radius: 6px;
+        background: transparent;
+        cursor: pointer;
+        font-size: 0.9rem;
+        color: #666;
+        transition: all 0.2s;
+    }
+
+    .tab.active {
+        background: white;
+        color: #333;
+        font-weight: 600;
+        box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+    }
+
+    .leaderboard-table {
+        display: flex;
+        flex-direction: column;
+        gap: 0.5rem;
+    }
+
+    .leaderboard-row {
+        display: flex;
+        align-items: center;
+        gap: 0.75rem;
+        padding: 0.75rem 1rem;
+        background: white;
+        border: 1px solid #e9ecef;
+        border-radius: 10px;
+        transition: transform 0.15s;
+    }
+
+    .leaderboard-row:hover { transform: translateX(4px); }
+
+    .leaderboard-row.top-1 { border-color: #ffd700; background: #fffbea; }
+    .leaderboard-row.top-2 { border-color: #c0c0c0; background: #f8f9fa; }
+    .leaderboard-row.top-3 { border-color: #cd7f32; background: #fff8f0; }
+
+    .rank { width: 36px; text-align: center; }
+    .rank-medal { font-size: 1.3rem; }
+    .rank-num { font-size: 0.9rem; color: #888; font-weight: 600; }
+
+    .avatar {
+        width: 36px;
+        height: 36px;
+        border-radius: 50%;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 1.1rem;
+        flex-shrink: 0;
+    }
+
+    .name { flex: 1; font-weight: 500; min-width: 80px; }
+
+    .stats {
+        display: flex;
+        gap: 1rem;
+        min-width: 180px;
+    }
+
+    .stat { text-align: center; }
+    .stat-value { font-weight: 600; font-size: 0.95rem; display: block; }
+    .stat-label { font-size: 0.7rem; color: #888; }
+
+    .score {
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+        min-width: 120px;
+    }
+
+    .score-bar-wrap {
+        flex: 1;
+        height: 8px;
+        background: #e9ecef;
+        border-radius: 4px;
+        overflow: hidden;
+    }
+
+    .score-bar {
+        height: 100%;
+        border-radius: 4px;
+        transition: width 0.5s ease;
+    }
+
+    .score-value {
+        font-size: 0.85rem;
+        font-weight: 600;
+        color: #555;
+        min-width: 2.5rem;
+        text-align: right;
+    }
+
+    .loading { text-align: center; padding: 3rem; color: #888; }
+    .empty { text-align: center; padding: 3rem; color: #666; }
+</style>
+
+@code {
+    private string activeTab = "weekly";
+    private List<LeaderboardEntryDto> entries = new();
+    private bool isLoading = true;
+    private int maxScore = 1;
+    private string? selectedVaultId;
+
+    private readonly (string Key, string Label)[] tabs = new[]
+    {
+        ("weekly", "本周"),
+        ("monthly", "本月"),
+        ("alltime", "总榜"),
+        ("streak", "🔥 连击"),
+        ("accuracy", "🎯 正确率")
+    };
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (!firstRender) return;
+        var vaults = await VaultsService.GetVaultsAsync();
+        selectedVaultId = vaults.Vaults.FirstOrDefault()?.Id;
+        await LoadLeaderboardAsync();
+    }
+
+    private async Task SwitchTab(string tab)
+    {
+        activeTab = tab;
+        isLoading = true;
+        await LoadLeaderboardAsync();
+        await InvokeAsync(StateHasChanged);
+    }
+
+    private async Task LoadLeaderboardAsync()
+    {
+        entries = await ApiService.GetLeaderboardAsync(activeTab, selectedVaultId);
+        maxScore = entries.Count > 0 ? entries.Max(e => e.Score) : 1;
+        if (maxScore == 0) maxScore = 1;
+        isLoading = false;
+    }
+}

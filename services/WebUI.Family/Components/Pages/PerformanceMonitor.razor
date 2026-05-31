@@ -1,0 +1,129 @@
+@page "/performance-monitor"
+@rendermode InteractiveServer
+@inject ComponentPerformanceService ComponentPerformanceService
+@inject ApiCallMetricsService ApiMetricsService
+@inject EndToEndPerformanceService E2EPerformanceService
+@inject IJSRuntime JSRuntime
+
+<PageTitle>性能监控</PageTitle>
+
+<div class="container-fluid mt-4">
+    <div class="row mb-4">
+        <div class="col">
+            <h2>🔍 性能监控中心</h2>
+            <p class="text-muted">监控 WebUI 端到端性能、API 调用和组件渲染</p>
+        </div>
+        <div class="col-auto">
+            <div class="btn-group">
+                <button class="btn btn-outline-primary" @onclick="RefreshData">
+                    🔄 刷新
+                </button>
+                <button class="btn btn-outline-danger" @onclick="ClearAllData">
+                    🗑️ 清空全部
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- 标签页切换 -->
+    <ul class="nav nav-tabs mb-4">
+        <li class="nav-item">
+            <a class="nav-link @(activeTab == "e2e" ? "active" : "")" @onclick='() => activeTab = "e2e"' href="javascript:void(0)">
+                🔗 端到端性能
+            </a>
+        </li>
+        <li class="nav-item">
+            <a class="nav-link @(activeTab == "api" ? "active" : "")" @onclick='() => activeTab = "api"' href="javascript:void(0)">
+                📡 API 调用性能
+            </a>
+        </li>
+        <li class="nav-item">
+            <a class="nav-link @(activeTab == "component" ? "active" : "")" @onclick='() => activeTab = "component"' href="javascript:void(0)">
+                🧩 组件渲染性能
+            </a>
+        </li>
+    </ul>
+
+    @if (activeTab == "e2e")
+    {
+        <E2EPerformanceTab 
+            Summary="e2eSummary"
+            Records="e2eRecords"
+            SlowestOperations="e2eSlowest"
+            OnRefresh="RefreshData"
+            OnClear="ClearE2EData" />
+    }
+    else if (activeTab == "api")
+    {
+        <ApiCallPerformanceTab 
+            ApiMetrics="apiMetrics"
+            ApiSummary="apiSummary"
+            EndpointStats="endpointStats"
+            OnRefresh="RefreshData"
+            OnClear="ClearApiData" />
+    }
+    else
+    {
+        <ComponentPerformanceTab 
+            ComponentPerformanceService="ComponentPerformanceService"
+            OnRefresh="RefreshData"
+            OnClear="ClearComponentData" />
+    }
+</div>
+
+@code {
+    private string activeTab = "e2e";
+    
+    // E2E 性能数据
+    private E2EPerformanceSummary? e2eSummary;
+    private List<E2EPerformanceRecord>? e2eRecords;
+    private List<E2EPerformanceRecord>? e2eSlowest;
+    
+    // API 调用性能数据
+    private ApiCallMetricsSummary? apiSummary;
+    private List<ApiCallMetric>? apiMetrics;
+    private List<EndpointStats>? endpointStats;
+
+    protected override void OnInitialized()
+    {
+        RefreshData();
+    }
+
+    private void RefreshData()
+    {
+        // 刷新 E2E 数据
+        e2eSummary = E2EPerformanceService.GetSummary();
+        e2eRecords = E2EPerformanceService.GetRecords().ToList();
+        e2eSlowest = E2EPerformanceService.GetSlowestOperations(10).ToList();
+        
+        // 刷新 API 调用数据
+        apiSummary = ApiMetricsService.GetSummary();
+        apiMetrics = ApiMetricsService.GetSlowestCalls(20).ToList();
+        endpointStats = ApiMetricsService.GetEndpointStats().ToList();
+    }
+
+    private void ClearAllData()
+    {
+        E2EPerformanceService.Clear();
+        ApiMetricsService.Clear();
+        ComponentPerformanceService.Clear();
+        RefreshData();
+    }
+
+    private void ClearE2EData()
+    {
+        E2EPerformanceService.Clear();
+        RefreshData();
+    }
+
+    private void ClearApiData()
+    {
+        ApiMetricsService.Clear();
+        RefreshData();
+    }
+
+    private void ClearComponentData()
+    {
+        ComponentPerformanceService.Clear();
+    }
+}

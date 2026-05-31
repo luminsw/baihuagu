@@ -1,0 +1,154 @@
+@using WebUI.Services
+@using Microsoft.AspNetCore.Components.Web
+@using static Microsoft.AspNetCore.Components.Web.RenderMode
+@rendermode @(new InteractiveServerRenderMode(prerender: false))
+@inject AuthService AuthService
+@inject GlobalStateService GlobalStateService
+@inject IHttpClientFactory HttpClientFactory
+@inject NavigationManager NavigationManager
+@implements IDisposable
+
+<div class="nav-menu">
+    @if (!_isAiConfigured)
+    {
+        <!-- AI 未配置：只显示 AI 设置入口 -->
+        <div class="nav-group">
+            <div class="nav-group-label">开始使用</div>
+            <NavLink href="settings" Match="NavLinkMatch.All">
+                <span class="nav-icon bi bi-gear"></span>
+                <span>AI 配置</span>
+            </NavLink>
+        </div>
+    }
+    else
+    {
+        <FamilyNavMenu />
+    }
+</div>
+
+@code {
+    private bool _isAiConfigured = false;
+
+    protected override async Task OnInitializedAsync()
+    {
+        var aiStatus = GlobalStateService.GetAIStatus();
+        if (aiStatus?.IsConfigured ?? false)
+        {
+            _isAiConfigured = true;
+        }
+        else
+        {
+            try
+            {
+                using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(10));
+                var client = HttpClientFactory.CreateClient("TaskRunnerApi");
+                var response = await client.GetAsync("api/ai/config/providers", cts.Token);
+                if (response.IsSuccessStatusCode)
+                {
+                    var providers = await response.Content.ReadFromJsonAsync<List<ProviderCheck>>(cts.Token);
+                    _isAiConfigured = providers?.Any() ?? false;
+                }
+            }
+            catch { }
+        }
+
+        GlobalStateService.StateChanged += OnGlobalStateChanged;
+    }
+
+    private void OnGlobalStateChanged(object? sender, EventArgs e)
+    {
+        var aiStatus = GlobalStateService.GetAIStatus();
+        var wasConfigured = _isAiConfigured;
+        _isAiConfigured = aiStatus?.IsConfigured ?? false;
+        if (wasConfigured != _isAiConfigured)
+        {
+            InvokeAsync(StateHasChanged);
+        }
+    }
+
+    public void Dispose()
+    {
+        GlobalStateService.StateChanged -= OnGlobalStateChanged;
+    }
+
+    private class ProviderCheck
+    {
+        public string Id { get; set; } = "";
+        public bool IsMain { get; set; }
+    }
+}
+
+<style>
+    .nav-menu {
+        padding: 0 12px;
+        max-height: calc(100vh - 80px);
+        overflow-y: auto;
+    }
+
+    .nav-group {
+        margin-bottom: 1.25rem;
+        padding-bottom: 0.25rem;
+    }
+
+    .nav-group-label {
+        font-size: 0.75rem;
+        font-weight: 600;
+        text-transform: uppercase;
+        letter-spacing: 0.05em;
+        color: rgba(255, 255, 255, 0.55);
+        padding: 0.5rem 0.75rem;
+        margin-bottom: 0.35rem;
+        user-select: none;
+    }
+
+    .nav-group a {
+        display: flex;
+        align-items: center;
+        color: rgba(255, 255, 255, 0.8);
+        text-decoration: none;
+        padding: 0.6rem 0.75rem;
+        border-radius: 6px;
+        margin-bottom: 0.15rem;
+        font-size: 0.92rem;
+        transition: background-color 0.2s ease, color 0.2s ease;
+    }
+
+    .nav-group a:hover {
+        background: rgba(255, 255, 255, 0.1);
+        color: #fff;
+    }
+
+    .nav-group a.active {
+        background: rgba(255, 255, 255, 0.18);
+        color: #fff;
+        font-weight: 500;
+    }
+
+    .nav-icon {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        width: 1.25rem;
+        height: 1.25rem;
+        margin-right: 0.75rem;
+        font-size: 1rem;
+        opacity: 0.9;
+    }
+
+    .nav-menu::-webkit-scrollbar {
+        width: 6px;
+    }
+
+    .nav-menu::-webkit-scrollbar-track {
+        background: transparent;
+    }
+
+    .nav-menu::-webkit-scrollbar-thumb {
+        background: rgba(255, 255, 255, 0.15);
+        border-radius: 3px;
+    }
+
+    .nav-menu::-webkit-scrollbar-thumb:hover {
+        background: rgba(255, 255, 255, 0.25);
+    }
+</style>

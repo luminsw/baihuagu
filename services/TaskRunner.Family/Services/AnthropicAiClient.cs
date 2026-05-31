@@ -1,0 +1,269 @@
+using System.Diagnostics;
+using System.Net.Http.Headers;
+using System.Text;
+using System.Text.Json;
+using System.Text.Json.Serialization;
+using Microsoft.Extensions.AI;
+
+namespace TaskRunner.Services;
+
+/// <summary>
+/// Anthropic API 客户端（HTTP 直调，不依赖第三方 SDK）
+/// 用于 OpenAI 兼容端点返回为空时的 fallback。
+/// </summary>
+public class AnthropicAiClient
+{
+    private readonly HttpClient _httpClient;
+    private readonly ILogger<AnthropicAiClient> _logger;
+
+    public AnthropicAiClient(HttpClient httpClient, ILogger<AnthropicAiClient> logger)
+    {
+        _httpClient = httpClient;
+        _logger = logger;
+    }
+
+    /// <summary>
+    /// 使用 Anthropic Messages API 获取聊天响应
+    /// </summary>
+    public async Task<ChatResponse> GetChatResponseAsync(
+        string baseUrl, string apiKey, string model,
+        IList<ChatMessage> messages, ChatOptions options, CancellationToken ct)
+    {
+        var url = $"{baseUrl.TrimEnd('/')}/v1/messages";
+        var requestBody = BuildRequestBody(model, messages, options);
+        var json = JsonSerializer.Serialize(requestBody, AnthropicJsonContext.Default.AnthropicRequest);
+
+        var request = new HttpRequestMessage(HttpMethod.Post, url);
+        request.Headers.Add("x-api-key", apiKey);
+        request.Headers.Add("anthropic-version", "2023-06-01");
+        request.Content = new StringContent(json, Encoding.UTF8, "application/json");
+
+        var sw = Stopwatch.StartNew();
+        var response = await _httpClient.SendAsync(request, ct);
+        var responseJson = await response.Content.ReadAsStringAsync(ct);
+        sw.Stop();
+
+        if (!response.IsSuccessStatusCode)
+        {
+            _logger.LogWarning("Anthropic API 请求失败: {StatusCode} {Body}", (int)response.StatusCode, responseJson);
+            throw new Exception($"Anthropic API 错误: {responseJson}");
+        }
+
+        var anthropicResponse = JsonSerializer.Deserialize(responseJson, AnthropicJsonContext.Default.AnthropicResponse)
+            ?? throw new Exception("Anthropic 响应解析失败");
+
+        var text = anthropicResponse.Content?.FirstOrDefault(c => c.Type == "text")?.Text ?? "";
+        var chatMessage = new ChatMessage(ChatRole.Assistant, text);
+
+        var usage = new UsageDetails
+        {
+            InputTokenCount = anthropicResponse.Usage?.InputTokens,
+            OutputTokenCount = anthropicResponse.Usage?.OutputTokens,
+            TotalTokenCount = (anthropicResponse.Usage?.InputTokens ?? 0) + (anthropicResponse.Usage?.OutputTokens ?? 0)
+        };
+
+        return new ChatResponse(chatMessage)
+        {
+            Usage = usage
+        };
+    }
+
+    /// <summary>
+    /// 获取流式响应（将 Anthropic 的 streaming 转换为 IAsyncEnumerable）
+    /// </summary>
+    public async IAsyncEnumerable<ChatResponseUpdate> GetStreamingResponseAsync(
+        string baseUrl, string apiKey, string model,
+        IList<ChatMessage> messages, ChatOptions options,
+        [System.Runtime.CompilerServices.EnumeratorCancellation] CancellationToken ct = default)
+    {
+        var url = $"{baseUrl.TrimEnd('/')}/v1/messages";
+        var requestBody = BuildRequestBody(model, messages, options);
+        requestBody.Stream = true;
+        var json = JsonSerializer.Serialize(requestBody, AnthropicJsonContext.Default.AnthropicRequest);
+
+        var request = new HttpRequestMessage(HttpMethod.Post, url);
+        request.Headers.Add("x-api-key", apiKey);
+        request.Headers.Add("anthropic-version", "2023-06-01");
+        request.Headers.Accept.Add(new MediaTypeWithQualityHeaderValue("text/event-stream"));
+        request.Content = new StringContent(json, Encoding.UTF8, "application/json");
+
+        var response = await _httpClient.SendAsync(request, HttpCompletionOption.ResponseHeadersRead, ct);
+        if (!response.IsSuccessStatusCode)
+        {
+            var errorBody = await response.Content.ReadAsStringAsync(ct);
+            _logger.LogWarning("Anthropic streaming API 请求失败: {StatusCode} {Body}", (int)response.StatusCode, errorBody);
+            throw new Exception($"Anthropic API 错误: {errorBody}");
+        }
+
+        var stream = await response.Content.ReadAsStreamAsync(ct);
+        using var reader = new StreamReader(stream, Encoding.UTF8);
+
+        var sb = new StringBuilder();
+        while (!ct.IsCancellationRequested)
+        {
+            var line = await reader.ReadLineAsync(ct);
+            if (line == null) break;
+            if (string.IsNullOrWhiteSpace(line)) continue;
+            if (!line.StartsWith("data: ")) continue;
+
+            var data = line[6..];
+            if (data == "[DONE]") yield break;
+
+            var text = TryParseStreamDelta(data);
+            if (!string.IsNullOrEmpty(text))
+            {
+                sb.Append(text);
+                yield return new ChatResponseUpdate(ChatRole.Assistant, text);
+            }
+        }
+
+        // 最后输出完整文本（作为 fallback）
+        var fullText = sb.ToString();
+        if (!string.IsNullOrEmpty(fullText))
+        {
+            yield return new ChatResponseUpdate(ChatRole.Assistant, fullText);
+        }
+    }
+
+    private static string? TryParseStreamDelta(string data)
+    {
+        try
+        {
+            var chunk = JsonSerializer.Deserialize(data, AnthropicJsonContext.Default.AnthropicStreamEvent);
+            if (chunk?.Type == "content_block_delta" && chunk.Delta?.Type == "text_delta")
+            {
+                return chunk.Delta.Text;
+            }
+        }
+        catch (JsonException)
+        {
+            // 忽略无法解析的行
+        }
+        return null;
+    }
+
+    private static AnthropicRequest BuildRequestBody(string model, IList<ChatMessage> messages, ChatOptions options)
+    {
+        var anthropicMessages = new List<AnthropicMessage>();
+        string? systemPrompt = null;
+
+        foreach (var msg in messages)
+        {
+            if (msg.Role == ChatRole.System)
+            {
+                systemPrompt = string.Join("", msg.Contents.OfType<TextContent>().Select(t => t.Text));
+                continue;
+            }
+
+            var role = msg.Role == ChatRole.Assistant ? "assistant" : "user";
+            var text = string.Join("", msg.Contents.OfType<TextContent>().Select(t => t.Text));
+            anthropicMessages.Add(new AnthropicMessage { Role = role, Content = text });
+        }
+
+        return new AnthropicRequest
+        {
+            Model = model,
+            MaxTokens = options.MaxOutputTokens ?? 4096,
+            Temperature = options.Temperature,
+            TopP = options.TopP,
+            System = systemPrompt,
+            Messages = anthropicMessages
+        };
+    }
+}
+
+// ===== JSON Models =====
+
+public class AnthropicRequest
+{
+    [JsonPropertyName("model")]
+    public string Model { get; set; } = "";
+
+    [JsonPropertyName("max_tokens")]
+    public int MaxTokens { get; set; } = 4096;
+
+    [JsonPropertyName("temperature")]
+    public float? Temperature { get; set; }
+
+    [JsonPropertyName("top_p")]
+    public float? TopP { get; set; }
+
+    [JsonPropertyName("system")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public string? System { get; set; }
+
+    [JsonPropertyName("messages")]
+    public List<AnthropicMessage> Messages { get; set; } = new();
+
+    [JsonPropertyName("stream")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public bool Stream { get; set; }
+}
+
+public class AnthropicMessage
+{
+    [JsonPropertyName("role")]
+    public string Role { get; set; } = "";
+
+    [JsonPropertyName("content")]
+    public string Content { get; set; } = "";
+}
+
+public class AnthropicResponse
+{
+    [JsonPropertyName("id")]
+    public string Id { get; set; } = "";
+
+    [JsonPropertyName("type")]
+    public string Type { get; set; } = "";
+
+    [JsonPropertyName("role")]
+    public string Role { get; set; } = "";
+
+    [JsonPropertyName("content")]
+    public List<AnthropicContent> Content { get; set; } = new();
+
+    [JsonPropertyName("usage")]
+    public AnthropicUsage? Usage { get; set; }
+}
+
+public class AnthropicContent
+{
+    [JsonPropertyName("type")]
+    public string Type { get; set; } = "";
+
+    [JsonPropertyName("text")]
+    public string Text { get; set; } = "";
+}
+
+public class AnthropicUsage
+{
+    [JsonPropertyName("input_tokens")]
+    public int InputTokens { get; set; }
+
+    [JsonPropertyName("output_tokens")]
+    public int OutputTokens { get; set; }
+}
+
+public class AnthropicStreamEvent
+{
+    [JsonPropertyName("type")]
+    public string Type { get; set; } = "";
+
+    [JsonPropertyName("delta")]
+    public AnthropicDelta? Delta { get; set; }
+}
+
+public class AnthropicDelta
+{
+    [JsonPropertyName("type")]
+    public string Type { get; set; } = "";
+
+    [JsonPropertyName("text")]
+    public string Text { get; set; } = "";
+}
+
+[JsonSerializable(typeof(AnthropicRequest))]
+[JsonSerializable(typeof(AnthropicResponse))]
+[JsonSerializable(typeof(AnthropicStreamEvent))]
+internal partial class AnthropicJsonContext : JsonSerializerContext { }

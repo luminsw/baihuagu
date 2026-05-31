@@ -1,0 +1,5 @@
+<Solution>
+  <Project Path="TaskRunner.Contracts/TaskRunner.Contracts.csproj" />
+  <Project Path="TaskRunner.Family/TaskRunner.Family.csproj" />
+  <Project Path="WebUI.Family/WebUI.Family.csproj" />
+</Solution>

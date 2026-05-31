@@ -1,0 +1,2698 @@
+@page "/local-models"
+@rendermode InteractiveServer
+@using TaskRunner.Contracts.LocalModels
+@using TaskRunner.Contracts.OpenClaw
+@using TaskRunner.Contracts.Benchmark
+@inject WebUI.Services.IApiService ApiService
+@inject WebUI.Services.AIStatusService AIStatusService
+@inject WebUI.Hubs.StatusUpdateService StatusUpdateService
+@inject NavigationManager NavigationManager
+@inject IJSRuntime JSRuntime
+@inject Microsoft.Extensions.Logging.ILogger<LocalModels> Logger
+@implements IDisposable
+
+<PageTitle>本地模型</PageTitle>
+
+<h1>🖥️ 本地模型部署</h1>
+
+<!-- Tab 导航 -->
+<ul class="nav nav-tabs mb-3">
+    <li class="nav-item">
+        <button class="nav-link @(_activeTab == "overview" ? "active" : "")" @onclick='async () => await OnTabChanged("overview")'>📊 概览</button>
+    </li>
+    <li class="nav-item">
+        <button class="nav-link @(_activeTab == "ollama" ? "active" : "")" @onclick='async () => await OnTabChanged("ollama")'>🦙 Ollama</button>
+    </li>
+    <li class="nav-item">
+        <button class="nav-link @(_activeTab == "lmstudio" ? "active" : "")" @onclick='async () => await OnTabChanged("lmstudio")'>💜 LM Studio</button>
+    </li>
+    <li class="nav-item">
+        <button class="nav-link @(_activeTab == "llamacpp" ? "active" : "")" @onclick='async () => await OnTabChanged("llamacpp")'>⚡ llama.cpp</button>
+    </li>
+</ul>
+
+
+@if (isLoading)
+{
+    <div class="loading-spinner">加载中...</div>
+}
+else
+{
+    <!-- 硬件概览 -->
+    @if (_activeTab == "overview")
+    {
+    <!-- 硬件概览 -->
+    <div class="hardware-section">
+        <div class="section-header" style="cursor:pointer;" @onclick="() => ToggleSection(ref _showHardware)">
+            <h2>@(_showHardware ? "▼" : "▶") 硬件环境</h2>
+        </div>
+        @if (_showHardware)
+        {
+        <div class="hardware-cards">
+            <div class="hw-card">
+                <div class="hw-icon">🖥️</div>
+                <div class="hw-title">CPU</div>
+                <div class="hw-value">@(hardwareInfo?.Cpu.Name ?? "检测中...")</div>
+                <div class="hw-detail">@(hardwareInfo?.Cpu.LogicalProcessorCount ?? 0) 核 @(hardwareInfo?.Cpu.Architecture ?? "")</div>
+            </div>
+            <div class="hw-card">
+                <div class="hw-icon">🧠</div>
+                <div class="hw-title">内存</div>
+                <div class="hw-value">@(hardwareInfo?.Memory.TotalGiB.ToString("F1") ?? "-") GB</div>
+                <div class="hw-detail">可用: @(hardwareInfo?.Memory.AvailableGiB.ToString("F1") ?? "-") GB</div>
+            </div>
+            <div class="hw-card">
+                <div class="hw-icon">🎮</div>
+                <div class="hw-title">显卡</div>
+                @if (hardwareInfo?.Gpus?.Count > 0)
+                {
+                    @foreach (var gpu in hardwareInfo.Gpus)
+                    {
+                        <div class="hw-value">@gpu.Name</div>
+                        <div class="hw-detail">
+                            @(gpu.VramGiB.HasValue ? $"{gpu.VramGiB:F1} GB" : "显存未知")
+                            @(gpu.IsIntegrated ? "(集成)" : "")
+                            @(gpu.IsAppleSilicon ? "(统一内存)" : "")
+                        </div>
+                    }
+                }
+                else
+                {
+                    <div class="hw-value">未检测到</div>
+                    <div class="hw-detail">将使用 CPU 运行</div>
+                }
+            </div>
+            <div class="hw-card">
+                <div class="hw-icon">💾</div>
+                <div class="hw-title">磁盘</div>
+                <div class="hw-value">@(GetDiskGiB(hardwareInfo?.AvailableDiskSpaceBytes) ?? "-") GB</div>
+                <div class="hw-detail">可用空间</div>
+            </div>
+        </div>
+        <button class="btn btn-secondary btn-sm" @onclick="RefreshHardware">🔄 刷新硬件信息</button>
+        }
+    </div>
+
+    <!-- 运行中模型 -->
+    <div class="running-section">
+        <div class="section-header" style="cursor:pointer;" @onclick="() => ToggleSection(ref _showRunningModels)">
+            <h2>@(_showRunningModels ? "▼" : "▶") ▶️ 运行中模型</h2>
+            <button class="btn btn-secondary btn-sm" @onclick="RefreshRunningModels" @onclick:stopPropagation>🔄 刷新</button>
+        </div>
+        @if (_showRunningModels)
+        {
+            @if (runningModels.Count == 0)
+            {
+                <div class="alert alert-info">暂无运行中模型。下方推荐列表可部署新模型，或使用"加载模型"加载已下载的模型。</div>
+            }
+            else
+            {
+                <div class="running-models-table">
+                    <div class="running-table-header">
+                        <span class="col-model">模型</span>
+                        <span class="col-tool">工具</span>
+                        <span class="col-mem">内存占用</span>
+                        <span class="col-expires">过期时间</span>
+                        <span class="col-actions">操作</span>
+                    </div>
+                    @foreach (var rm in runningModels)
+                    {
+                        <div class="running-table-row">
+                            <span class="col-model">
+                                <span class="model-name-text">@rm.DisplayName</span>
+                                @if (!string.IsNullOrEmpty(rm.Family))
+                                {
+                                    <span class="badge badge-light">@rm.Family</span>
+                                }
+                            </span>
+                            <span class="col-tool">
+                                <span class="tool-badge @GetToolBadgeClass(rm.ToolId)">@rm.ToolName</span>
+                            </span>
+                            <span class="col-mem">
+                                @if (rm.VramGiB.HasValue && rm.VramGiB.Value > 0)
+                                {
+                                    <span>VRAM @rm.VramGiB.Value.ToString("F1") GB</span>
+                                }
+                                else
+                                {
+                                    <span>~@rm.SizeGiB.ToString("F1") GB</span>
+                                }
+                                <div class="mem-bar">
+                                    <div class="mem-fill" style="width: @(Math.Min(100, (int)((rm.SizeBytes / (double)(hardwareInfo?.Memory.TotalBytes ?? 1)) * 100)))%"></div>
+                                </div>
+                            </span>
+                            <span class="col-expires">
+                                @if (rm.ExpiresAt.HasValue)
+                                {
+                                    <span title="@rm.ExpiresAt.Value.ToString("yyyy-MM-dd HH:mm:ss")">@GetTimeRemaining(rm.ExpiresAt.Value)</span>
+                                }
+                                else
+                                {
+                                    <span>-</span>
+                                }
+                            </span>
+                            <span class="col-actions">
+                                <button class="btn btn-danger btn-sm" @onclick='() => UnloadModel(rm)' disabled="@isLoadingModel">
+                                    ⏹ 卸载
+                                </button>
+                            </span>
+                        </div>
+                    }
+                </div>
+                <div class="memory-summary">
+                    共 @runningModels.Count 个模型在运行，总内存占用约 @(runningModels.Sum(m => m.SizeGiB).ToString("F1")) GB
+                </div>
+            }
+        }
+    </div>
+
+    }
+
+    @if (_activeTab == "ollama")
+    {
+    <!-- 已下载模型 -->
+    <div class="downloaded-section">
+        <div class="section-header" style="cursor:pointer;" @onclick="() => ToggleSection(ref _showDownloadedModels)">
+            <h2>@(_showDownloadedModels ? "▼" : "▶") 🦙 Ollama 已下载模型</h2>
+            @if (_showDownloadedModels)
+            {
+                <button class="btn btn-secondary btn-sm" @onclick="RefreshDownloadedModels" @onclick:stopPropagation disabled="@isLoadingDownloaded">
+                    @(isLoadingDownloaded ? "🔄 刷新中..." : "🔄 刷新")
+                </button>
+            }
+        </div>
+        @if (_showDownloadedModels)
+        {
+        @if (downloadedModels.Count == 0)
+        {
+            <div class="alert alert-info">暂无已下载模型。上方推荐列表可部署新模型。</div>
+        }
+        else
+        {
+            <div class="downloaded-models-table">
+                <div class="downloaded-table-header">
+                    <span class="col-dl-name">模型</span>
+                    <span class="col-dl-tool">工具</span>
+                    <span class="col-dl-size">大小</span>
+                    <span class="col-dl-time">修改时间</span>
+                    <span class="col-dl-status">状态</span>
+                    <span class="col-dl-actions">操作</span>
+                </div>
+                @foreach (var dm in downloadedModels.Where(m => m.ToolId == "ollama"))
+                {
+                    <div class="downloaded-table-row">
+                        <span class="col-dl-name">
+                            <span class="model-name-text">@dm.Name</span>
+                            @if (!string.IsNullOrEmpty(dm.Digest))
+                            {
+                                <span class="digest-text" title="@dm.Digest">@dm.Digest[..Math.Min(12, dm.Digest.Length)]...</span>
+                            }
+                        </span>
+                        <span class="col-dl-tool">
+                            <span class="tool-badge @GetToolBadgeClass(dm.ToolId)">@dm.ToolName</span>
+                        </span>
+                        <span class="col-dl-size">@dm.SizeGiB GB</span>
+                        <span class="col-dl-time">
+                            @(dm.ModifiedAt.HasValue ? dm.ModifiedAt.Value.ToString("yyyy-MM-dd HH:mm") : "-")
+                        </span>
+                        <span class="col-dl-status">
+                            @if (dm.IsRunning)
+                            {
+                                <span class="badge badge-info">▶ 运行中</span>
+                            }
+                            else
+                            {
+                                <span class="badge badge-light">⏹ 已停止</span>
+                            }
+                        </span>
+                        <span class="col-dl-actions">
+                            <button class="btn btn-primary btn-sm" @onclick='() => LoadDownloadedModel(dm)' disabled="@isLoadingModel">
+                                加载
+                            </button>
+                            <button class="btn btn-secondary btn-sm" @onclick='() => ShowModelDetails(dm)' disabled="@isLoadingDetails">
+                                详情
+                            </button>
+                            <button class="btn btn-danger btn-sm" @onclick='() => DeleteModel(dm)' disabled="@isLoadingModel">
+                                删除
+                            </button>
+                        </span>
+                    </div>
+                }
+            </div>
+            <div class="memory-summary">
+                共 @downloadedModels.Count 个模型，总大小约 @(downloadedModels.Sum(m => m.SizeGiB).ToString("F1")) GB
+            </div>
+        }
+        @if (!string.IsNullOrEmpty(downloadedModelMessage))
+        {
+            <div class="load-message @(downloadedModelSuccess ? "text-success" : "text-error")" style="margin-top:0.5rem;">
+                @downloadedModelMessage
+            </div>
+        }
+        }
+    </div>
+    }
+
+    @if (_activeTab == "lmstudio")
+    {
+    <!-- 已下载模型 -->
+    <div class="downloaded-section">
+        <div class="section-header" style="cursor:pointer;" @onclick="() => ToggleSection(ref _showDownloadedModels)">
+            <h2>@(_showDownloadedModels ? "▼" : "▶") 💜 LM Studio 已下载模型</h2>
+            @if (_showDownloadedModels)
+            {
+                <button class="btn btn-secondary btn-sm" @onclick="RefreshDownloadedModels" disabled="@isLoadingDownloaded">
+                    @(isLoadingDownloaded ? "🔄 刷新中..." : "🔄 刷新")
+                </button>
+            }
+        </div>
+        @if (_showDownloadedModels)
+        {
+        @if (downloadedModels.Count == 0)
+        {
+            <div class="alert alert-info">暂无已下载模型。上方推荐列表可部署新模型。</div>
+        }
+        else
+        {
+            <div class="downloaded-models-table">
+                <div class="downloaded-table-header">
+                    <span class="col-dl-name">模型</span>
+                    <span class="col-dl-tool">工具</span>
+                    <span class="col-dl-size">大小</span>
+                    <span class="col-dl-time">修改时间</span>
+                    <span class="col-dl-status">状态</span>
+                    <span class="col-dl-actions">操作</span>
+                </div>
+                @foreach (var dm in downloadedModels.Where(m => m.ToolId == "lmstudio"))
+                {
+                    <div class="downloaded-table-row">
+                        <span class="col-dl-name">
+                            <span class="model-name-text">@dm.Name</span>
+                            @if (!string.IsNullOrEmpty(dm.Digest))
+                            {
+                                <span class="digest-text" title="@dm.Digest">@dm.Digest[..Math.Min(12, dm.Digest.Length)]...</span>
+                            }
+                        </span>
+                        <span class="col-dl-tool">
+                            <span class="tool-badge @GetToolBadgeClass(dm.ToolId)">@dm.ToolName</span>
+                        </span>
+                        <span class="col-dl-size">@dm.SizeGiB GB</span>
+                        <span class="col-dl-time">
+                            @(dm.ModifiedAt.HasValue ? dm.ModifiedAt.Value.ToString("yyyy-MM-dd HH:mm") : "-")
+                        </span>
+                        <span class="col-dl-status">
+                            @if (dm.IsRunning)
+                            {
+                                <span class="badge badge-info">▶ 运行中</span>
+                            }
+                            else
+                            {
+                                <span class="badge badge-light">⏹ 已停止</span>
+                            }
+                        </span>
+                        <span class="col-dl-actions">
+                            <button class="btn btn-primary btn-sm" @onclick='() => LoadDownloadedModel(dm)' disabled="@isLoadingModel">
+                                加载
+                            </button>
+                            <button class="btn btn-secondary btn-sm" @onclick='() => ShowModelDetails(dm)' disabled="@isLoadingDetails">
+                                详情
+                            </button>
+                            <button class="btn btn-danger btn-sm" @onclick='() => DeleteModel(dm)' disabled="@isLoadingModel">
+                                删除
+                            </button>
+                        </span>
+                    </div>
+                }
+            </div>
+            <div class="memory-summary">
+                共 @downloadedModels.Count 个模型，总大小约 @(downloadedModels.Sum(m => m.SizeGiB).ToString("F1")) GB
+            </div>
+        }
+        @if (!string.IsNullOrEmpty(downloadedModelMessage))
+        {
+            <div class="load-message @(downloadedModelSuccess ? "text-success" : "text-error")" style="margin-top:0.5rem;">
+                @downloadedModelMessage
+            </div>
+        }
+        }
+    </div>
+    }
+
+    @if (_activeTab == "llamacpp")
+    {
+    <!-- 已下载模型 -->
+    <div class="downloaded-section">
+        <div class="section-header" style="cursor:pointer;" @onclick="() => ToggleSection(ref _showDownloadedModels)">
+            <h2>@(_showDownloadedModels ? "▼" : "▶") ⚡ llama.cpp 可用模型</h2>
+            @if (_showDownloadedModels)
+            {
+                <button class="btn btn-secondary btn-sm" @onclick="RefreshDownloadedModels" disabled="@isLoadingDownloaded">
+                    @(isLoadingDownloaded ? "🔄 刷新中..." : "🔄 刷新")
+                </button>
+            }
+        </div>
+        @if (_showDownloadedModels)
+        {
+        @if (downloadedModels.Count == 0)
+        {
+            <div class="alert alert-info">暂无已下载模型。上方推荐列表可部署新模型。</div>
+        }
+        else
+        {
+            <div class="downloaded-models-table">
+                <div class="downloaded-table-header">
+                    <span class="col-dl-name">模型</span>
+                    <span class="col-dl-tool">工具</span>
+                    <span class="col-dl-size">大小</span>
+                    <span class="col-dl-time">修改时间</span>
+                    <span class="col-dl-status">状态</span>
+                    <span class="col-dl-actions">操作</span>
+                </div>
+                @foreach (var dm in downloadedModels.Where(m => m.ToolId == "llamacpp"))
+                {
+                    <div class="downloaded-table-row">
+                        <span class="col-dl-name">
+                            <span class="model-name-text">@dm.Name</span>
+                            @if (!string.IsNullOrEmpty(dm.Digest))
+                            {
+                                <span class="digest-text" title="@dm.Digest">@dm.Digest[..Math.Min(12, dm.Digest.Length)]...</span>
+                            }
+                        </span>
+                        <span class="col-dl-tool">
+                            <span class="tool-badge @GetToolBadgeClass(dm.ToolId)">@dm.ToolName</span>
+                        </span>
+                        <span class="col-dl-size">@dm.SizeGiB GB</span>
+                        <span class="col-dl-time">
+                            @(dm.ModifiedAt.HasValue ? dm.ModifiedAt.Value.ToString("yyyy-MM-dd HH:mm") : "-")
+                        </span>
+                        <span class="col-dl-status">
+                            @if (dm.IsRunning)
+                            {
+                                <span class="badge badge-info">▶ 运行中</span>
+                            }
+                            else
+                            {
+                                <span class="badge badge-light">⏹ 已停止</span>
+                            }
+                        </span>
+                        <span class="col-dl-actions">
+                            <button class="btn btn-primary btn-sm" @onclick='() => LoadDownloadedModel(dm)' disabled="@isLoadingModel">
+                                加载
+                            </button>
+                            <button class="btn btn-secondary btn-sm" @onclick='() => ShowModelDetails(dm)' disabled="@isLoadingDetails">
+                                详情
+                            </button>
+                            <button class="btn btn-danger btn-sm" @onclick='() => DeleteModel(dm)' disabled="@isLoadingModel">
+                                删除
+                            </button>
+                        </span>
+                    </div>
+                }
+            </div>
+            <div class="memory-summary">
+                共 @downloadedModels.Count 个模型，总大小约 @(downloadedModels.Sum(m => m.SizeGiB).ToString("F1")) GB
+            </div>
+        }
+        @if (!string.IsNullOrEmpty(downloadedModelMessage))
+        {
+            <div class="load-message @(downloadedModelSuccess ? "text-success" : "text-error")" style="margin-top:0.5rem;">
+                @downloadedModelMessage
+            </div>
+        }
+        }
+    </div>
+    }
+
+    @if (_activeTab == "ollama")
+    {
+    <!-- 加载模型 -->
+    <div class="load-model-section">
+        <div class="section-header" style="cursor:pointer;" @onclick="() => ToggleSection(ref _showLoadModel)">
+            <h3>@(_showLoadModel ? "▼" : "▶") 📥 加载 Ollama 模型</h3>
+        </div>
+        @if (_showLoadModel)
+        {
+        <div class="load-model-form">
+            <div class="form-row">
+                <div class="form-group">
+                    <label>模型</label>
+                    <select class="form-control" @bind="loadModelName" disabled="@string.IsNullOrEmpty(loadToolId)">
+                        <option value="">-- 选择模型 --</option>
+                        @foreach (var name in availableModelsForLoad)
+                        {
+                            <option value="@name">@name</option>
+                        }
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label>保持时间</label>
+                    <div class="btn-group btn-group-sm" role="group">
+                        <button type="button" class="btn @(loadKeepAliveMinutes == 5 ? "btn-primary" : "btn-outline-primary")" @onclick="@(() => loadKeepAliveMinutes = 5)">5分</button>
+                        <button type="button" class="btn @(loadKeepAliveMinutes == 30 ? "btn-primary" : "btn-outline-primary")" @onclick="@(() => loadKeepAliveMinutes = 30)">30分</button>
+                        <button type="button" class="btn @(loadKeepAliveMinutes == 60 ? "btn-primary" : "btn-outline-primary")" @onclick="@(() => loadKeepAliveMinutes = 60)">1时</button>
+                        <button type="button" class="btn @(loadKeepAliveMinutes == 360 ? "btn-primary" : "btn-outline-primary")" @onclick="@(() => loadKeepAliveMinutes = 360)">6时</button>
+                        <button type="button" class="btn @(loadKeepAliveMinutes == -1 ? "btn-primary" : "btn-outline-primary")" @onclick="@(() => loadKeepAliveMinutes = -1)">永久</button>
+                    </div>
+                </div>
+            </div>
+            <button class="btn btn-primary" @onclick="LoadSelectedModel" disabled="@(!CanLoadModel())">
+                @(isLoadingModel ? "加载中..." : "🚀 加载模型")
+            </button>
+            @if (!string.IsNullOrEmpty(loadModelMessage))
+            {
+                <span class="load-message @(loadModelSuccess ? "text-success" : "text-error")">@loadModelMessage</span>
+            }
+        </div>
+        }
+    </div>
+    }
+
+    @if (_activeTab == "lmstudio")
+    {
+    <!-- 加载模型 -->
+    <div class="load-model-section">
+        <div class="section-header" style="cursor:pointer;" @onclick="() => ToggleSection(ref _showLoadModel)">
+            <h3>@(_showLoadModel ? "▼" : "▶") 📥 加载 LM Studio 模型</h3>
+        </div>
+        @if (_showLoadModel)
+        {
+        <div class="load-model-form">
+            <div class="form-row">
+                <div class="form-group">
+                    <label>模型</label>
+                    <select class="form-control" @bind="loadModelName" disabled="@string.IsNullOrEmpty(loadToolId)">
+                        <option value="">-- 选择模型 --</option>
+                        @foreach (var name in availableModelsForLoad)
+                        {
+                            <option value="@name">@name</option>
+                        }
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label>保持时间</label>
+                    <div class="btn-group btn-group-sm" role="group">
+                        <button type="button" class="btn @(loadKeepAliveMinutes == 5 ? "btn-primary" : "btn-outline-primary")" @onclick="@(() => loadKeepAliveMinutes = 5)">5分</button>
+                        <button type="button" class="btn @(loadKeepAliveMinutes == 30 ? "btn-primary" : "btn-outline-primary")" @onclick="@(() => loadKeepAliveMinutes = 30)">30分</button>
+                        <button type="button" class="btn @(loadKeepAliveMinutes == 60 ? "btn-primary" : "btn-outline-primary")" @onclick="@(() => loadKeepAliveMinutes = 60)">1时</button>
+                        <button type="button" class="btn @(loadKeepAliveMinutes == 360 ? "btn-primary" : "btn-outline-primary")" @onclick="@(() => loadKeepAliveMinutes = 360)">6时</button>
+                        <button type="button" class="btn @(loadKeepAliveMinutes == -1 ? "btn-primary" : "btn-outline-primary")" @onclick="@(() => loadKeepAliveMinutes = -1)">永久</button>
+                    </div>
+                </div>
+            </div>
+            <button class="btn btn-primary" @onclick="LoadSelectedModel" disabled="@(!CanLoadModel())">
+                @(isLoadingModel ? "加载中..." : "🚀 加载模型")
+            </button>
+            @if (!string.IsNullOrEmpty(loadModelMessage))
+            {
+                <span class="load-message @(loadModelSuccess ? "text-success" : "text-error")">@loadModelMessage</span>
+            }
+        </div>
+        }
+    </div>
+    }
+
+    @if (_activeTab == "llamacpp")
+    {
+    <!-- 加载模型 -->
+    <div class="load-model-section">
+        <div class="section-header" style="cursor:pointer;" @onclick="() => ToggleSection(ref _showLoadModel)">
+            <h3>@(_showLoadModel ? "▼" : "▶") 📥 加载 llama.cpp 模型</h3>
+        </div>
+        @if (_showLoadModel)
+        {
+        <div class="load-model-form">
+            <div class="form-row">
+                <div class="form-group">
+                    <label>模型</label>
+                    <select class="form-control" @bind="loadModelName" disabled="@string.IsNullOrEmpty(loadToolId)">
+                        <option value="">-- 选择模型 --</option>
+                        @foreach (var name in availableModelsForLoad)
+                        {
+                            <option value="@name">@name</option>
+                        }
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label>保持时间</label>
+                    <div class="btn-group btn-group-sm" role="group">
+                        <button type="button" class="btn @(loadKeepAliveMinutes == 5 ? "btn-primary" : "btn-outline-primary")" @onclick="@(() => loadKeepAliveMinutes = 5)">5分</button>
+                        <button type="button" class="btn @(loadKeepAliveMinutes == 30 ? "btn-primary" : "btn-outline-primary")" @onclick="@(() => loadKeepAliveMinutes = 30)">30分</button>
+                        <button type="button" class="btn @(loadKeepAliveMinutes == 60 ? "btn-primary" : "btn-outline-primary")" @onclick="@(() => loadKeepAliveMinutes = 60)">1时</button>
+                        <button type="button" class="btn @(loadKeepAliveMinutes == 360 ? "btn-primary" : "btn-outline-primary")" @onclick="@(() => loadKeepAliveMinutes = 360)">6时</button>
+                        <button type="button" class="btn @(loadKeepAliveMinutes == -1 ? "btn-primary" : "btn-outline-primary")" @onclick="@(() => loadKeepAliveMinutes = -1)">永久</button>
+                    </div>
+                </div>
+            </div>
+            <button class="btn btn-primary" @onclick="LoadSelectedModel" disabled="@(!CanLoadModel())">
+                @(isLoadingModel ? "加载中..." : "🚀 加载模型")
+            </button>
+            @if (!string.IsNullOrEmpty(loadModelMessage))
+            {
+                <span class="load-message @(loadModelSuccess ? "text-success" : "text-error")">@loadModelMessage</span>
+            }
+        </div>
+        }
+    </div>
+    }
+
+    @if (_activeTab == "overview")
+    {
+    <!-- 本地工具状态 -->
+    <div class="tools-section">
+        <div class="section-header" style="cursor:pointer;" @onclick="() => ToggleSection(ref _showLocalTools)">
+            <h2>@(_showLocalTools ? "▼" : "▶") 本地工具</h2>
+        </div>
+        @if (_showLocalTools)
+        {
+        <div class="tools-list">
+            @foreach (var tool in localTools)
+            {
+                <div class="tool-item">
+                    <span class="tool-name">@tool.Name</span>
+                    @if (tool.IsInstalled)
+                    {
+                        <span class="badge badge-success">已安装 @(tool.Version)</span>
+                        @if (tool.IsRunning)
+                        {
+                            <span class="badge badge-info">运行中</span>
+                        }
+                        else
+                        {
+                            <span class="badge badge-warning">未运行</span>
+                        }
+                    }
+                    else
+                    {
+                        <span class="badge badge-warning">未安装</span>
+                        @if (!string.IsNullOrEmpty(tool.InstallGuideUrl))
+                        {
+                            <a href="@tool.InstallGuideUrl" target="_blank" class="link-small">安装指南</a>
+                        }
+                    }
+                </div>
+            }
+        </div>
+        }
+    </div>
+
+    }
+
+    @if (_activeTab == "llamacpp")
+    {
+    <!-- llama.cpp 配置 -->
+    @if (llamaCppTool != null)
+    {
+        <div class="llamacpp-section">
+            <div class="section-header" style="cursor:pointer;" @onclick="() => ToggleSection(ref _showLlamaCpp)">
+                <h2>@(_showLlamaCpp ? "▼" : "▶") 🔥 llama.cpp 配置</h2>
+            </div>
+            @if (_showLlamaCpp)
+            {
+            @if (!llamaCppTool.IsInstalled)
+            {
+                <div class="alert alert-warning">
+                    llama.cpp 未安装或未配置二进制路径。
+                    <a href="@llamaCppTool.InstallGuideUrl" target="_blank">安装指南</a>
+                </div>
+            }
+            else
+            {
+                <div class="llamacpp-config-form">
+                    <div class="form-row">
+                        <div class="form-group" style="flex: 2;">
+                            <label>模型文件路径（.gguf）</label>
+                            <input type="text" class="form-control" @bind="_llamaCppModelPath"
+                                   placeholder="/path/to/model.gguf" />
+                            <div class="form-text">例如：/home/lumin/models/Qwen3-8B-Q4_K_M.gguf</div>
+                        </div>
+                        <div class="form-group">
+                            <label>端口</label>
+                            <input type="number" class="form-control" @bind="_llamaCppPort" />
+                        </div>
+                    </div>
+
+                    <h4 class="llamacpp-section-title">⚙️ 基础配置</h4>
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label>GPU 层数（-ngl）</label>
+                            <input type="number" class="form-control" @bind="_llamaCppNGpuLayers" />
+                            <div class="form-text">0=纯CPU，999=全部 offload 到 GPU</div>
+                        </div>
+                        <div class="form-group">
+                            <label>上下文大小（-c）</label>
+                            <input type="number" class="form-control" @bind="_llamaCppContextSize" />
+                            <div class="form-text">模型能记住的 token 数，越大占显存越多</div>
+                        </div>
+                        <div class="form-group">
+                            <label>CPU 线程数（-t）</label>
+                            <input type="number" class="form-control" @bind="_llamaCppThreads" />
+                            <div class="form-text">0=自动使用全部核心</div>
+                        </div>
+                        <div class="form-group">
+                            <label>批处理大小（-b）</label>
+                            <input type="number" class="form-control" @bind="_llamaCppBatchSize" />
+                            <div class="form-text">越大吞吐量越高，默认 2048</div>
+                        </div>
+                    </div>
+
+                    <h4 class="llamacpp-section-title">🎛️ 显存优化（长上下文必读）</h4>
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label>KV Cache K 量化</label>
+                            <div class="btn-group btn-group-sm" role="group">
+                                <button type="button" class="btn @(_llamaCppCacheTypeK == "" ? "btn-primary" : "btn-outline-primary")" @onclick="@(() => _llamaCppCacheTypeK = "")">不量化</button>
+                                <button type="button" class="btn @(_llamaCppCacheTypeK == "f16" ? "btn-primary" : "btn-outline-primary")" @onclick="@(() => _llamaCppCacheTypeK = "f16")">f16</button>
+                                <button type="button" class="btn @(_llamaCppCacheTypeK == "q8_0" ? "btn-primary" : "btn-outline-primary")" @onclick="@(() => _llamaCppCacheTypeK = "q8_0")">q8_0</button>
+                                <button type="button" class="btn @(_llamaCppCacheTypeK == "q4_0" ? "btn-primary" : "btn-outline-primary")" @onclick="@(() => _llamaCppCacheTypeK = "q4_0")">q4_0</button>
+                            </div>
+                            <div class="form-text">显存紧张时选 q8_0，可大幅降低长上下文显存占用</div>
+                        </div>
+                        <div class="form-group">
+                            <label>KV Cache V 量化</label>
+                            <div class="btn-group btn-group-sm" role="group">
+                                <button type="button" class="btn @(_llamaCppCacheTypeV == "" ? "btn-primary" : "btn-outline-primary")" @onclick="@(() => _llamaCppCacheTypeV = "")">不量化</button>
+                                <button type="button" class="btn @(_llamaCppCacheTypeV == "f16" ? "btn-primary" : "btn-outline-primary")" @onclick="@(() => _llamaCppCacheTypeV = "f16")">f16</button>
+                                <button type="button" class="btn @(_llamaCppCacheTypeV == "q8_0" ? "btn-primary" : "btn-outline-primary")" @onclick="@(() => _llamaCppCacheTypeV = "q8_0")">q8_0</button>
+                                <button type="button" class="btn @(_llamaCppCacheTypeV == "q4_0" ? "btn-primary" : "btn-outline-primary")" @onclick="@(() => _llamaCppCacheTypeV = "q4_0")">q4_0</button>
+                            </div>
+                            <div class="form-text">通常与 K 量化保持一致</div>
+                        </div>
+                    </div>
+
+                    <h4 class="llamacpp-section-title">🔧 高级选项</h4>
+                    <div class="form-row llamacpp-presets">
+                        <label class="preset-checkbox" title="Flash Attention：显著降低显存占用，Intel Arc / 现代 GPU 强烈建议开启">
+                            <input type="checkbox" @bind="_llamaCppUseFlashAttn" />
+                            <span>⚡ Flash Attention (--flash-attn)</span>
+                        </label>
+                        <label class="preset-checkbox" title="内存锁定：防止模型被换出到 swap，提升稳定性">
+                            <input type="checkbox" @bind="_llamaCppUseMlock" />
+                            <span>🔒 内存锁定 (--mlock)</span>
+                        </label>
+                        <label class="preset-checkbox" title="禁用内存映射：某些系统环境下更稳定">
+                            <input type="checkbox" @bind="_llamaCppUseNoMmap" />
+                            <span>🚫 禁用 mmap (--no-mmap)</span>
+                        </label>
+                        <label class="preset-checkbox" title="连续批处理：提升多客户端并发请求的吞吐量">
+                            <input type="checkbox" @bind="_llamaCppUseContBatching" />
+                            <span>🔄 连续批处理 (--cont-batching)</span>
+                        </label>
+                    </div>
+
+                    <div class="form-row">
+                        <div class="form-group" style="flex: 1;">
+                            <label>额外启动参数</label>
+                            <input type="text" class="form-control" @bind="_llamaCppExtraArgs"
+                                   placeholder="--verbose --log-disable" />
+                            <div class="form-text">高级自定义参数（上方勾选的选项会自动附加）</div>
+                        </div>
+                    </div>
+
+                    <div class="llamacpp-quick-presets">
+                        <span class="preset-label">快速预设：</span>
+                        <button class="btn btn-outline-secondary btn-sm" @onclick="ApplyVramOptimizedPreset">
+                            💾 显存优化（长上下文推荐）
+                        </button>
+                        <button class="btn btn-outline-secondary btn-sm" @onclick="ApplySpeedPreset">
+                            🚀 速度优先
+                        </button>
+                        <button class="btn btn-outline-secondary btn-sm" @onclick="ApplyCpuOnlyPreset">
+                            🖥️ 纯 CPU 模式
+                        </button>
+                    </div>
+
+                    <div class="llamacpp-actions">
+                        <button class="btn btn-primary" @onclick="SaveLlamaCppConfigAsync"
+                                disabled="@_isSavingLlamaCppConfig">
+                            @(_isSavingLlamaCppConfig ? "保存中..." : "💾 保存配置")
+                        </button>
+                        @if (llamaCppTool.IsRunning)
+                        {
+                            <button class="btn btn-danger" @onclick="StopLlamaCppAsync"
+                                    disabled="@_isLlamaCppActionRunning">
+                                @(_isLlamaCppActionRunning ? "停止中..." : "⏹ 停止服务")
+                            </button>
+                        }
+                        else
+                        {
+                            <button class="btn btn-success" @onclick="StartLlamaCppAsync"
+                                    disabled="@_isLlamaCppActionRunning">
+                                @(_isLlamaCppActionRunning ? "启动中..." : "▶️ 启动服务")
+                            </button>
+                        }
+                        @if (!string.IsNullOrEmpty(_llamaCppStatusMessage))
+                        {
+                            <span class="load-message @(_llamaCppStatusSuccess ? "text-success" : "text-error")">
+                                @_llamaCppStatusMessage
+                            </span>
+                        }
+                    </div>
+                </div>
+                }
+            }
+        </div>
+    }
+
+    }
+
+    @if (_activeTab == "overview")
+    {
+    <!-- 场景筛选 -->
+    <div class="scenario-section">
+        <div class="scenario-header" style="cursor:pointer;" @onclick="() => ToggleSection(ref _showRecommendations)">
+            <h2>@(_showRecommendations ? "▼" : "▶") 模型推荐</h2>
+            <button class="btn btn-outline-secondary btn-sm" @onclick="RefreshLibrary" @onclick:stopPropagation
+                    disabled="@isRefreshingLibrary" title="从 Ollama Library 拉取最新模型列表">
+                @(isRefreshingLibrary ? "🔄 刷新中..." : "🔄 刷新模型库")
+            </button>
+        </div>
+        <div class="scenario-tags">
+            @foreach (var tag in scenarioTags)
+            {
+                <button class="scenario-tag @(currentScenario == tag.Value ? "active" : "")"
+                        @onclick="() => SelectScenario(tag.Value)">
+                    @tag.Label
+                </button>
+            }
+        </div>
+        <div class="scenario-tags company-tags" style="margin-top:0.5rem;">
+            @foreach (var tag in companyTags)
+            {
+                <button class="scenario-tag company-tag @(currentCompany == tag.Value ? "active" : "")"
+                        @onclick="() => SelectCompany(tag.Value)">
+                    @tag.Label
+                </button>
+            }
+        </div>
+    </div>
+
+    @if (_showRecommendations)
+    {
+        @if (availableVram.HasValue)
+        {
+            <div class="hardware-vram-bar" style="margin-bottom:1rem;">
+                <span style="font-size:0.85rem;padding:0.35rem 0.75rem;background:#e7f1ff;border-radius:20px;color:#0d6efd;font-weight:500;">
+                    本机显存: @(availableVram.Value.ToString("F1")) GB
+                    @if (recommendedTierVramGb.HasValue)
+                    {
+                        <span style="color:#1e8449;font-weight:600;"> → 推荐 @recommendedTierVramGb.Value GB 档位</span>
+                    }
+                </span>
+            </div>
+        }
+
+        @if (FilteredModelsByTier.Count == 0)
+        {
+            <div class="alert alert-warning">暂无推荐模型，请检查硬件检测是否正常。</div>
+        }
+        else
+        {
+            @foreach (var tier in VramTierValues)
+            {
+                var models = FilteredModelsByTier.GetValueOrDefault(tier);
+                if (models == null || models.Count == 0) continue;
+
+                var isRecommended = recommendedTierVramGb.HasValue && recommendedTierVramGb.Value == tier;
+
+                <div class="tier-group @(isRecommended ? "tier-recommended" : "")">
+                    <div class="tier-group-header">
+                        <div class="tier-title">
+                            <span class="tier-badge">💾 @tier GB</span>
+                            @if (isRecommended)
+                            {
+                                <span class="tier-recommended-badge">✓ 当前配置推荐</span>
+                            }
+                        </div>
+                        <span class="tier-count">@models.Count 个模型</span>
+                    </div>
+                    <div class="models-grid">
+                        @foreach (var model in models)
+                        {
+                            @RenderModelCard(model)
+                        }
+                    </div>
+                </div>
+            }
+        }
+    }
+
+    }
+
+
+    <!-- 删除确认对话框 -->
+    @if (showDeleteConfirm && modelToDelete != null)
+    {
+        <div class="modal-overlay" @onclick="CancelDeleteModel">
+            <div class="modal-content modal-small" @onclick:stopPropagation>
+                <div class="modal-header">
+                    <h3>⚠️ 确认删除</h3>
+                    <button class="modal-close" @onclick="CancelDeleteModel">×</button>
+                </div>
+                <div class="modal-body">
+                    <p>确定要删除模型 <strong>@modelToDelete.Name</strong> 吗？</p>
+                    <p>大小: <strong>@modelToDelete.SizeGiB GB</strong></p>
+                    <p class="text-error">此操作不可恢复，模型文件将被永久删除。</p>
+                </div>
+                <div class="modal-footer">
+                    <button class="btn btn-secondary" @onclick="CancelDeleteModel">取消</button>
+                    <button class="btn btn-danger" @onclick="ConfirmDeleteModel" disabled="@isLoadingModel">
+                        @(isLoadingModel ? "删除中..." : "确认删除")
+                    </button>
+                </div>
+            </div>
+        </div>
+    }
+
+
+    <!-- 模型详情弹窗 -->
+    @if (showDetailsModal && modelDetails != null)
+    {
+        <div class="modal-overlay" @onclick="CloseDetailsModal">
+            <div class="modal-content modal-large" @onclick:stopPropagation>
+                <div class="modal-header">
+                    <h3>📋 模型详情: @modelDetails.Name</h3>
+                    <button class="modal-close" @onclick="CloseDetailsModal">×</button>
+                </div>
+                <div class="modal-body">
+                    @if (isLoadingDetails)
+                    {
+                        <div class="loading-spinner">加载详情中...</div>
+                    }
+                    else
+                    {
+                        <div class="details-sections">
+                            @if (!string.IsNullOrEmpty(modelDetails.Modelfile))
+                            {
+                                <div class="detail-section">
+                                    <h4>Modelfile</h4>
+                                    <pre class="detail-code">@modelDetails.Modelfile</pre>
+                                </div>
+                            }
+                            @if (!string.IsNullOrEmpty(modelDetails.Parameters))
+                            {
+                                <div class="detail-section">
+                                    <h4>Parameters</h4>
+                                    <pre class="detail-code">@modelDetails.Parameters</pre>
+                                </div>
+                            }
+                            @if (!string.IsNullOrEmpty(modelDetails.Template))
+                            {
+                                <div class="detail-section">
+                                    <h4>Template</h4>
+                                    <pre class="detail-code">@modelDetails.Template</pre>
+                                </div>
+                            }
+                            @if (!string.IsNullOrEmpty(modelDetails.License))
+                            {
+                                <div class="detail-section">
+                                    <h4>License</h4>
+                                    <pre class="detail-code">@modelDetails.License</pre>
+                                </div>
+                            }
+                            @if (string.IsNullOrEmpty(modelDetails.Modelfile) && string.IsNullOrEmpty(modelDetails.Parameters)
+                                && string.IsNullOrEmpty(modelDetails.Template) && string.IsNullOrEmpty(modelDetails.License))
+                            {
+                                <div class="alert alert-info">该工具暂不支持显示模型详情。</div>
+                            }
+                        </div>
+                    }
+                </div>
+                <div class="modal-footer">
+                    <button class="btn btn-secondary" @onclick="CloseDetailsModal">关闭</button>
+                </div>
+            </div>
+        </div>
+    }
+
+    @if (_activeTab == "overview")
+    {
+    <!-- 部署状态面板 -->
+    @if (activeTasks.Count > 0)
+    {
+        <div class="deploy-section">
+            <h2>部署状态</h2>
+            @foreach (var task in activeTasks)
+            {
+                <div class="deploy-card">
+                    <div class="deploy-header">
+                        <span class="deploy-model">@task.ModelName</span>
+                        <span class="deploy-status @GetTaskStatusClass(task.Status)">@GetTaskStatusLabel(task.Status)</span>
+                    </div>
+                    <div class="deploy-progress">
+                        <div class="progress-bar">
+                            <div class="progress-fill" style="width: @task.ProgressPercent%"></div>
+                        </div>
+                        <span class="progress-text">@task.ProgressPercent%</span>
+                    </div>
+                    <div class="deploy-step">@task.CurrentStep</div>
+                    <div class="deploy-logs">
+                        @foreach (var log in task.Logs.TakeLast(5))
+                        {
+                            <div class="log-line">@log</div>
+                        }
+                    </div>
+                    @if (task.Status == "running")
+                    {
+                        <button class="btn btn-danger btn-sm" @onclick="() => CancelDeploy(task.TaskId)">取消</button>
+                    }
+                    @if (task.Status == "completed" && task.AutoConfiguredProvider)
+                    {
+                        <div class="deploy-success">
+                            ✅ 已自动添加到 <a href="settings">AI 设置</a>
+                        </div>
+                    }
+                </div>
+            }
+        </div>
+    }
+    }
+}
+
+<style>
+    .loading-spinner {
+        padding: 2rem;
+        text-align: center;
+        color: #666;
+    }
+
+    .hardware-section, .tools-section, .scenario-section, .deploy-section {
+        margin-bottom: 2rem;
+    }
+
+    .hardware-section h2, .tools-section h2, .scenario-section h2, .deploy-section h2 {
+        font-size: 1.2rem;
+        margin-bottom: 1rem;
+        color: #333;
+    }
+
+    .hardware-cards {
+        display: grid;
+        grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+        gap: 1rem;
+        margin-bottom: 1rem;
+    }
+
+    .hw-card {
+        background: #f8f9fa;
+        border: 1px solid #e9ecef;
+        border-radius: 10px;
+        padding: 1rem;
+        text-align: center;
+    }
+
+    .hw-icon {
+        font-size: 1.8rem;
+        margin-bottom: 0.3rem;
+    }
+
+    .hw-title {
+        font-size: 0.85rem;
+        color: #666;
+        margin-bottom: 0.3rem;
+    }
+
+    .hw-value {
+        font-size: 0.95rem;
+        font-weight: 600;
+        color: #333;
+        margin-bottom: 0.2rem;
+        word-break: break-word;
+    }
+
+    .hw-detail {
+        font-size: 0.8rem;
+        color: #888;
+    }
+
+    .tools-list {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 0.75rem;
+    }
+
+    .tool-item {
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+        background: #f8f9fa;
+        border: 1px solid #e9ecef;
+        border-radius: 6px;
+        padding: 0.5rem 0.75rem;
+    }
+
+    .tool-name {
+        font-weight: 500;
+        font-size: 0.9rem;
+    }
+
+    .link-small {
+        font-size: 0.8rem;
+        color: #007bff;
+        text-decoration: none;
+    }
+
+    .link-small:hover {
+        text-decoration: underline;
+    }
+
+    .scenario-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-bottom: 0.75rem;
+    }
+
+    .scenario-header h2 {
+        margin-bottom: 0;
+    }
+
+    .scenario-tags {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 0.5rem;
+        margin-bottom: 1rem;
+    }
+
+    .scenario-tag {
+        padding: 0.4rem 1rem;
+        border: 1px solid #dee2e6;
+        border-radius: 20px;
+        background: white;
+        cursor: pointer;
+        font-size: 0.9rem;
+        transition: all 0.2s;
+    }
+
+    .scenario-tag:hover {
+        background: #f8f9fa;
+    }
+
+    .scenario-tag.active {
+        background: #007bff;
+        color: white;
+        border-color: #007bff;
+    }
+
+    .models-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+        gap: 1rem;
+        margin-bottom: 2rem;
+    }
+
+    .model-card {
+        background: white;
+        border: 1px solid #e9ecef;
+        border-radius: 10px;
+        padding: 1rem;
+        display: flex;
+        flex-direction: column;
+        gap: 0.5rem;
+    }
+
+    .model-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+    }
+
+    .model-name {
+        font-weight: 600;
+        font-size: 1rem;
+        color: #333;
+    }
+
+    .model-size {
+        font-size: 0.85rem;
+        color: #666;
+        background: #f1f3f5;
+        padding: 0.2rem 0.5rem;
+        border-radius: 4px;
+    }
+
+    .model-desc {
+        font-size: 0.85rem;
+        color: #555;
+        line-height: 1.4;
+    }
+
+    .model-meta {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 0.35rem;
+    }
+
+    .model-download-status {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 0.35rem;
+    }
+
+    .model-requirements {
+        display: flex;
+        gap: 1rem;
+        font-size: 0.8rem;
+        color: #666;
+    }
+
+    .model-suitability {
+        font-size: 0.85rem;
+        padding: 0.3rem 0.5rem;
+        border-radius: 4px;
+        font-weight: 500;
+    }
+
+    .suitability-good {
+        background: #d4edda;
+        color: #155724;
+    }
+
+    .suitability-ok {
+        background: #fff3cd;
+        color: #856404;
+    }
+
+    .suitability-slow {
+        background: #f8d7da;
+        color: #721c24;
+    }
+
+    .model-performance {
+        font-size: 0.85rem;
+    }
+
+    .speed-badge {
+        display: inline-block;
+        padding: 0.25rem 0.5rem;
+        border-radius: 4px;
+        font-weight: 500;
+        font-size: 0.8rem;
+    }
+
+    .speed-fast {
+        background: #d4edda;
+        color: #155724;
+    }
+
+    .speed-medium {
+        background: #fff3cd;
+        color: #856404;
+    }
+
+    .speed-slow {
+        background: #ffe5cc;
+        color: #804000;
+    }
+
+    .speed-very-slow {
+        background: #f8d7da;
+        color: #721c24;
+    }
+
+    /* 显存档位分组 */
+    .tier-group {
+        margin-bottom: 1.5rem;
+        border: 1px solid #e9ecef;
+        border-radius: 10px;
+        background: #fff;
+        overflow: hidden;
+    }
+
+    .tier-group.tier-recommended {
+        border-color: #28a745;
+        box-shadow: 0 0 0 1px #28a74520;
+    }
+
+    .tier-group-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        padding: 0.75rem 1rem;
+        background: #f8f9fa;
+        border-bottom: 1px solid #e9ecef;
+    }
+
+    .tier-group.tier-recommended .tier-group-header {
+        background: #e8f5e9;
+    }
+
+    .tier-title {
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+    }
+
+    .tier-badge {
+        font-weight: 700;
+        font-size: 1rem;
+        color: #212529;
+    }
+
+    .tier-recommended-badge {
+        font-size: 0.72rem;
+        padding: 0.15rem 0.5rem;
+        background: #28a745;
+        color: #fff;
+        border-radius: 12px;
+        font-weight: 500;
+    }
+
+    .tier-count {
+        font-size: 0.8rem;
+        color: #6c757d;
+    }
+
+    .tier-group .models-grid {
+        padding: 1rem;
+        margin-bottom: 0;
+    }
+
+    .model-actions {
+        display: flex;
+        gap: 0.5rem;
+        margin-top: 0.25rem;
+    }
+
+    .deploy-card {
+        background: #f8f9fa;
+        border: 1px solid #e9ecef;
+        border-radius: 10px;
+        padding: 1rem;
+        margin-bottom: 1rem;
+    }
+
+    .deploy-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-bottom: 0.75rem;
+    }
+
+    .deploy-model {
+        font-weight: 600;
+    }
+
+    .deploy-status {
+        font-size: 0.85rem;
+        padding: 0.2rem 0.5rem;
+        border-radius: 4px;
+    }
+
+    .status-running {
+        background: #cce5ff;
+        color: #004085;
+    }
+
+    .status-completed {
+        background: #d4edda;
+        color: #155724;
+    }
+
+    .status-failed {
+        background: #f8d7da;
+        color: #721c24;
+    }
+
+    .deploy-progress {
+        display: flex;
+        align-items: center;
+        gap: 0.75rem;
+        margin-bottom: 0.5rem;
+    }
+
+    .progress-bar {
+        flex: 1;
+        height: 8px;
+        background: #dee2e6;
+        border-radius: 4px;
+        overflow: hidden;
+    }
+
+    .progress-fill {
+        height: 100%;
+        background: #007bff;
+        border-radius: 4px;
+        transition: width 0.3s ease;
+    }
+
+    .progress-text {
+        font-size: 0.85rem;
+        color: #666;
+        min-width: 2.5rem;
+        text-align: right;
+    }
+
+    .deploy-step {
+        font-size: 0.85rem;
+        color: #555;
+        margin-bottom: 0.5rem;
+    }
+
+    .deploy-logs {
+        background: #1e1e1e;
+        color: #d4d4d4;
+        border-radius: 6px;
+        padding: 0.5rem 0.75rem;
+        font-family: 'Consolas', 'Monaco', monospace;
+        font-size: 0.8rem;
+        max-height: 120px;
+        overflow-y: auto;
+        margin-bottom: 0.5rem;
+    }
+
+    .log-line {
+        line-height: 1.5;
+        white-space: pre-wrap;
+        word-break: break-all;
+    }
+
+    .deploy-success {
+        margin-top: 0.5rem;
+        font-size: 0.9rem;
+    }
+
+    .deploy-success a {
+        color: #007bff;
+    }
+
+    .btn-sm {
+        padding: 0.35rem 0.75rem;
+        font-size: 0.85rem;
+    }
+
+    /* 运行中模型 */
+    .running-section {
+        margin-bottom: 1.5rem;
+    }
+
+    .section-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-bottom: 0.75rem;
+    }
+
+    .running-models-table {
+        background: white;
+        border: 1px solid #e9ecef;
+        border-radius: 8px;
+        overflow: hidden;
+    }
+
+    .running-table-header, .running-table-row {
+        display: grid;
+        grid-template-columns: 2fr 1fr 1.5fr 1.2fr 1fr;
+        gap: 0.5rem;
+        padding: 0.6rem 0.75rem;
+        align-items: center;
+    }
+
+    .running-table-header {
+        background: #f8f9fa;
+        font-weight: 600;
+        font-size: 0.85rem;
+        color: #555;
+    }
+
+    .running-table-row {
+        border-top: 1px solid #f1f3f5;
+        font-size: 0.9rem;
+    }
+
+    .running-table-row:hover {
+        background: #f8f9fa;
+    }
+
+    .col-model {
+        display: flex;
+        flex-direction: column;
+        gap: 0.2rem;
+    }
+
+    .model-name-text {
+        font-weight: 500;
+    }
+
+    .tool-badge {
+        display: inline-block;
+        padding: 0.2rem 0.5rem;
+        border-radius: 4px;
+        font-size: 0.8rem;
+        font-weight: 500;
+    }
+
+    .tool-ollama {
+        background: #e3f2fd;
+        color: #1565c0;
+    }
+
+    .tool-lmstudio {
+        background: #f3e5f5;
+        color: #6a1b9a;
+    }
+
+    .tool-llamacpp {
+        background: #fff3e0;
+        color: #e65100;
+    }
+
+    .mem-bar {
+        width: 100%;
+        height: 6px;
+        background: #e9ecef;
+        border-radius: 3px;
+        margin-top: 0.2rem;
+        overflow: hidden;
+    }
+
+    .mem-fill {
+        height: 100%;
+        background: #28a745;
+        border-radius: 3px;
+    }
+
+    .memory-summary {
+        margin-top: 0.5rem;
+        font-size: 0.85rem;
+        color: #666;
+        text-align: right;
+    }
+
+    /* 加载模型区域 */
+    .load-model-section {
+        background: #f8f9fa;
+        border: 1px solid #e9ecef;
+        border-radius: 8px;
+        padding: 1rem;
+        margin-bottom: 1.5rem;
+    }
+
+    .load-model-section h3 {
+        margin-top: 0;
+        margin-bottom: 0.75rem;
+        font-size: 1rem;
+    }
+
+    .load-model-form {
+        display: flex;
+        flex-direction: column;
+        gap: 0.75rem;
+    }
+
+    .form-row {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+        gap: 0.75rem;
+    }
+
+    .load-message {
+        margin-left: 0.5rem;
+        font-size: 0.9rem;
+    }
+
+    .text-success {
+        color: #28a745;
+    }
+
+    .text-error {
+        color: #dc3545;
+    }
+
+    /* Badge styles - Bootstrap 5 removed badge-* color classes */
+    .badge-success {
+        background: #28a745;
+        color: white;
+    }
+
+    .badge-info {
+        background: #17a2b8;
+        color: white;
+    }
+
+    .badge-warning {
+        background: #ffc107;
+        color: #212529;
+    }
+
+    .badge-secondary {
+        background: #6c757d;
+        color: white;
+    }
+
+    .badge-light {
+        background: #f8f9fa;
+        color: #333;
+        border: 1px solid #dee2e6;
+    }
+
+    /* llama.cpp 配置区 */
+    .llamacpp-section {
+        margin-bottom: 2rem;
+        background: #fff8e1;
+        border: 1px solid #ffe0b2;
+        border-radius: 10px;
+        padding: 1rem;
+    }
+
+    .llamacpp-section h2 {
+        font-size: 1.2rem;
+        margin-bottom: 1rem;
+        color: #e65100;
+    }
+
+    .llamacpp-config-form {
+        display: flex;
+        flex-direction: column;
+        gap: 0.75rem;
+    }
+
+    .llamacpp-config-form .form-text {
+        font-size: 0.8rem;
+        color: #888;
+    }
+
+    .llamacpp-actions {
+        display: flex;
+        align-items: center;
+        gap: 0.75rem;
+        flex-wrap: wrap;
+    }
+
+    .llamacpp-presets {
+        display: flex;
+        align-items: center;
+        gap: 1rem;
+        flex-wrap: wrap;
+        margin-top: 0.25rem;
+        padding: 0.5rem 0;
+    }
+
+    .preset-label {
+        font-size: 0.85rem;
+        color: #666;
+        font-weight: 500;
+        margin: 0;
+    }
+
+    .preset-checkbox {
+        display: flex;
+        align-items: center;
+        gap: 0.35rem;
+        font-size: 0.85rem;
+        color: #444;
+        cursor: pointer;
+        user-select: none;
+        padding: 0.25rem 0.5rem;
+        background: #fff3e0;
+        border-radius: 6px;
+        border: 1px solid #ffe0b2;
+        transition: background 0.2s;
+    }
+
+    .preset-checkbox:hover {
+        background: #ffe0b2;
+    }
+
+    .preset-checkbox input[type="checkbox"] {
+        margin: 0;
+        cursor: pointer;
+    }
+
+    .llamacpp-section-title {
+        font-size: 0.95rem;
+        color: #e65100;
+        margin: 1rem 0 0.5rem 0;
+        font-weight: 600;
+    }
+
+    .llamacpp-quick-presets {
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+        flex-wrap: wrap;
+        margin: 0.75rem 0;
+        padding: 0.5rem;
+        background: #fff8e1;
+        border-radius: 8px;
+        border: 1px dashed #ffe0b2;
+    }
+
+    .llamacpp-quick-presets .preset-label {
+        font-size: 0.85rem;
+        color: #666;
+        font-weight: 500;
+    }
+
+    /* 已下载模型区域 */
+    .downloaded-section {
+        margin-bottom: 1.5rem;
+    }
+
+    .downloaded-models-table {
+        background: white;
+        border: 1px solid #e9ecef;
+        border-radius: 8px;
+        overflow: hidden;
+    }
+
+    .downloaded-table-header, .downloaded-table-row {
+        display: grid;
+        grid-template-columns: 2fr 1fr 1fr 1.5fr 1fr 2fr;
+        gap: 0.5rem;
+        padding: 0.6rem 0.75rem;
+        align-items: center;
+    }
+
+    .downloaded-table-header {
+        background: #f8f9fa;
+        font-weight: 600;
+        font-size: 0.85rem;
+        color: #555;
+    }
+
+    .downloaded-table-row {
+        border-top: 1px solid #f1f3f5;
+        font-size: 0.9rem;
+    }
+
+    .downloaded-table-row:hover {
+        background: #f8f9fa;
+    }
+
+    .col-dl-name {
+        display: flex;
+        flex-direction: column;
+        gap: 0.2rem;
+    }
+
+    .digest-text {
+        font-size: 0.75rem;
+        color: #888;
+    }
+
+    .col-dl-actions {
+        display: flex;
+        gap: 0.35rem;
+        flex-wrap: wrap;
+    }
+
+    /* Modal */
+    .modal-overlay {
+        position: fixed;
+        top: 0;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        background: rgba(0, 0, 0, 0.5);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        z-index: 1000;
+        padding: 1rem;
+    }
+
+    .modal-content {
+        background: white;
+        border-radius: 10px;
+        box-shadow: 0 10px 40px rgba(0,0,0,0.2);
+        max-width: 90vw;
+        max-height: 90vh;
+        display: flex;
+        flex-direction: column;
+        overflow: hidden;
+    }
+
+    .modal-small {
+        width: 420px;
+    }
+
+    .modal-large {
+        width: 700px;
+    }
+
+    .modal-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        padding: 1rem 1.25rem;
+        border-bottom: 1px solid #e9ecef;
+    }
+
+    .modal-header h3 {
+        margin: 0;
+        font-size: 1.1rem;
+    }
+
+    .modal-close {
+        background: none;
+        border: none;
+        font-size: 1.5rem;
+        cursor: pointer;
+        color: #888;
+        line-height: 1;
+    }
+
+    .modal-close:hover {
+        color: #333;
+    }
+
+    .modal-body {
+        padding: 1.25rem;
+        overflow-y: auto;
+        flex: 1;
+    }
+
+    .modal-footer {
+        display: flex;
+        justify-content: flex-end;
+        gap: 0.75rem;
+        padding: 1rem 1.25rem;
+        border-top: 1px solid #e9ecef;
+    }
+
+    .details-sections {
+        display: flex;
+        flex-direction: column;
+        gap: 1rem;
+    }
+
+    .detail-section h4 {
+        margin: 0 0 0.5rem 0;
+        font-size: 0.9rem;
+        color: #555;
+    }
+
+    .detail-code {
+        background: #1e1e1e;
+        color: #d4d4d4;
+        border-radius: 6px;
+        padding: 0.75rem;
+        font-family: 'Consolas', 'Monaco', monospace;
+        font-size: 0.8rem;
+        max-height: 200px;
+        overflow-y: auto;
+        white-space: pre-wrap;
+        word-break: break-all;
+        margin: 0;
+    }
+</style>
+
+@code {
+    private bool isLoading = true;
+    private bool isDeploying = false;
+    private bool isRefreshingLibrary = false;
+    private HardwareInfoDto? hardwareInfo;
+    private List<RecommendedModelDto> recommendedModels = new();
+    private static readonly int[] VramTierValues = new[] { 4, 8, 12, 16, 24, 32, 48, 64, 96, 128, 256, 512, 1024 };
+    private double? availableVram;
+    private int? recommendedTierVramGb;
+    private List<LocalToolInfoDto> localTools = new();
+    private List<DeployTaskStatusDto> activeTasks = new();
+
+    private string currentScenario = "";
+    private string currentCompany = "";
+    private System.Timers.Timer? _statusTimer;
+
+    private string _activeTab = "overview";
+
+    // 区域折叠状态（默认只展开最常用的：已下载模型管理 + 模型推荐）
+    private bool _showHardware = false;
+    private bool _showRunningModels = false;
+    private bool _showDownloadedModels = true;
+    private bool _showLoadModel = false;
+    private bool _showLocalTools = false;
+    private bool _showLlamaCpp = false;
+    private bool _showRecommendations = true;
+
+    private void ToggleSection(ref bool flag) => flag = !flag;
+
+    // llama.cpp 配置
+    private LocalToolInfoDto? llamaCppTool => localTools.FirstOrDefault(t => t.Id == "llamacpp");
+    private string _llamaCppModelPath = "";
+    private int _llamaCppNGpuLayers = 999;
+    private int _llamaCppContextSize = 4096;
+    private int _llamaCppPort = 8080;
+    private bool _llamaCppUseFlashAttn = false;
+    private bool _llamaCppUseMlock = false;
+    private bool _llamaCppUseNoMmap = false;
+    private int _llamaCppThreads = 0;
+    private int _llamaCppBatchSize = 2048;
+    private string _llamaCppCacheTypeK = "";
+    private string _llamaCppCacheTypeV = "";
+    private bool _llamaCppUseContBatching = true;
+    private string _llamaCppExtraArgs = "";
+    private bool _isSavingLlamaCppConfig = false;
+    private bool _isLlamaCppActionRunning = false;
+    private string _llamaCppStatusMessage = "";
+    private bool _llamaCppStatusSuccess = false;
+
+    private readonly List<(string Value, string Label)> scenarioTags = new()
+    {
+        ("", "全部"),
+        ("chat", "💬 通用对话"),
+        ("chinese", "🇨🇳 中文优化"),
+        ("tcm", "📝 笔记"),
+        ("code", "💻 代码编程"),
+        ("reasoning", "🧠 推理思考"),
+        ("lightweight", "🪶 轻量快速"),
+    };
+
+    private readonly List<(string Value, string Label)> companyTags = new()
+    {
+        ("", "🏢 全部公司"),
+        ("阿里云", "☁️ 阿里云"),
+        ("Meta", "👤 Meta"),
+        ("Google", "🔍 Google"),
+        ("Microsoft", "🪟 Microsoft"),
+        ("DeepSeek", "🐋 DeepSeek"),
+    };
+
+    protected override void OnInitialized()
+    {
+        // 立即渲染骨架屏，数据后台加载
+        isLoading = true;
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (!firstRender) return;
+
+        // 后台并行加载所有数据
+        _ = Task.Run(async () =>
+        {
+            try
+            {
+                await LoadAllDataAsync();
+            }
+            catch (Exception ex)
+            {
+                Logger.LogWarning(ex, "后台加载失败");
+            }
+            finally
+            {
+                await InvokeAsync(() =>
+                {
+                    isLoading = false;
+                    StateHasChanged();
+                });
+            }
+        });
+
+        StartStatusPolling();
+    }
+
+    private async Task LoadAllDataAsync()
+    {
+        try
+        {
+            // 并行加载独立的 API 调用
+            var hwTask = ApiService.GetHardwareInfoAsync();
+            var toolsTask = ApiService.GetLocalToolsAsync();
+            await Task.WhenAll(hwTask, toolsTask);
+
+            hardwareInfo = hwTask.Result;
+            localTools = toolsTask.Result;
+
+            // 配置和推荐模型可以并行
+            var configTask = LoadLlamaCppConfigAsync();
+            var recTask = LoadRecommendationsAsync();
+            var modelsTask = RefreshRunningModels();
+            var downloadedTask = RefreshDownloadedModels();
+            await Task.WhenAll(configTask, recTask, modelsTask, downloadedTask);
+        }
+        catch (Exception ex)
+        {
+            Logger.LogWarning(ex, "加载数据失败");
+        }
+    }
+
+    private async Task LoadLlamaCppConfigAsync()
+    {
+        try
+        {
+            var config = await ApiService.GetOpenClawLocalAiConfigAsync();
+            if (config.LlamaCpp != null)
+            {
+                _llamaCppModelPath = config.LlamaCpp.ModelPath ?? "";
+                _llamaCppNGpuLayers = config.LlamaCpp.NGpuLayers;
+                _llamaCppContextSize = config.LlamaCpp.ContextSize;
+                _llamaCppPort = config.LlamaCpp.Port;
+                _llamaCppUseFlashAttn = config.LlamaCpp.UseFlashAttn;
+                _llamaCppUseMlock = config.LlamaCpp.UseMlock;
+                _llamaCppUseNoMmap = config.LlamaCpp.UseNoMmap;
+                _llamaCppThreads = config.LlamaCpp.Threads;
+                _llamaCppBatchSize = config.LlamaCpp.BatchSize;
+                _llamaCppCacheTypeK = config.LlamaCpp.CacheTypeK ?? "";
+                _llamaCppCacheTypeV = config.LlamaCpp.CacheTypeV ?? "";
+                _llamaCppUseContBatching = config.LlamaCpp.UseContBatching;
+                _llamaCppExtraArgs = config.LlamaCpp.ExtraArgs ?? "";
+            }
+        }
+        catch (Exception ex)
+        {
+            Logger.LogWarning(ex, "加载 llama.cpp 配置失败");
+        }
+    }
+
+    private async Task SaveLlamaCppConfigAsync()
+    {
+        _isSavingLlamaCppConfig = true;
+        _llamaCppStatusMessage = "";
+        try
+        {
+            // 先获取当前配置以保留 binaryPath
+            var currentConfig = await ApiService.GetOpenClawLocalAiConfigAsync();
+            var binaryPath = currentConfig.LlamaCpp?.BinaryPath ?? "/home/lumin/llama-cpp/build/bin/llama-server";
+
+            var success = await ApiService.SaveOpenClawLocalAiConfigAsync(new SaveOpenClawLocalAiConfigRequest
+            {
+                LlamaCpp = new OpenClawLlamaCppConfigDto
+                {
+                    Enabled = true,
+                    BinaryPath = binaryPath,
+                    ModelPath = _llamaCppModelPath,
+                    BaseUrl = $"http://localhost:{_llamaCppPort}",
+                    Port = _llamaCppPort,
+                    NGpuLayers = _llamaCppNGpuLayers,
+                    ContextSize = _llamaCppContextSize,
+                    UseFlashAttn = _llamaCppUseFlashAttn,
+                    UseMlock = _llamaCppUseMlock,
+                    UseNoMmap = _llamaCppUseNoMmap,
+                    Threads = _llamaCppThreads,
+                    BatchSize = _llamaCppBatchSize,
+                    CacheTypeK = _llamaCppCacheTypeK,
+                    CacheTypeV = _llamaCppCacheTypeV,
+                    UseContBatching = _llamaCppUseContBatching,
+                    ExtraArgs = _llamaCppExtraArgs,
+                }
+            });
+
+            if (success)
+            {
+                _llamaCppStatusMessage = "✅ 配置已保存";
+                _llamaCppStatusSuccess = true;
+                // 刷新工具状态以更新 DefaultModelPath（强制刷新）
+                localTools = await ApiService.GetLocalToolsAsync(forceRefresh: true);
+            }
+            else
+            {
+                _llamaCppStatusMessage = "❌ 保存配置失败";
+                _llamaCppStatusSuccess = false;
+            }
+        }
+        catch (Exception ex)
+        {
+            _llamaCppStatusMessage = $"保存异常: {ex.Message}";
+            _llamaCppStatusSuccess = false;
+        }
+        finally
+        {
+            _isSavingLlamaCppConfig = false;
+            await InvokeAsync(StateHasChanged);
+        }
+    }
+
+    private async Task StartLlamaCppAsync()
+    {
+        _isLlamaCppActionRunning = true;
+        _llamaCppStatusMessage = "";
+        try
+        {
+            var status = await ApiService.StartLlamaCppAsync();
+            if (status.IsRunning)
+            {
+                _llamaCppStatusMessage = $"✅ {status.Message}";
+                _llamaCppStatusSuccess = true;
+            }
+            else
+            {
+                _llamaCppStatusMessage = $"❌ {status.Message ?? "启动失败"}";
+                _llamaCppStatusSuccess = false;
+            }
+            // 刷新状态（强制刷新）
+            localTools = await ApiService.GetLocalToolsAsync(forceRefresh: true);
+            await RefreshRunningModels();
+        }
+        catch (Exception ex)
+        {
+            _llamaCppStatusMessage = $"启动异常: {ex.Message}";
+            _llamaCppStatusSuccess = false;
+        }
+        finally
+        {
+            _isLlamaCppActionRunning = false;
+            await InvokeAsync(StateHasChanged);
+        }
+    }
+
+    private async Task StopLlamaCppAsync()
+    {
+        _isLlamaCppActionRunning = true;
+        _llamaCppStatusMessage = "";
+        try
+        {
+            var success = await ApiService.StopLlamaCppAsync();
+            if (success)
+            {
+                _llamaCppStatusMessage = "✅ llama.cpp 已停止";
+                _llamaCppStatusSuccess = true;
+            }
+            else
+            {
+                _llamaCppStatusMessage = "❌ 停止失败";
+                _llamaCppStatusSuccess = false;
+            }
+            // 刷新状态（强制刷新）
+            localTools = await ApiService.GetLocalToolsAsync(forceRefresh: true);
+            await RefreshRunningModels();
+        }
+        catch (Exception ex)
+        {
+            _llamaCppStatusMessage = $"停止异常: {ex.Message}";
+            _llamaCppStatusSuccess = false;
+        }
+        finally
+        {
+            _isLlamaCppActionRunning = false;
+            await InvokeAsync(StateHasChanged);
+        }
+    }
+
+    private void ApplyVramOptimizedPreset()
+    {
+        _llamaCppUseFlashAttn = true;
+        _llamaCppCacheTypeK = "q8_0";
+        _llamaCppCacheTypeV = "q8_0";
+        _llamaCppUseContBatching = true;
+        _llamaCppStatusMessage = "💾 已应用显存优化预设：Flash Attention + KV Cache q8_0 量化 + 连续批处理";
+        _llamaCppStatusSuccess = true;
+    }
+
+    private void ApplySpeedPreset()
+    {
+        _llamaCppUseFlashAttn = true;
+        _llamaCppBatchSize = 4096;
+        _llamaCppUseContBatching = true;
+        _llamaCppCacheTypeK = "";
+        _llamaCppCacheTypeV = "";
+        _llamaCppStatusMessage = "🚀 已应用速度优先预设：Flash Attention + 大 batch + 连续批处理";
+        _llamaCppStatusSuccess = true;
+    }
+
+    private void ApplyCpuOnlyPreset()
+    {
+        _llamaCppNGpuLayers = 0;
+        _llamaCppUseFlashAttn = false;
+        _llamaCppCacheTypeK = "q8_0";
+        _llamaCppCacheTypeV = "q8_0";
+        _llamaCppUseMlock = true;
+        _llamaCppStatusMessage = "🖥️ 已应用纯 CPU 模式：0 GPU 层 + KV Cache 量化 + 内存锁定";
+        _llamaCppStatusSuccess = true;
+    }
+
+    private async Task LoadRecommendationsAsync(bool forceRefresh = false)
+    {
+        recommendedModels = await ApiService.GetRecommendedModelsAsync(
+            string.IsNullOrEmpty(currentScenario) ? null : currentScenario, forceRefresh);
+        try
+        {
+            var tierResponse = await ApiService.GetBenchmarkVramTiersAsync(null);
+            availableVram = tierResponse.AvailableVramGiB;
+            recommendedTierVramGb = tierResponse.RecommendedTierVramGb;
+        }
+        catch { }
+    }
+
+    private async Task RefreshHardware()
+    {
+        isLoading = true;
+        try
+        {
+            hardwareInfo = await ApiService.GetHardwareInfoAsync(forceRefresh: true);
+            localTools = await ApiService.GetLocalToolsAsync(forceRefresh: true);
+            await LoadRecommendationsAsync(forceRefresh: true);
+            await RefreshRunningModels();
+        }
+        catch (Exception ex)
+        {
+            Logger.LogWarning(ex, "刷新硬件信息失败");
+        }
+        finally
+        {
+            isLoading = false;
+            await InvokeAsync(StateHasChanged);
+        }
+    }
+
+    private async Task SelectScenario(string scenario)
+    {
+        currentScenario = scenario;
+        await LoadRecommendationsAsync();
+    }
+
+    private void SelectCompany(string company)
+    {
+        currentCompany = company;
+        StateHasChanged();
+    }
+
+    private List<RecommendedModelDto> FilteredRecommendedModels =>
+        string.IsNullOrEmpty(currentCompany)
+            ? recommendedModels
+            : recommendedModels.Where(m => m.Company == currentCompany).ToList();
+
+    private Dictionary<int, List<RecommendedModelDto>> FilteredModelsByTier =>
+        FilteredRecommendedModels
+            .GroupBy(m => GetVramTierForModel(m))
+            .Where(g => g.Key > 0)
+            .ToDictionary(g => g.Key, g => g.OrderByDescending(m => m.MatchScore).ToList());
+
+    private static int GetVramTierForModel(RecommendedModelDto model)
+    {
+        if (!model.MinVramGiB.HasValue) return 4;
+        var vram = model.MinVramGiB.Value;
+        foreach (var tier in VramTierValues)
+        {
+            if (vram <= tier) return tier;
+        }
+        return VramTierValues.Last();
+    }
+
+    private RenderFragment RenderModelCard(RecommendedModelDto model) => __builder =>
+    {
+        <div class="model-card">
+            <div class="model-header">
+                <span class="model-name">@model.Name</span>
+                <span class="model-size">@model.SizeGiB GB</span>
+            </div>
+            <div class="model-desc">@model.Description</div>
+            <div class="model-meta">
+                <span class="badge badge-secondary">@model.ParameterSize</span>
+                <span class="badge badge-info">@model.Quantization</span>
+                @foreach (var tag in model.Tags)
+                {
+                    <span class="badge badge-light">@tag</span>
+                }
+                <span class="badge" style="background:#e9ecef;color:#495057;">@model.Company</span>
+            </div>
+            <div class="model-download-status">
+                @if (model.IsDownloadedOllama)
+                {
+                    <span class="badge badge-success" title="已在 Ollama 中下载">📦 Ollama</span>
+                }
+                @if (model.IsDownloadedLmStudio)
+                {
+                    <span class="badge badge-info" title="已在 LM Studio 中下载">📦 LM Studio</span>
+                }
+                @if (model.IsDownloadedLlamaCpp)
+                {
+                    <span class="badge badge-warning" title="已在 llama.cpp 中可用">📦 llama.cpp</span>
+                }
+            </div>
+            <div class="model-requirements">
+                <span>@(model.MinVramGiB.HasValue ? $"显存: {model.MinVramGiB:F0}GB+" : "显存: 无要求")</span>
+                <span>内存: @model.MinRamGiB.ToString("F0")GB+</span>
+            </div>
+            <div class="model-suitability @(GetSuitabilityClass(model.Suitability))">
+                @model.Suitability
+                @if (model.MatchScore >= 90)
+                {
+                    <span> ⭐ 推荐</span>
+                }
+            </div>
+            @if (model.EstimatedTokensPerSecond.HasValue)
+            {
+                <div class="model-performance">
+                    <span class="speed-badge @(GetSpeedClass(model.EstimatedTokensPerSecond.Value))"
+                          title="基于当前硬件的估算速度，仅供参考">
+                        @GetSpeedLabel(model.EstimatedTokensPerSecond.Value)
+                    </span>
+                </div>
+            }
+            <div class="model-actions">
+                <button class="btn btn-primary btn-sm" @onclick='() => DeployModel(model, "ollama")'
+                        disabled="@isDeploying">
+                    部署到 Ollama
+                </button>
+                <button class="btn btn-secondary btn-sm" @onclick='() => DeployModel(model, "lmstudio")'
+                        disabled="@isDeploying">
+                    部署到 LM Studio
+                </button>
+            </div>
+        </div>
+    };
+
+    private async Task RefreshLibrary()
+    {
+        isRefreshingLibrary = true;
+        try
+        {
+            var success = await ApiService.RefreshLibraryAsync();
+            if (success)
+            {
+                await LoadRecommendationsAsync(forceRefresh: true);
+            }
+        }
+        catch (Exception ex)
+        {
+            Logger.LogWarning(ex, "刷新模型库失败");
+        }
+        finally
+        {
+            isRefreshingLibrary = false;
+        }
+    }
+
+    private async Task DeployModel(RecommendedModelDto model, string targetTool)
+    {
+        isDeploying = true;
+        try
+        {
+            var result = await ApiService.DeployLocalModelAsync(new DeployLocalModelRequest
+            {
+                ModelId = model.Id,
+                TargetTool = targetTool
+            });
+
+            if (result.Success)
+            {
+                // 开始轮询任务状态
+                _ = StartTaskPolling(result.TaskId);
+            }
+            else
+            {
+                Logger.LogWarning("部署启动失败: {Message}", result.Message);
+            }
+        }
+        catch (Exception ex)
+        {
+            Logger.LogWarning(ex, "部署异常");
+        }
+        finally
+        {
+            isDeploying = false;
+        }
+    }
+
+    private async Task StartTaskPolling(string taskId)
+    {
+        // 立即刷新一次
+        await RefreshTaskStatus(taskId);
+
+        // 轮询 30 秒或直到完成
+        for (int i = 0; i < 120; i++)
+        {
+            await Task.Delay(3000);
+            var done = await RefreshTaskStatus(taskId);
+            if (done) break;
+        }
+    }
+
+    private async Task<bool> RefreshTaskStatus(string taskId)
+    {
+        var status = await ApiService.GetDeployTaskStatusAsync(taskId);
+        if (status == null) return true;
+
+        var existing = activeTasks.FirstOrDefault(t => t.TaskId == taskId);
+        if (existing != null)
+        {
+            var idx = activeTasks.IndexOf(existing);
+            activeTasks[idx] = status;
+        }
+        else
+        {
+            activeTasks.Add(status);
+        }
+
+        await InvokeAsync(StateHasChanged);
+        return status.Status is "completed" or "failed";
+    }
+
+    private async Task CancelDeploy(string taskId)
+    {
+        var success = await ApiService.CancelDeployTaskAsync(taskId);
+        if (success)
+        {
+            activeTasks.RemoveAll(t => t.TaskId == taskId);
+            await InvokeAsync(StateHasChanged);
+        }
+    }
+
+    private void StartStatusPolling()
+    {
+        _statusTimer = new System.Timers.Timer(5000);
+        _statusTimer.Elapsed += async (_, _) =>
+        {
+            if (activeTasks.Any(t => t.Status == "running"))
+            {
+                foreach (var task in activeTasks.Where(t => t.Status == "running").ToList())
+                {
+                    await RefreshTaskStatus(task.TaskId);
+                }
+            }
+        };
+        _statusTimer.AutoReset = true;
+        _statusTimer.Start();
+    }
+
+    private static string? GetDiskGiB(long? bytes)
+    {
+        if (!bytes.HasValue || bytes.Value <= 0) return null;
+        return (bytes.Value / (1024.0 * 1024 * 1024)).ToString("F1");
+    }
+
+    private static string GetToolBadgeClass(string toolId)
+    {
+        return toolId switch
+        {
+            "ollama" => "tool-ollama",
+            "lmstudio" => "tool-lmstudio",
+            "llamacpp" => "tool-llamacpp",
+            _ => ""
+        };
+    }
+
+    private static string GetSuitabilityClass(string suitability)
+    {
+        if (suitability.Contains("加速") || suitability.Contains("推荐") || suitability.Contains("可直接"))
+            return "suitability-good";
+        if (suitability.Contains("混合") || suitability.Contains("较慢"))
+            return "suitability-ok";
+        return "suitability-slow";
+    }
+
+    private static string GetSpeedClass(double tps)
+    {
+        return tps switch
+        {
+            >= 30 => "speed-fast",
+            >= 10 => "speed-medium",
+            >= 3 => "speed-slow",
+            _ => "speed-very-slow"
+        };
+    }
+
+    private static string GetSpeedLabel(double tps)
+    {
+        return tps switch
+        {
+            >= 30 => $"🚀 约 {tps:F0} tok/s",
+            >= 10 => $"⚡ 约 {tps:F0} tok/s",
+            >= 3 => $"🐢 约 {tps:F0} tok/s",
+            _ => $"🐌 约 {tps:F0} tok/s"
+        };
+    }
+
+    private static string GetTaskStatusClass(string status)
+    {
+        return status switch
+        {
+            "running" => "status-running",
+            "completed" => "status-completed",
+            "failed" => "status-failed",
+            _ => ""
+        };
+    }
+
+    private static string GetTaskStatusLabel(string status)
+    {
+        return status switch
+        {
+            "pending" => "等待中",
+            "running" => "进行中",
+            "completed" => "已完成",
+            "failed" => "失败",
+            _ => status
+        };
+    }
+
+    #region 运行中模型管理
+
+    private List<RunningModelDto> runningModels = new();
+    private string loadToolId = "";
+    private string loadModelName = "";
+    private int loadKeepAliveMinutes = 5;
+    private List<string> availableModelsForLoad = new();
+    private bool isLoadingModel = false;
+    private string loadModelMessage = "";
+    private bool loadModelSuccess = false;
+
+    // 已下载模型管理
+    private List<DownloadedModelDto> downloadedModels = new();
+    private bool isLoadingDownloaded = false;
+    private string downloadedModelMessage = "";
+    private bool downloadedModelSuccess = false;
+
+    // 删除确认
+    private bool showDeleteConfirm = false;
+    private DownloadedModelDto? modelToDelete = null;
+
+    // 详情弹窗
+    private bool showDetailsModal = false;
+    private ModelDetailsDto? modelDetails = null;
+    private bool isLoadingDetails = false;
+
+    private async Task RefreshRunningModels()
+    {
+        runningModels = await ApiService.GetRunningModelsAsync(forceRefresh: true);
+        await InvokeAsync(StateHasChanged);
+    }
+
+    private async Task RefreshDownloadedModels()
+    {
+        isLoadingDownloaded = true;
+        downloadedModelMessage = "";
+        try
+        {
+            downloadedModels = await ApiService.GetDownloadedModelsAsync();
+        }
+        catch (Exception ex)
+        {
+            downloadedModelMessage = $"刷新已下载模型失败: {ex.Message}";
+            downloadedModelSuccess = false;
+        }
+        finally
+        {
+            isLoadingDownloaded = false;
+            await InvokeAsync(StateHasChanged);
+        }
+    }
+
+    private async Task LoadDownloadedModel(DownloadedModelDto model)
+    {
+        loadToolId = model.ToolId;
+        loadModelName = model.Name;
+        loadKeepAliveMinutes = 5;
+        await LoadSelectedModel();
+    }
+
+    private void DeleteModel(DownloadedModelDto model)
+    {
+        modelToDelete = model;
+        showDeleteConfirm = true;
+        downloadedModelMessage = "";
+    }
+
+    private void CancelDeleteModel()
+    {
+        showDeleteConfirm = false;
+        modelToDelete = null;
+    }
+
+    private async Task ConfirmDeleteModel()
+    {
+        if (modelToDelete == null) return;
+        isLoadingModel = true;
+        downloadedModelMessage = "";
+        try
+        {
+            var success = await ApiService.DeleteModelAsync(new DeleteModelRequest
+            {
+                ToolId = modelToDelete.ToolId,
+                ModelName = modelToDelete.Name
+            });
+
+            if (success)
+            {
+                downloadedModelMessage = $"✅ {modelToDelete.Name} 已删除";
+                downloadedModelSuccess = true;
+                showDeleteConfirm = false;
+                modelToDelete = null;
+                await RefreshDownloadedModels();
+                await RefreshRunningModels();
+            }
+            else
+            {
+                downloadedModelMessage = $"❌ 删除失败，请检查工具是否运行";
+                downloadedModelSuccess = false;
+            }
+        }
+        catch (Exception ex)
+        {
+            downloadedModelMessage = $"删除异常: {ex.Message}";
+            downloadedModelSuccess = false;
+        }
+        finally
+        {
+            isLoadingModel = false;
+            await InvokeAsync(StateHasChanged);
+        }
+    }
+
+    private async Task ShowModelDetails(DownloadedModelDto model)
+    {
+        showDetailsModal = true;
+        isLoadingDetails = true;
+        modelDetails = null;
+        await InvokeAsync(StateHasChanged);
+
+        try
+        {
+            modelDetails = await ApiService.GetModelDetailsAsync(new ModelDetailsRequest
+            {
+                ToolId = model.ToolId,
+                ModelName = model.Name
+            });
+        }
+        catch
+        {
+            modelDetails = new ModelDetailsDto
+            {
+                Name = model.Name,
+                ToolId = model.ToolId,
+            };
+        }
+        finally
+        {
+            isLoadingDetails = false;
+            await InvokeAsync(StateHasChanged);
+        }
+    }
+
+    private void CloseDetailsModal()
+    {
+        showDetailsModal = false;
+        modelDetails = null;
+    }
+
+    private async Task UnloadModel(RunningModelDto model)
+    {
+        if (!await JSRuntime.InvokeAsync<bool>("confirm", $"确定要卸载模型 {model.DisplayName} 吗？正在使用该模型的任务将被中断。"))
+            return;
+        isLoadingModel = true;
+        loadModelMessage = "";
+        try
+        {
+            var success = await ApiService.UnloadModelAsync(new UnloadModelRequest
+            {
+                ToolId = model.ToolId,
+                ModelName = model.ModelName
+            });
+
+            if (success)
+            {
+                loadModelMessage = $"✅ {model.DisplayName} 已卸载";
+                loadModelSuccess = true;
+                await Task.Delay(500);
+                await RefreshRunningModels();
+            }
+            else
+            {
+                loadModelMessage = $"❌ 卸载 {model.DisplayName} 失败";
+                loadModelSuccess = false;
+            }
+        }
+        catch (Exception ex)
+        {
+            loadModelMessage = $"卸载异常: {ex.Message}";
+            loadModelSuccess = false;
+        }
+        finally
+        {
+            isLoadingModel = false;
+            await InvokeAsync(StateHasChanged);
+        }
+    }
+
+    private async Task OnLoadToolChanged()
+    {
+        loadModelName = "";
+        availableModelsForLoad.Clear();
+        if (!string.IsNullOrEmpty(loadToolId))
+        {
+            availableModelsForLoad = await ApiService.GetAvailableModelsAsync(loadToolId);
+        }
+        await InvokeAsync(StateHasChanged);
+    }
+
+    private bool CanLoadModel()
+    {
+        return !string.IsNullOrEmpty(loadToolId) && !string.IsNullOrEmpty(loadModelName) && !isLoadingModel;
+    }
+
+    private async Task LoadSelectedModel()
+    {
+        isLoadingModel = true;
+        loadModelMessage = "";
+        try
+        {
+            var success = await ApiService.LoadModelAsync(new LoadModelRequest
+            {
+                ToolId = loadToolId,
+                ModelName = loadModelName,
+                KeepAliveMinutes = loadKeepAliveMinutes
+            });
+
+            if (success)
+            {
+                loadModelMessage = $"✅ {loadModelName} 已加载";
+                loadModelSuccess = true;
+                await Task.Delay(500);
+                await RefreshRunningModels();
+            }
+            else
+            {
+                loadModelMessage = $"❌ 加载 {loadModelName} 失败，请检查工具是否运行";
+                loadModelSuccess = false;
+            }
+        }
+        catch (Exception ex)
+        {
+            loadModelMessage = $"加载异常: {ex.Message}";
+            loadModelSuccess = false;
+        }
+        finally
+        {
+            isLoadingModel = false;
+            await InvokeAsync(StateHasChanged);
+        }
+    }
+
+    private static string GetTimeRemaining(DateTime expiresAt)
+    {
+        var remaining = expiresAt - DateTime.Now;
+        if (remaining.TotalSeconds <= 0) return "即将过期";
+        if (remaining.TotalHours >= 1) return $"{remaining.TotalHours:F0}小时后过期";
+        if (remaining.TotalMinutes >= 1) return $"{remaining.TotalMinutes:F0}分钟后过期";
+        return "即将过期";
+    }
+
+    #endregion
+
+    public void Dispose()
+    {
+        _statusTimer?.Stop();
+        _statusTimer?.Dispose();
+    }
+
+    private async Task OnTabChanged(string tab)
+    {
+        _activeTab = tab;
+        if (tab == "ollama" || tab == "lmstudio" || tab == "llamacpp")
+        {
+            loadToolId = tab;
+            await OnLoadToolChanged();
+        }
+        await InvokeAsync(StateHasChanged);
+    }
+}

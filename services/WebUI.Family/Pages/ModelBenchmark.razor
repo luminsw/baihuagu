@@ -1,0 +1,727 @@
+@page "/model-benchmark"
+@rendermode InteractiveServer
+@using TaskRunner.Contracts.Benchmark
+@using TaskRunner.Contracts.LocalModels
+@inject WebUI.Services.IApiService ApiService
+@inject WebUI.Services.SettingsService SettingsService
+@inject NavigationManager Navigation
+@implements IDisposable
+
+<PageTitle>模型 benchmark</PageTitle>
+
+<h1>📊 模型 benchmark</h1>
+
+<p class="text-muted">对笔记大模型与编程模型进行标准化测试，比较质量与速度。</p>
+
+<!-- 分类切换 -->
+<div class="benchmark-tabs">
+    <button class="tab-btn @(activeCategory == "tcm" ? "active" : "")" @onclick='@(() => SwitchCategory("tcm"))'>
+        📝 笔记大模型
+    </button>
+    <button class="tab-btn @(activeCategory == "coding" ? "active" : "")" @onclick='@(() => SwitchCategory("coding"))'>
+        💻 编程大模型
+    </button>
+</div>
+
+@if (isLoading)
+{
+    <div class="loading-spinner">加载中...</div>
+}
+else
+{
+    <!-- 测试配置 -->
+
+    <div class="section test-config">
+        <h3>测试配置</h3>
+        <div class="config-row">
+            <div class="form-group">
+                <label>选择 Provider</label>
+                <select class="form-control" @bind="selectedProviderId" @bind:after="LoadModelsAsync">
+                    <option value="">-- 请选择 --</option>
+                    @foreach (var p in aiProviders)
+                    {
+                        <option value="@p.Id">@p.Name</option>
+                    }
+                </select>
+            </div>
+            <div class="form-group">
+                <label>选择模型</label>
+                <select class="form-control" @bind="selectedModelId">
+                    <option value="">-- 请选择 --</option>
+                    @foreach (var m in availableModels)
+                    {
+                        <option value="@m">@m</option>
+                    }
+                </select>
+            </div>
+            <div class="form-group">
+                <label>&nbsp;</label>
+                @if (isRunning)
+                {
+                    <button class="btn btn-danger" @onclick="StopBenchmarkAsync">
+                        <span>⏹ 停止测试</span>
+                    </button>
+                }
+                else
+                {
+                    <button class="btn btn-primary" @onclick="StartBenchmarkAsync" disabled="@(!CanStart)">
+                        <span>▶️ 开始测试</span>
+                    </button>
+                }
+            </div>
+        </div>
+        @if (!string.IsNullOrEmpty(runError))
+        {
+            <div class="alert alert-danger mt-2">@runError</div>
+        }
+    </div>
+
+    <!-- 测试进度 -->
+    @if (isRunning || status?.Status == "running")
+    {
+        <div class="section progress-section">
+            <h3>测试进度</h3>
+            <div class="progress-bar-bg">
+                <div class="progress-bar-fill" style="width: @ProgressPercent%"></div>
+            </div>
+            <div class="progress-text">
+                @status?.CompletedCount / @status?.TotalCount
+                @if (!string.IsNullOrEmpty(status?.CurrentPromptTitle))
+                {
+                    <span> — 正在测：@status.CurrentPromptTitle</span>
+                }
+            </div>
+        </div>
+    }
+
+    <!-- 最新结果 -->
+    @if (latestResult != null)
+    {
+        <div class="section">
+            <h3>最新结果：@latestResult.ModelName</h3>
+            <div class="result-summary">
+                <div class="summary-card">
+                    <div class="summary-value">@latestResult.TotalScore</div>
+                    <div class="summary-label">质量均分</div>
+                </div>
+                <div class="summary-card">
+                    <div class="summary-value">@latestResult.AvgTokensPerSecond.ToString("F1")</div>
+                    <div class="summary-label">平均 tok/s</div>
+                </div>
+                <div class="summary-card">
+                    <div class="summary-value">@latestResult.AvgLatencyMs.ToString("F0")</div>
+                    <div class="summary-label">平均延迟 ms</div>
+                </div>
+                <div class="summary-card">
+                    <div class="summary-value">@(latestResult.CompletionRate.ToString("P0"))</div>
+                    <div class="summary-label">完成率</div>
+                </div>
+            </div>
+            <table class="table result-table">
+                <thead>
+                    <tr>
+                        <th>题目</th>
+                        <th>质量分</th>
+                        <th>tok/s</th>
+                        <th>耗时 ms</th>
+                        <th>匹配关键词</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @foreach (var r in latestResult.Results)
+                    {
+                        <tr>
+                            <td>@r.PromptTitle</td>
+                            <td>
+                                @if (r.IsTimeout)
+                                {
+                                    <span class="score-badge" style="background:#fef3c7;color:#92400e;">超时</span>
+                                }
+                                else if (r.IsError)
+                                {
+                                    <span class="score-badge bad">失败</span>
+                                }
+                                else
+                                {
+                                    <span class="score-badge @(r.QualityScore >= 80 ? "good" : r.QualityScore >= 50 ? "medium" : "bad")">
+                                        @r.QualityScore
+                                    </span>
+                                }
+                            </td>
+                            <td>@(r.IsTimeout || r.IsError ? "-" : r.TokensPerSecond.ToString("F1"))</td>
+                            <td>@(r.IsTimeout ? "⏱ 超时" : r.IsError ? "失败" : r.LatencyMs.ToString())</td>
+                            <td>
+                                @if (r.MatchedKeywords.Length > 0)
+                                {
+                                    <span class="kw-match">✓ @string.Join(", ", r.MatchedKeywords)</span>
+                                }
+                                @if (r.MissingKeywords.Length > 0)
+                                {
+                                    <span class="kw-miss">✗ @string.Join(", ", r.MissingKeywords)</span>
+                                }
+                            </td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        </div>
+    }
+
+    <!-- 排行榜 -->
+    <div class="section">
+        <h3>🏆 排行榜</h3>
+        @if (leaderboard.Count == 0)
+        {
+            <div class="alert alert-info">暂无数据，请先运行测试。</div>
+        }
+        else
+        {
+            <table class="table leaderboard-table">
+                <thead>
+                    <tr>
+                        <th>排名</th>
+                        <th>模型</th>
+                        <th>质量均分</th>
+                        <th>tok/s</th>
+                        <th>测试次数</th>
+                        <th>最近测试</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @for (int i = 0; i < leaderboard.Count; i++)
+                    {
+                        var entry = leaderboard[i];
+                        <tr>
+                            <td>
+                                @if (i == 0)
+                                {
+                                    <span>🥇</span>
+                                }
+                                else if (i == 1)
+                                {
+                                    <span>🥈</span>
+                                }
+                                else if (i == 2)
+                                {
+                                    <span>🥉</span>
+                                }
+                                else
+                                {
+                                    <span>@(i + 1)</span>
+                                }
+                            </td>
+                            <td>@entry.ModelName</td>
+                            <td>
+                                <span class="score-badge @(entry.AvgQualityScore >= 80 ? "good" : entry.AvgQualityScore >= 50 ? "medium" : "bad")">
+                                    @entry.AvgQualityScore.ToString("F0")
+                                </span>
+                            </td>
+                            <td>@entry.AvgTokensPerSecond.ToString("F1")</td>
+                            <td>@entry.TestCount</td>
+                            <td>@(entry.LastTestedAt?.ToString("MM-dd HH:mm") ?? "-")</td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        }
+    </div>
+
+    <!-- 历史记录 -->
+    <div class="section">
+        <div class="section-header">
+            <h3>📝 历史记录</h3>
+            @if (history.Count > 0)
+            {
+                <button class="btn btn-outline-danger btn-sm" @onclick="ClearHistoryAsync">清空</button>
+            }
+        </div>
+        @if (history.Count == 0)
+        {
+            <div class="alert alert-info">暂无历史记录。</div>
+        }
+        else
+        {
+            <table class="table history-table">
+                <thead>
+                    <tr>
+                        <th>时间</th>
+                        <th>模型</th>
+                        <th>质量均分</th>
+                        <th>tok/s</th>
+                        <th>操作</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @foreach (var h in history)
+                    {
+                        <tr>
+                            <td>@h.TestedAt.ToString("MM-dd HH:mm")</td>
+                            <td>@h.ModelName</td>
+                            <td>
+                                <span class="score-badge @(h.TotalScore >= 80 ? "good" : h.TotalScore >= 50 ? "medium" : "bad")">
+                                    @h.TotalScore
+                                </span>
+                            </td>
+                            <td>@h.AvgTokensPerSecond.ToString("F1")</td>
+                            <td>
+                                <button class="btn btn-sm btn-outline-secondary" @onclick="() => ViewDetail(h)">详情</button>
+                                <button class="btn btn-sm btn-outline-danger" @onclick="() => DeleteSessionAsync(h.Id)">删除</button>
+                            </td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        }
+    </div>
+
+    <!-- 提示词预览 -->
+    <div class="section">
+        <h3>📋 测试题目预览</h3>
+        <div class="prompt-list">
+            @foreach (var p in prompts)
+            {
+                <details class="prompt-item">
+                    <summary>@p.Title</summary>
+                    <div class="prompt-text">@p.Prompt</div>
+                    <div class="prompt-kws">
+                        <strong>预期关键词：</strong>@string.Join("、", p.ExpectedKeywords)
+                    </div>
+                </details>
+            }
+        </div>
+    </div>
+}
+
+@code {
+    private string activeCategory = "tcm";
+    private bool isLoading = true;
+    private bool isRunning = false;
+    private string? runError;
+
+    private List<RecommendedBenchmarkModel> recommendedModels = new();
+    private List<BenchmarkPrompt> prompts = new();
+    private List<AiProviderInfo> aiProviders = new();
+    private List<string> availableModels = new();
+
+    private string selectedProviderId = "";
+    private string selectedModelId = "";
+
+    private BenchmarkStatusDto? status;
+    private BenchmarkSession? latestResult;
+    private List<BenchmarkLeaderboardEntry> leaderboard = new();
+    private List<BenchmarkSession> history = new();
+
+    private System.Timers.Timer? _pollTimer;
+
+    private bool CanStart => !isRunning && !string.IsNullOrEmpty(selectedProviderId) && !string.IsNullOrEmpty(selectedModelId);
+    private double ProgressPercent => status?.TotalCount > 0 ? (double)status.CompletedCount / status.TotalCount * 100 : 0;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadDataAsync();
+        isLoading = false;
+    }
+
+    protected override void OnAfterRender(bool firstRender)
+    {
+        if (firstRender)
+        {
+            _pollTimer = new System.Timers.Timer(2000);
+            _pollTimer.Elapsed += async (_, _) => await PollStatusAsync();
+            _pollTimer.AutoReset = true;
+            _pollTimer.Start();
+        }
+    }
+
+    private async Task LoadDataAsync()
+    {
+        recommendedModels = await ApiService.GetBenchmarkModelsAsync(activeCategory);
+        prompts = await ApiService.GetBenchmarkPromptsAsync(activeCategory);
+        aiProviders = await ApiService.GetAiProvidersAsync();
+        leaderboard = await ApiService.GetBenchmarkLeaderboardAsync(activeCategory);
+        history = await ApiService.GetBenchmarkHistoryAsync(activeCategory);
+
+        // 自动选中 Ollama provider（如果存在）
+        var ollama = aiProviders.FirstOrDefault(p => p.Id.Equals("ollama", StringComparison.OrdinalIgnoreCase));
+        if (ollama != null)
+        {
+            selectedProviderId = ollama.Id;
+            await LoadModelsAsync();
+        }
+    }
+
+    private async Task SwitchCategory(string category)
+    {
+        activeCategory = category;
+        isLoading = true;
+        await InvokeAsync(StateHasChanged);
+        await LoadDataAsync();
+        isLoading = false;
+        await InvokeAsync(StateHasChanged);
+    }
+
+    private async Task LoadModelsAsync()
+    {
+        availableModels = new();
+        selectedModelId = "";
+        if (string.IsNullOrEmpty(selectedProviderId)) return;
+
+        var provider = aiProviders.FirstOrDefault(p => p.Id == selectedProviderId);
+        if (provider == null) return;
+
+        availableModels = provider.Models.Select(m => m.Name).ToList();
+        if (availableModels.Count > 0)
+            selectedModelId = availableModels[0];
+    }
+
+    private async Task StartBenchmarkAsync()
+    {
+        runError = null;
+        var config = new BenchmarkModelConfig
+        {
+            ProviderId = selectedProviderId,
+            ModelId = selectedModelId,
+            DisplayName = $"{selectedProviderId}/{selectedModelId}",
+            Category = activeCategory
+        };
+
+        var ok = await ApiService.RunBenchmarkAsync(config);
+        if (!ok)
+        {
+            runError = "启动测试失败，请检查后台服务状态。";
+            return;
+        }
+
+        isRunning = true;
+        await InvokeAsync(StateHasChanged);
+    }
+
+    private async Task StopBenchmarkAsync()
+    {
+        await ApiService.StopBenchmarkAsync();
+        isRunning = false;
+        await InvokeAsync(StateHasChanged);
+    }
+
+    private async Task PollStatusAsync()
+    {
+        try
+        {
+            status = await ApiService.GetBenchmarkStatusAsync();
+
+            if (status?.Status == "completed" && isRunning)
+            {
+                isRunning = false;
+                latestResult = status.Result;
+                // 刷新排行榜和历史
+                leaderboard = await ApiService.GetBenchmarkLeaderboardAsync(activeCategory);
+                history = await ApiService.GetBenchmarkHistoryAsync(activeCategory);
+            }
+            else if (status?.Status == "failed" && isRunning)
+            {
+                isRunning = false;
+                runError = status.Error ?? "测试失败";
+            }
+
+            await InvokeAsync(StateHasChanged);
+        }
+        catch { /* 忽略轮询错误 */ }
+    }
+
+    private async Task ClearHistoryAsync()
+    {
+        var ok = await ApiService.ClearBenchmarkHistoryAsync();
+        if (ok)
+        {
+            history = new();
+            leaderboard = new();
+            await InvokeAsync(StateHasChanged);
+        }
+    }
+
+    private async Task DeleteSessionAsync(string sessionId)
+    {
+        var ok = await ApiService.DeleteBenchmarkSessionAsync(sessionId);
+        if (ok)
+        {
+            history = await ApiService.GetBenchmarkHistoryAsync(activeCategory);
+            leaderboard = await ApiService.GetBenchmarkLeaderboardAsync(activeCategory);
+            await InvokeAsync(StateHasChanged);
+        }
+    }
+
+    private void ViewDetail(BenchmarkSession session)
+    {
+        latestResult = session;
+        StateHasChanged();
+    }
+
+    public void Dispose()
+    {
+        _pollTimer?.Stop();
+        _pollTimer?.Dispose();
+    }
+}
+
+<style>
+    .benchmark-tabs {
+        display: flex;
+        gap: 0.5rem;
+        margin-bottom: 1.5rem;
+        border-bottom: 1px solid #dee2e6;
+        padding-bottom: 0.5rem;
+    }
+    .tab-btn {
+        padding: 0.5rem 1.25rem;
+        border: none;
+        background: transparent;
+        border-radius: 6px 6px 0 0;
+        cursor: pointer;
+        font-weight: 500;
+        color: #6c757d;
+        transition: all 0.2s;
+    }
+    .tab-btn:hover { background: #f1f3f5; }
+    .tab-btn.active {
+        color: #0d6efd;
+        background: #e7f1ff;
+        border-bottom: 2px solid #0d6efd;
+    }
+
+    .section {
+        background: #fff;
+        border-radius: 8px;
+        padding: 1.25rem;
+        margin-bottom: 1.5rem;
+        box-shadow: 0 1px 3px rgba(0,0,0,0.06);
+    }
+    .section h3 {
+        margin-top: 0;
+        margin-bottom: 1rem;
+        font-size: 1.15rem;
+    }
+    .section-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-bottom: 1rem;
+    }
+    .section-header h3 { margin: 0; }
+
+    .tier-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-bottom: 1rem;
+        flex-wrap: wrap;
+        gap: 0.5rem;
+    }
+    .tier-header h3 { margin: 0; }
+    .vram-badge {
+        font-size: 0.85rem;
+        padding: 0.35rem 0.75rem;
+        background: #e7f1ff;
+        border-radius: 20px;
+        color: #0d6efd;
+        font-weight: 500;
+    }
+    .vram-match {
+        color: #1e8449;
+        font-weight: 600;
+    }
+
+    .tier-table-wrapper {
+        overflow-x: auto;
+    }
+    .tier-table {
+        width: 100%;
+        border-collapse: collapse;
+        font-size: 0.88rem;
+        min-width: 700px;
+    }
+    .tier-table th {
+        background: #f8f9fa;
+        padding: 0.6rem 0.75rem;
+        text-align: left;
+        font-weight: 600;
+        color: #495057;
+        border-bottom: 2px solid #dee2e6;
+        white-space: nowrap;
+    }
+    .tier-table td {
+        padding: 0.75rem;
+        border-bottom: 1px solid #e9ecef;
+        vertical-align: top;
+    }
+    .tier-row:hover {
+        background: #f8f9fa;
+    }
+    .tier-row.tier-recommended {
+        background: #e8f5e9;
+        border-left: 3px solid #28a745;
+    }
+    .tier-row.tier-recommended td:first-child {
+        border-left: 3px solid #28a745;
+    }
+    .tier-label {
+        white-space: nowrap;
+        min-width: 100px;
+    }
+    .tier-gb {
+        font-weight: 700;
+        font-size: 1rem;
+        color: #212529;
+        display: block;
+    }
+    .tier-match-tag {
+        display: inline-block;
+        margin-top: 0.25rem;
+        font-size: 0.72rem;
+        padding: 0.15rem 0.5rem;
+        background: #28a745;
+        color: #fff;
+        border-radius: 12px;
+        font-weight: 500;
+    }
+    .tier-model {
+        margin-bottom: 0.75rem;
+        padding: 0.5rem;
+        background: #fff;
+        border-radius: 6px;
+        border: 1px solid #e9ecef;
+    }
+    .tier-model:last-child { margin-bottom: 0; }
+    .tier-model-name {
+        font-weight: 600;
+        font-size: 0.9rem;
+        color: #212529;
+    }
+    .tier-model-params {
+        font-weight: 400;
+        font-size: 0.78rem;
+        color: #6c757d;
+        background: #f1f3f5;
+        padding: 0.1rem 0.35rem;
+        border-radius: 4px;
+        margin-left: 0.25rem;
+    }
+    .tier-model-meta {
+        font-size: 0.78rem;
+        color: #495057;
+        line-height: 1.4;
+        margin-top: 0.25rem;
+    }
+    .tier-model-cmd {
+        display: block;
+        font-size: 0.72rem;
+        background: #f1f3f5;
+        padding: 0.2rem 0.4rem;
+        border-radius: 3px;
+        color: #212529;
+        word-break: break-all;
+        margin-top: 0.25rem;
+    }
+
+    .config-row {
+        display: flex;
+        gap: 1rem;
+        align-items: flex-end;
+        flex-wrap: wrap;
+    }
+    .config-row .form-group { flex: 1; min-width: 200px; }
+    .config-row .form-group:last-child { flex: 0 0 auto; }
+
+    .progress-bar-bg {
+        width: 100%;
+        height: 20px;
+        background: #e9ecef;
+        border-radius: 10px;
+        overflow: hidden;
+    }
+    .progress-bar-fill {
+        height: 100%;
+        background: linear-gradient(90deg, #0d6efd, #0dcaf0);
+        transition: width 0.5s ease;
+    }
+    .progress-text { margin-top: 0.5rem; font-size: 0.9rem; color: #495057; }
+
+    .result-summary {
+        display: flex;
+        gap: 1rem;
+        margin-bottom: 1rem;
+    }
+    .summary-card {
+        flex: 1;
+        text-align: center;
+        padding: 1rem;
+        background: #f8f9fa;
+        border-radius: 8px;
+    }
+    .summary-value { font-size: 1.75rem; font-weight: 700; color: #0d6efd; }
+    .summary-label { font-size: 0.85rem; color: #6c757d; margin-top: 0.25rem; }
+
+    .score-badge {
+        display: inline-block;
+        padding: 0.2rem 0.6rem;
+        border-radius: 12px;
+        font-size: 0.85rem;
+        font-weight: 600;
+    }
+    .score-badge.good { background: #d1f2eb; color: #1e8449; }
+    .score-badge.medium { background: #fef9e7; color: #b7950b; }
+    .score-badge.bad { background: #fadbd8; color: #c0392b; }
+
+    .kw-match { color: #1e8449; font-size: 0.8rem; margin-right: 0.5rem; }
+    .kw-miss { color: #c0392b; font-size: 0.8rem; }
+
+    .result-table, .leaderboard-table, .history-table {
+        width: 100%;
+        border-collapse: collapse;
+        font-size: 0.9rem;
+    }
+    .result-table th, .result-table td,
+    .leaderboard-table th, .leaderboard-table td,
+    .history-table th, .history-table td {
+        padding: 0.6rem 0.75rem;
+        border-bottom: 1px solid #e9ecef;
+        text-align: left;
+    }
+    .result-table th, .leaderboard-table th, .history-table th {
+        background: #f8f9fa;
+        font-weight: 600;
+        color: #495057;
+    }
+    .result-table tr:hover, .leaderboard-table tr:hover, .history-table tr:hover {
+        background: #f8f9fa;
+    }
+
+    .prompt-list { display: flex; flex-direction: column; gap: 0.5rem; }
+    .prompt-item {
+        border: 1px solid #e9ecef;
+        border-radius: 6px;
+        padding: 0.75rem 1rem;
+        background: #fafbfc;
+    }
+    .prompt-item summary { font-weight: 500; cursor: pointer; }
+    .prompt-text {
+        margin-top: 0.75rem;
+        padding: 0.75rem;
+        background: #fff;
+        border-radius: 4px;
+        white-space: pre-wrap;
+        font-size: 0.85rem;
+        line-height: 1.5;
+        color: #333;
+    }
+    .prompt-kws {
+        margin-top: 0.5rem;
+        font-size: 0.8rem;
+        color: #6c757d;
+    }
+
+    .loading-spinner {
+        text-align: center;
+        padding: 3rem;
+        color: #6c757d;
+    }
+</style>

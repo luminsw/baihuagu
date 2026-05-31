@@ -1,0 +1,11 @@
+global using TaskRunner.Contracts.Tasks;
+global using TaskRunner.Contracts.Search;
+global using TaskRunner.Contracts.Achievements;
+global using TaskRunner.Contracts.Ai;
+global using TaskRunner.Contracts.Anki;
+global using TaskRunner.Contracts.Vaults;
+global using TaskRunner.Contracts.Platform;
+global using TaskRunner.Contracts.NotesMd;
+global using TaskRunner.Contracts.Metrics;
+global using TaskRunner.Contracts.Backup;
+global using TaskRunner.Contracts.Git;

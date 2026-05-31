@@ -1,0 +1,23 @@
+@page "/not-found"
+@inject NavigationManager Navigation
+
+<PageTitle>404 - 页面不存在</PageTitle>
+
+<div style="min-height: 80vh; display: flex; align-items: center; justify-content: center; padding: 2rem; background: linear-gradient(135deg, #f5f7fa 0%, #c3cfe2 100%);">
+    <div style="background: white; border-radius: 16px; padding: 3rem; max-width: 500px; width: 100%; text-align: center; box-shadow: 0 10px 40px rgba(0,0,0,0.1);">
+        <div style="font-size: 4rem; margin-bottom: 1rem;">🔍</div>
+        <h1 style="color: #dc3545; font-size: 4rem; font-weight: bold; margin: 0 0 0.5rem 0;">404</h1>
+        <h2 style="color: #495057; font-size: 1.5rem; margin: 0 0 1rem 0;">页面不存在</h2>
+        <p style="color: #6c757d; font-size: 1.1rem; margin-bottom: 2rem; line-height: 1.6;">
+            抱歉，您要查找的页面不存在或已被移动。
+        </p>
+        <div style="display: flex; gap: 1rem; justify-content: center; flex-wrap: wrap;">
+            <a href="" @onclick:preventDefault @onclick="GoHome" style="padding: 0.75rem 2rem; font-size: 1.1rem; border-radius: 8px; background: #007bff; color: white; text-decoration: none; display: inline-block; cursor: pointer;">🏠 返回首页</a>
+            <a href="javascript:history.back()" style="padding: 0.75rem 2rem; font-size: 1.1rem; border-radius: 8px; background: #6c757d; color: white; text-decoration: none; display: inline-block;">↩️ 返回上一页</a>
+        </div>
+    </div>
+</div>
+
+@code {
+    private void GoHome() => Navigation.NavigateTo("");
+}

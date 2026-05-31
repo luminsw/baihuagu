@@ -1,0 +1,1389 @@
+@page "/openclaw"
+@rendermode InteractiveServer
+@inject WebUI.Services.IApiService ApiService
+@inject WebUI.Services.CapabilityService CapabilityService
+@inject NavigationManager Navigation
+@inject IJSRuntime JSRuntime
+@inject Microsoft.Extensions.Logging.ILogger<OpenClaw> Logger
+@using Microsoft.JSInterop
+@using TaskRunner.Contracts.OpenClaw
+
+<PageTitle>OpenClaw 任务委派</PageTitle>
+
+<div class="container-fluid">
+    <div class="row mb-4">
+        <div class="col-12">
+            <h2><i class="bi bi-robot"></i> OpenClaw 任务委派</h2>
+            <p class="text-muted">将复杂任务委派给 OpenClaw Agent 执行，自动生成 Markdown 报告。</p>
+        </div>
+    </div>
+
+    @if (_canShowLocalConfig)
+    {
+    <!-- 本地 AI 配置区 -->
+    <div class="row mb-4">
+        <div class="col-12">
+            <div class="card">
+                <div class="card-header bg-secondary text-white d-flex justify-content-between align-items-center"
+                     style="cursor: pointer;" @onclick="ToggleConfigPanel">
+                    <span><i class="bi bi-cpu"></i> 本地 AI 配置（Ollama / LM Studio / llama.cpp）</span>
+                    <i class="bi @(_showConfig ? "bi-chevron-up" : "bi-chevron-down")"></i>
+                </div>
+                @if (_showConfig)
+                {
+                    <div class="card-body">
+                        @if (!string.IsNullOrEmpty(_configError))
+                        {
+                            <div class="alert alert-danger">@_configError</div>
+                        }
+                        @if (!string.IsNullOrEmpty(_configSuccess))
+                        {
+                            <div class="alert alert-success">@_configSuccess</div>
+                        }
+                        @if (!string.IsNullOrEmpty(_syncMessage))
+                        {
+                            <div class="alert alert-info">@_syncMessage</div>
+                        }
+
+                        <!-- Ollama -->
+                        <div class="mb-4 p-3 border rounded">
+                            <div class="form-check form-switch mb-3">
+                                <input class="form-check-input" type="checkbox" id="ollamaEnabled"
+                                       checked="@_ollamaConfig.Enabled" @onchange="OnOllamaEnabledChanged">
+                                <label class="form-check-label fw-bold" for="ollamaEnabled">在 OpenClaw 中使用 Ollama</label>
+                                @if (_ollamaDetecting)
+                                {
+                                    <span class="badge bg-info ms-2"><span class="spinner-border spinner-border-sm" style="width:0.7rem;height:0.7rem;"></span> 检测中</span>
+                                }
+                                else if (!string.IsNullOrEmpty(_ollamaStatusMessage))
+                                {
+                                    @if (_ollamaStatusMessage.Contains("成功") || _ollamaStatusMessage.Contains("正在运行"))
+                                    {
+                                        <span class="badge bg-success ms-2">● 运行中</span>
+                                    }
+                                    else
+                                    {
+                                        <span class="badge bg-secondary ms-2">● 未运行</span>
+                                    }
+                                }
+                            </div>
+                            @if (_ollamaDetecting)
+                            {
+                                <div class="alert alert-info py-2 mb-3">
+                                    <span class="spinner-border spinner-border-sm me-2"></span>@_ollamaStatusMessage
+                                </div>
+                            }
+                            else if (!string.IsNullOrEmpty(_ollamaStatusMessage))
+                            {
+                                <div class="alert @(_ollamaStatusMessage.Contains("成功") || _ollamaStatusMessage.Contains("正在运行") ? "alert-success" : "alert-warning") py-2 mb-3">
+                                    @_ollamaStatusMessage
+                                </div>
+                            }
+                            @if (_ollamaConfig.Enabled)
+                            {
+                                <div class="mb-3">
+                                    <label class="form-label">Base URL</label>
+                                    <input type="text" class="form-control" @bind="_ollamaConfig.BaseUrl"
+                                           placeholder="http://localhost:11434" />
+                                    <div class="form-text">Ollama 默认地址：http://localhost:11434</div>
+                                </div>
+                                <div class="mb-3 d-flex gap-2">
+                                    <button class="btn btn-outline-primary btn-sm" @onclick="ScanOllamaModels"
+                                            disabled="@_isScanningOllama">
+                                        @if (_isScanningOllama)
+                                        {
+                                            <span class="spinner-border spinner-border-sm me-1"></span>
+                                        }
+                                        else
+                                        {
+                                            <i class="bi bi-search me-1"></i>
+                                        }
+                                        扫描模型
+                                    </button>
+                                    <button class="btn btn-outline-success btn-sm" @onclick='() => SyncModelsAsync("ollama")'
+                                            disabled="@(_isSyncingOllama || _ollamaModels.Count == 0)">
+                                        @if (_isSyncingOllama)
+                                        {
+                                            <span class="spinner-border spinner-border-sm me-1"></span>
+                                        }
+                                        else
+                                        {
+                                            <i class="bi bi-cloud-arrow-up me-1"></i>
+                                        }
+                                        同步到 OpenClaw
+                                    </button>
+                                </div>
+                                @if (_ollamaModels.Count > 0)
+                                {
+                                    <div class="table-responsive">
+                                        <table class="table table-sm table-bordered">
+                                            <thead class="table-light">
+                                                <tr><th>模型 ID</th><th>名称</th><th>Context</th><th>Max Tokens</th></tr>
+                                            </thead>
+                                            <tbody>
+                                                @foreach (var m in _ollamaModels)
+                                                {
+                                                    <tr>
+                                                        <td><code>@m.Id</code></td>
+                                                        <td><input class="form-control form-control-sm" @bind="m.Name" /></td>
+                                                        <td><input type="number" class="form-control form-control-sm" @bind="m.ContextWindow" style="width:100px" /></td>
+                                                        <td><input type="number" class="form-control form-control-sm" @bind="m.MaxTokens" style="width:100px" /></td>
+                                                    </tr>
+                                                }
+                                            </tbody>
+                                        </table>
+                                    </div>
+                                }
+                                else if (_ollamaScanned)
+                                {
+                                    <div class="alert alert-warning py-2">未扫描到模型，请确认 Ollama 已启动。</div>
+                                }
+                            }
+                        </div>
+
+                        <!-- LM Studio -->
+                        <div class="mb-4 p-3 border rounded">
+                            <div class="form-check form-switch mb-3">
+                                <input class="form-check-input" type="checkbox" id="lmStudioEnabled"
+                                       checked="@_lmStudioConfig.Enabled" @onchange="OnLmStudioEnabledChanged">
+                                <label class="form-check-label fw-bold" for="lmStudioEnabled">在 OpenClaw 中使用 LM Studio</label>
+                                @if (_lmStudioDetecting)
+                                {
+                                    <span class="badge bg-info ms-2"><span class="spinner-border spinner-border-sm" style="width:0.7rem;height:0.7rem;"></span> 检测中</span>
+                                }
+                                else if (!string.IsNullOrEmpty(_lmStudioStatusMessage))
+                                {
+                                    @if (_lmStudioStatusMessage.Contains("成功") || _lmStudioStatusMessage.Contains("正在运行"))
+                                    {
+                                        <span class="badge bg-success ms-2">● 运行中</span>
+                                    }
+                                    else
+                                    {
+                                        <span class="badge bg-secondary ms-2">● 未运行</span>
+                                    }
+                                }
+                            </div>
+                            @if (_lmStudioDetecting)
+                            {
+                                <div class="alert alert-info py-2 mb-3">
+                                    <span class="spinner-border spinner-border-sm me-2"></span>@_lmStudioStatusMessage
+                                </div>
+                            }
+                            else if (!string.IsNullOrEmpty(_lmStudioStatusMessage))
+                            {
+                                <div class="alert @(_lmStudioStatusMessage.Contains("成功") || _lmStudioStatusMessage.Contains("正在运行") ? "alert-success" : "alert-warning") py-2 mb-3">
+                                    @_lmStudioStatusMessage
+                                </div>
+                            }
+                            @if (_lmStudioConfig.Enabled)
+                            {
+                                <div class="mb-3">
+                                    <label class="form-label">Base URL</label>
+                                    <input type="text" class="form-control" @bind="_lmStudioConfig.BaseUrl"
+                                           placeholder="http://localhost:1234/v1" />
+                                    <div class="form-text">LM Studio 默认地址：http://localhost:1234/v1</div>
+                                </div>
+                                <div class="mb-3 d-flex gap-2">
+                                    <button class="btn btn-outline-primary btn-sm" @onclick="ScanLmStudioModels"
+                                            disabled="@_isScanningLmStudio">
+                                        @if (_isScanningLmStudio)
+                                        {
+                                            <span class="spinner-border spinner-border-sm me-1"></span>
+                                        }
+                                        else
+                                        {
+                                            <i class="bi bi-search me-1"></i>
+                                        }
+                                        扫描模型
+                                    </button>
+                                    <button class="btn btn-outline-success btn-sm" @onclick='() => SyncModelsAsync("lmstudio")'
+                                            disabled="@(_isSyncingLmStudio || _lmStudioModels.Count == 0)">
+                                        @if (_isSyncingLmStudio)
+                                        {
+                                            <span class="spinner-border spinner-border-sm me-1"></span>
+                                        }
+                                        else
+                                        {
+                                            <i class="bi bi-cloud-arrow-up me-1"></i>
+                                        }
+                                        同步到 OpenClaw
+                                    </button>
+                                </div>
+                                @if (_lmStudioModels.Count > 0)
+                                {
+                                    <div class="table-responsive">
+                                        <table class="table table-sm table-bordered">
+                                            <thead class="table-light">
+                                                <tr><th>模型 ID</th><th>名称</th><th>Context</th><th>Max Tokens</th></tr>
+                                            </thead>
+                                            <tbody>
+                                                @foreach (var m in _lmStudioModels)
+                                                {
+                                                    <tr>
+                                                        <td><code>@m.Id</code></td>
+                                                        <td><input class="form-control form-control-sm" @bind="m.Name" /></td>
+                                                        <td><input type="number" class="form-control form-control-sm" @bind="m.ContextWindow" style="width:100px" /></td>
+                                                        <td><input type="number" class="form-control form-control-sm" @bind="m.MaxTokens" style="width:100px" /></td>
+                                                    </tr>
+                                                }
+                                            </tbody>
+                                        </table>
+                                    </div>
+                                }
+                                else if (_lmStudioScanned)
+                                {
+                                    <div class="alert alert-warning py-2">未扫描到模型，请确认 LM Studio 已启动且服务器已开启。</div>
+                                }
+                            }
+                        </div>
+
+                        <!-- llama.cpp -->
+                        <div class="mb-4 p-3 border rounded">
+                            <div class="form-check form-switch mb-3">
+                                <input class="form-check-input" type="checkbox" id="llamaCppEnabled"
+                                       checked="@_llamaCppConfig.Enabled" @onchange="OnLlamaCppEnabledChanged">
+                                <label class="form-check-label fw-bold" for="llamaCppEnabled">在 OpenClaw 中使用 llama.cpp（GPU 加速）</label>
+                                @if (_llamaCppDetecting)
+                                {
+                                    <span class="badge bg-info ms-2"><span class="spinner-border spinner-border-sm" style="width:0.7rem;height:0.7rem;"></span> 检测中</span>
+                                }
+                                else if (!string.IsNullOrEmpty(_llamaCppStatusMessage))
+                                {
+                                    @if (_llamaCppStatusMessage.Contains("成功") || _llamaCppStatusMessage.Contains("正在运行"))
+                                    {
+                                        <span class="badge bg-success ms-2">● 运行中</span>
+                                    }
+                                    else
+                                    {
+                                        <span class="badge bg-secondary ms-2">● 未运行</span>
+                                    }
+                                }
+                            </div>
+                            @if (_llamaCppDetecting)
+                            {
+                                <div class="alert alert-info py-2 mb-3">
+                                    <span class="spinner-border spinner-border-sm me-2"></span>@_llamaCppStatusMessage
+                                </div>
+                            }
+                            else if (!string.IsNullOrEmpty(_llamaCppStatusMessage))
+                            {
+                                <div class="alert @(_llamaCppStatusMessage.Contains("成功") || _llamaCppStatusMessage.Contains("正在运行") ? "alert-success" : "alert-warning") py-2 mb-3">
+                                    @_llamaCppStatusMessage
+                                </div>
+                            }
+                            @if (_llamaCppConfig.Enabled)
+                            {
+                                <div class="alert alert-light border mb-3">
+                                    <i class="bi bi-info-circle me-1"></i>
+                                    llama.cpp 的详细配置（模型路径、GPU 层数、上下文大小、KV Cache 量化等）请在
+                                    <a href="local-models" target="_blank">本地模型页</a>中设置，配置会自动同步到 OpenClaw。
+                                </div>
+                                <div class="mb-3 d-flex gap-2">
+                                    <button class="btn btn-outline-primary btn-sm" @onclick="ScanLlamaCppModels"
+                                            disabled="@_isScanningLlamaCpp">
+                                        @if (_isScanningLlamaCpp)
+                                        {
+                                            <span class="spinner-border spinner-border-sm me-1"></span>
+                                        }
+                                        else
+                                        {
+                                            <i class="bi bi-search me-1"></i>
+                                        }
+                                        扫描模型
+                                    </button>
+                                    <button class="btn btn-outline-success btn-sm" @onclick='() => SyncModelsAsync("llamacpp")'
+                                            disabled="@(_isSyncingLlamaCpp || _llamaCppModels.Count == 0)">
+                                        @if (_isSyncingLlamaCpp)
+                                        {
+                                            <span class="spinner-border spinner-border-sm me-1"></span>
+                                        }
+                                        else
+                                        {
+                                            <i class="bi bi-cloud-arrow-up me-1"></i>
+                                        }
+                                        同步到 OpenClaw
+                                    </button>
+                                </div>
+                                @if (_llamaCppModels.Count > 0)
+                                {
+                                    <div class="table-responsive">
+                                        <table class="table table-sm table-bordered">
+                                            <thead class="table-light">
+                                                <tr><th>模型 ID</th><th>名称</th><th>Context</th></tr>
+                                            </thead>
+                                            <tbody>
+                                                @foreach (var m in _llamaCppModels)
+                                                {
+                                                    <tr>
+                                                        <td><code>@m.Id</code></td>
+                                                        <td>@m.Name</td>
+                                                        <td>@m.ContextWindow</td>
+                                                    </tr>
+                                                }
+                                            </tbody>
+                                        </table>
+                                    </div>
+                                }
+                                else if (_llamaCppScanned)
+                                {
+                                    <div class="alert alert-warning py-2">未扫描到模型，请确认路径正确并点击「扫描模型」。</div>
+                                }
+                            }
+                        </div>
+
+                        <!-- 默认模型设置 -->
+                        <!-- 模型配置文件 -->
+                        <div class="mb-4">
+                            <h6 class="fw-bold mb-3"><i class="bi bi-layers-fill text-primary me-1"></i>模型配置文件</h6>
+                            <div class="row g-3">
+                                @foreach (var profile in _modelProfiles)
+                                {
+                                    <div class="col-md-4">
+                                        <div class="card h-100 @(_currentProfile == profile.Id ? "border-primary" : "")"
+                                             style="cursor: pointer;" @onclick="() => SelectProfileAsync(profile.Id)">
+                                            <div class="card-body">
+                                                <div class="d-flex justify-content-between align-items-start mb-2">
+                                                    <h6 class="card-title mb-0">@profile.Name</h6>
+                                                    @if (_currentProfile == profile.Id)
+                                                    {
+                                                        <span class="badge bg-primary">当前</span>
+                                                    }
+                                                </div>
+                                                <p class="card-text small text-muted">@profile.Description</p>
+                                                <div class="d-flex gap-2 mt-2">
+                                                    <span class="badge bg-light text-dark border">@profile.SizeInfo</span>
+                                                    <span class="badge bg-light text-dark border">@profile.SpeedLabel</span>
+                                                </div>
+                                                <div class="mt-2 small text-primary">@profile.Model</div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                }
+                            </div>
+                            @if (!string.IsNullOrEmpty(_profileMessage))
+                            {
+                                <div class="alert alert-success py-2 mt-3 mb-0">@_profileMessage</div>
+                            }
+                        </div>
+
+                        <div class="mb-4 p-3 border rounded bg-light">
+                            <h6 class="fw-bold mb-3"><i class="bi bi-star-fill text-warning me-1"></i>OpenClaw 默认模型</h6>
+                            <div class="row align-items-end">
+                                <div class="col-md-8">
+                                    <label class="form-label">当前默认模型</label>
+                                    <select class="form-select" @bind="_selectedDefaultModel">
+                                        <option value="">-- 使用 OpenClaw 内置默认 --</option>
+                                        @foreach (var m in _availableModels)
+                                        {
+                                            <option value="@m">@m</option>
+                                        }
+                                    </select>
+                                    <div class="form-text">设置后 OpenClaw 会优先使用此模型执行任务</div>
+                                </div>
+                                <div class="col-md-4">
+                                    <button class="btn btn-primary" @onclick="SaveDefaultModelAsync" disabled="@_isSavingDefaultModel">
+                                        @if (_isSavingDefaultModel)
+                                        {
+                                            <span class="spinner-border spinner-border-sm me-1"></span>
+                                        }
+                                        <i class="bi bi-save me-1"></i>保存默认模型
+                                    </button>
+                                </div>
+                            </div>
+                            @if (!string.IsNullOrEmpty(_defaultModelMessage))
+                            {
+                                <div class="alert alert-success py-2 mt-3 mb-0">@_defaultModelMessage</div>
+                            }
+                        </div>
+
+                        <div class="d-flex gap-2">
+                            <button class="btn btn-primary" @onclick="SaveConfigAsync" disabled="@_isSavingConfig">
+                                @if (_isSavingConfig)
+                                {
+                                    <span class="spinner-border spinner-border-sm me-1"></span>
+                                }
+                                <i class="bi bi-save me-1"></i> 保存配置
+                            </button>
+                            <button class="btn btn-outline-secondary" @onclick="LoadConfigAsync">
+                                <i class="bi bi-arrow-clockwise"></i> 重置
+                            </button>
+                        </div>
+                    </div>
+                }
+            </div>
+        </div>
+    </div>
+
+    <!-- 任务提交区 -->
+    <div class="row mb-4">
+        <div class="col-12">
+            <div class="card">
+                <div class="card-header bg-primary text-white">
+                    <i class="bi bi-plus-circle"></i> 新建任务
+                </div>
+                <div class="card-body">
+                    <div class="mb-3">
+                        <label for="promptInput" class="form-label">任务描述 / Prompt</label>
+                        <textarea id="promptInput" class="form-control" rows="4"
+                                  @bind="_newPrompt"
+                                  @bind:event="oninput"
+                                  placeholder="请输入需要 OpenClaw 执行的任务，例如：分析当前目录下的代码结构并给出优化建议..."
+                                  disabled="@_isSubmitting"></textarea>
+                    </div>
+                    <div class="d-flex justify-content-between align-items-center">
+                        <span class="text-muted small">@_newPrompt.Length 字符</span>
+                        <button class="btn btn-primary" @onclick="SubmitTaskAsync" disabled="@(!CanSubmit)">
+                            @if (_isSubmitting)
+                            {
+                                <span class="spinner-border spinner-border-sm me-2" role="status"></span>
+                                <span>提交中...</span>
+                            }
+                            else
+                            {
+                                <i class="bi bi-send me-1"></i>
+                                <span>发送任务</span>
+                            }
+                        </button>
+                    </div>
+                    @if (!string.IsNullOrEmpty(_submitError))
+                    {
+                        <div class="alert alert-danger mt-3 mb-0">@_submitError</div>
+                    }
+                </div>
+            </div>
+        </div>
+    </div>
+    }
+
+    <!-- 任务列表 -->
+    <div class="row">
+        <div class="col-12">
+            <div class="d-flex justify-content-between align-items-center mb-3">
+                <h5 class="mb-0"><i class="bi bi-list-check"></i> 任务历史</h5>
+                <button class="btn btn-sm btn-outline-secondary" @onclick="() => RefreshTasksAsync()" disabled="@_isLoading">
+                    @if (_isLoading)
+                    {
+                        <span class="spinner-border spinner-border-sm" role="status"></span>
+                    }
+                    else
+                    {
+                        <i class="bi bi-arrow-clockwise"></i>
+                    }
+                    <span class="ms-1">刷新</span>
+                </button>
+            </div>
+
+            @if (_tasks == null)
+            {
+                <div class="text-center py-5">
+                    <div class="spinner-border text-primary" role="status">
+                        <span class="visually-hidden">加载中...</span>
+                    </div>
+                </div>
+            }
+            else if (_tasks.Count == 0)
+            {
+                <div class="alert alert-info">
+                    <i class="bi bi-info-circle"></i> 暂无任务，请在上方提交第一个任务。
+                </div>
+            }
+            else
+            {
+                <div class="table-responsive">
+                    <table class="table table-hover align-middle">
+                        <thead class="table-light">
+                            <tr>
+                                <th>ID</th>
+                                <th>Prompt</th>
+                                <th>状态</th>
+                                <th>创建时间</th>
+                                <th>完成时间</th>
+                                <th style="width: 180px;">操作</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            @foreach (var task in _tasks)
+                            {
+                                <tr>
+                                    <td><code>@task.TaskId</code></td>
+                                    <td>
+                                        <div class="text-truncate" style="max-width: 300px;" title="@task.Prompt">
+                                            @task.Prompt
+                                        </div>
+                                    </td>
+                                    <td>
+                                        <span class="badge @GetStatusBadgeClass(task.Status)">
+                                            @GetStatusLabel(task.Status)
+                                        </span>
+                                    </td>
+                                    <td>@task.CreatedAt.ToLocalTime().ToString("MM-dd HH:mm")</td>
+                                    <td>
+                                        @(task.CompletedAt?.ToLocalTime().ToString("MM-dd HH:mm") ?? "—")
+                                    </td>
+                                    <td>
+                                        @if (task.Status == "running")
+                                        {
+                                            <button class="btn btn-sm btn-outline-warning me-1" @onclick="() => CancelTaskAsync(task.Id)">
+                                                <i class="bi bi-x-circle"></i> 取消
+                                            </button>
+                                        }
+                                        else if (task.Status == "completed" && !string.IsNullOrEmpty(task.ReportPath))
+                                        {
+                                            <button class="btn btn-sm btn-outline-primary me-1" @onclick="() => ViewReportAsync(task.Id)">
+                                                <i class="bi bi-file-earmark-text"></i> 查看报告
+                                            </button>
+                                        }
+                                        else if (task.Status == "failed" && !string.IsNullOrEmpty(task.ErrorMessage))
+                                        {
+                                            <button class="btn btn-sm btn-outline-danger me-1" @onclick="() => ViewErrorAsync(task.Id)">
+                                                <i class="bi bi-bug"></i> 查看错误
+                                            </button>
+                                        }
+                                        else
+                                        {
+                                            <button class="btn btn-sm btn-outline-primary me-1" disabled>
+                                                <i class="bi bi-file-earmark-text"></i> 查看报告
+                                            </button>
+                                        }
+                                        <button class="btn btn-sm btn-outline-danger" @onclick="() => DeleteTaskAsync(task.Id)">
+                                            <i class="bi bi-trash"></i>
+                                        </button>
+                                    </td>
+                                </tr>
+                            }
+                        </tbody>
+                    </table>
+                </div>
+            }
+        </div>
+    </div>
+</div>
+
+<!-- 报告/错误查看模态框 -->
+@if (_showReportModal)
+{
+    <div class="modal fade show" style="display: block;" tabindex="-1">
+        <div class="modal-dialog modal-xl modal-dialog-scrollable">
+            <div class="modal-content">
+                <div class="modal-header">
+                    @if (_selectedTask?.Status == "failed")
+                    {
+                        <h5 class="modal-title"><i class="bi bi-bug"></i> 错误详情 - @_selectedTask?.TaskId</h5>
+                    }
+                    else
+                    {
+                        <h5 class="modal-title"><i class="bi bi-file-earmark-text"></i> 执行报告 - @_selectedTask?.TaskId</h5>
+                    }
+                    <button type="button" class="btn-close" @onclick="CloseReportModal"></button>
+                </div>
+                <div class="modal-body">
+                    @if (_reportLoading)
+                    {
+                        <div class="text-center py-5">
+                            <div class="spinner-border text-primary" role="status"></div>
+                        </div>
+                    }
+                    else if (_selectedTask?.Status == "failed" && !string.IsNullOrEmpty(_reportContent))
+                    {
+                        <div class="alert alert-danger">
+                            <h6>❌ 任务执行失败</h6>
+                            <p class="mb-2"><strong>Prompt:</strong> @_selectedTask.Prompt</p>
+                            <p class="mb-2"><strong>失败时间:</strong> @_selectedTask.CompletedAt?.ToLocalTime().ToString("yyyy-MM-dd HH:mm:ss")</p>
+                        </div>
+                        <div class="error-detail">
+                            <h6>错误日志</h6>
+                            <pre style="background:#1e1e1e;color:#d4d4d4;padding:1rem;border-radius:6px;max-height:500px;overflow:auto;font-size:0.82rem;line-height:1.5;">@_reportContent</pre>
+                        </div>
+                    }
+                    else if (!string.IsNullOrEmpty(_reportContent))
+                    {
+                        <div class="markdown-body">
+                            <WebUI.Components.MarkdownView Content="@_reportContent" />
+                        </div>
+                    }
+                    else
+                    {
+                        <div class="alert alert-warning">内容为空或无法加载。</div>
+                    }
+                </div>
+                <div class="modal-footer">
+                    <button class="btn btn-secondary" @onclick="CloseReportModal">关闭</button>
+                    @if (!string.IsNullOrEmpty(_reportContent))
+                    {
+                        <button class="btn btn-outline-primary" @onclick="CopyReportAsync">
+                            <i class="bi bi-clipboard"></i> 复制
+                        </button>
+                    }
+                </div>
+            </div>
+        </div>
+    </div>
+    <div class="modal-backdrop fade show"></div>
+}
+
+@code {
+    private List<OpenClawTaskDto>? _tasks;
+    private string _newPrompt = "";
+    private bool _isSubmitting;
+    private bool _isLoading;
+    private string? _submitError;
+    private System.Threading.Timer? _refreshTimer;
+
+    // 报告模态框状态
+    private bool _showReportModal;
+    private bool _reportLoading;
+    private string? _reportContent;
+    private OpenClawTaskDto? _selectedTask;
+
+    private bool _canShowLocalConfig = true;
+
+    // 配置面板状态
+    private bool _showConfig;
+    private bool _isSavingConfig;
+    private bool _isScanningOllama;
+    private bool _isScanningLmStudio;
+    private bool _isScanningLlamaCpp;
+    private bool _ollamaScanned;
+    private bool _lmStudioScanned;
+    private bool _llamaCppScanned;
+    private bool _isSyncingOllama;
+    private bool _isSyncingLmStudio;
+    private bool _isSyncingLlamaCpp;
+    private string? _syncMessage;
+    private bool _ollamaDetecting;
+    private bool _lmStudioDetecting;
+    private bool _llamaCppDetecting;
+    private string? _configError;
+    private string? _configSuccess;
+    private string? _ollamaStatusMessage;
+    private string? _lmStudioStatusMessage;
+    private string? _llamaCppStatusMessage;
+    private OpenClawLocalProviderConfigDto _ollamaConfig = new();
+    private OpenClawLocalProviderConfigDto _lmStudioConfig = new();
+    private OpenClawLlamaCppConfigDto _llamaCppConfig = new();
+    private List<OpenClawLocalModelDto> _ollamaModels = new();
+    private List<OpenClawLocalModelDto> _lmStudioModels = new();
+    private List<OpenClawLocalModelDto> _llamaCppModels = new();
+
+    // 默认模型设置
+    private string _selectedDefaultModel = "";
+    private List<string> _availableModels = new();
+    private bool _isSavingDefaultModel;
+    private string? _defaultModelMessage;
+
+    // 模型配置文件
+    private List<ModelProfileDto> _modelProfiles = new();
+    private string? _currentProfile;
+    private string? _profileMessage;
+
+    private bool CanSubmit => !string.IsNullOrWhiteSpace(_newPrompt) && !_isSubmitting && _newPrompt.Length <= 4000;
+
+    protected override void OnInitialized()
+    {
+        // 先渲染骨架屏，数据在 OnAfterRenderAsync 中后台加载
+        _isLoading = true;
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (!firstRender) return;
+
+        // 后台并行加载任务列表和配置，不阻塞首屏
+        _ = Task.Run(async () =>
+        {
+            try
+            {
+                _canShowLocalConfig = await CapabilityService.CanShowAsync("OpenClawLocalConfig");
+                await Task.WhenAll(
+                    RefreshTasksAsync(silent: true),
+                    LoadConfigAsync()
+                );
+            }
+            catch (Exception ex)
+            {
+                Logger.LogWarning(ex, "后台加载失败");
+            }
+            finally
+            {
+                await InvokeAsync(() =>
+                {
+                    _isLoading = false;
+                    StateHasChanged();
+                });
+            }
+        });
+
+        // 每 5 秒自动刷新
+        _refreshTimer = new System.Threading.Timer(async _ =>
+        {
+            await InvokeAsync(async () =>
+            {
+                await RefreshTasksAsync(silent: true);
+            });
+        }, null, TimeSpan.FromSeconds(5), TimeSpan.FromSeconds(5));
+    }
+
+    public void Dispose()
+    {
+        _refreshTimer?.Dispose();
+    }
+
+    private void ToggleConfigPanel()
+    {
+        _showConfig = !_showConfig;
+    }
+
+    private async Task LoadConfigAsync()
+    {
+        var config = await ApiService.GetOpenClawLocalAiConfigAsync();
+        _ollamaConfig = config.Ollama ?? new OpenClawLocalProviderConfigDto();
+        _lmStudioConfig = config.LmStudio ?? new OpenClawLocalProviderConfigDto();
+        _llamaCppConfig = config.LlamaCpp ?? new OpenClawLlamaCppConfigDto();
+        _ollamaModels = _ollamaConfig.Models.ToList();
+        _lmStudioModels = _lmStudioConfig.Models.ToList();
+        _llamaCppModels = _llamaCppConfig.Enabled && !string.IsNullOrWhiteSpace(_llamaCppConfig.ModelPath)
+            ? new List<OpenClawLocalModelDto>
+            {
+                new OpenClawLocalModelDto
+                {
+                    Id = System.IO.Path.GetFileNameWithoutExtension(_llamaCppConfig.ModelPath).Replace(".", "-").ToLowerInvariant(),
+                    Name = System.IO.Path.GetFileNameWithoutExtension(_llamaCppConfig.ModelPath),
+                    ApiType = _llamaCppConfig.ApiType,
+                    ContextWindow = _llamaCppConfig.ContextSize,
+                }
+            }
+            : new List<OpenClawLocalModelDto>();
+        _configError = null;
+        _configSuccess = null;
+
+        // 加载默认模型
+        try
+        {
+            var defaultModel = await ApiService.GetOpenClawDefaultModelAsync();
+            _selectedDefaultModel = defaultModel.CurrentModel ?? "";
+            _availableModels = defaultModel.AvailableModels.ToList();
+        }
+        catch { }
+
+        // 加载模型配置文件
+        try
+        {
+            var profiles = await ApiService.GetModelProfilesAsync();
+            _modelProfiles = profiles.Profiles.ToList();
+            _currentProfile = profiles.CurrentProfile;
+        }
+        catch { }
+
+        // 自动检测已启用 provider 的服务状态
+        if (_ollamaConfig.Enabled)
+            await DetectAndStartAsync("ollama");
+        if (_lmStudioConfig.Enabled)
+            await DetectAndStartAsync("lmstudio");
+        if (_llamaCppConfig.Enabled)
+            await DetectAndStartAsync("llamacpp");
+    }
+
+    private static bool GetCheckboxValue(ChangeEventArgs e)
+    {
+        var val = e.Value;
+        if (val is bool b) return b;
+        if (val is string s) return s.Equals("true", StringComparison.OrdinalIgnoreCase);
+        return false;
+    }
+
+    private async Task OnOllamaEnabledChanged(ChangeEventArgs e)
+    {
+        _ollamaConfig.Enabled = GetCheckboxValue(e);
+        if (!_ollamaConfig.Enabled)
+        {
+            _ollamaModels.Clear();
+            _ollamaScanned = false;
+            _ollamaStatusMessage = "已停用：Ollama 配置已从 OpenClaw 中移除（Ollama 服务本身不会停止）";
+            return;
+        }
+        // 设置默认值
+        if (string.IsNullOrWhiteSpace(_ollamaConfig.BaseUrl))
+            _ollamaConfig.BaseUrl = "http://localhost:11434";
+        if (string.IsNullOrWhiteSpace(_ollamaConfig.ApiType))
+            _ollamaConfig.ApiType = "ollama";
+        await DetectAndStartAsync("ollama");
+    }
+
+    private async Task OnLmStudioEnabledChanged(ChangeEventArgs e)
+    {
+        _lmStudioConfig.Enabled = GetCheckboxValue(e);
+        if (!_lmStudioConfig.Enabled)
+        {
+            _lmStudioModels.Clear();
+            _lmStudioScanned = false;
+            _lmStudioStatusMessage = "已停用：LM Studio 配置已从 OpenClaw 中移除（LM Studio 服务本身不会停止）";
+            return;
+        }
+        // 设置默认值
+        if (string.IsNullOrWhiteSpace(_lmStudioConfig.BaseUrl))
+            _lmStudioConfig.BaseUrl = "http://localhost:1234/v1";
+        if (string.IsNullOrWhiteSpace(_lmStudioConfig.ApiType))
+            _lmStudioConfig.ApiType = "openai-completions";
+        await DetectAndStartAsync("lmstudio");
+    }
+
+    private async Task OnLlamaCppEnabledChanged(ChangeEventArgs e)
+    {
+        _llamaCppConfig.Enabled = GetCheckboxValue(e);
+        if (!_llamaCppConfig.Enabled)
+        {
+            _llamaCppModels.Clear();
+            _llamaCppScanned = false;
+            _llamaCppStatusMessage = "正在停止 llama.cpp 服务...";
+            StateHasChanged();
+            try
+            {
+                await ApiService.StopLlamaCppAsync();
+                _llamaCppStatusMessage = "已停用：llama.cpp 服务已停止";
+            }
+            catch (Exception ex)
+            {
+                _llamaCppStatusMessage = $"已停用，但停止服务失败: {ex.Message}";
+            }
+            return;
+        }
+        // 设置默认值
+        if (string.IsNullOrWhiteSpace(_llamaCppConfig.BinaryPath))
+            _llamaCppConfig.BinaryPath = "/home/lumin/llama-cpp/build/bin/llama-server";
+        if (string.IsNullOrWhiteSpace(_llamaCppConfig.BaseUrl))
+            _llamaCppConfig.BaseUrl = "http://localhost:8080";
+        if (string.IsNullOrWhiteSpace(_llamaCppConfig.ApiType))
+            _llamaCppConfig.ApiType = "openai-completions";
+        if (_llamaCppConfig.Port == 0)
+            _llamaCppConfig.Port = 8080;
+        if (_llamaCppConfig.NGpuLayers == 0)
+            _llamaCppConfig.NGpuLayers = 999;
+        if (_llamaCppConfig.ContextSize == 0)
+            _llamaCppConfig.ContextSize = 4096;
+        await DetectAndStartAsync("llamacpp");
+    }
+
+    private async Task DetectAndStartAsync(string provider)
+    {
+        if (provider == "ollama")
+        {
+            _ollamaDetecting = true;
+            _ollamaStatusMessage = "正在检测 Ollama 服务状态...";
+        }
+        else if (provider == "lmstudio")
+        {
+            _lmStudioDetecting = true;
+            _lmStudioStatusMessage = "正在检测 LM Studio 服务状态...";
+        }
+        else if (provider == "llamacpp")
+        {
+            _llamaCppDetecting = true;
+            _llamaCppStatusMessage = "正在检测 llama.cpp 服务状态...";
+        }
+        await InvokeAsync(StateHasChanged);
+
+        try
+        {
+            var status = await ApiService.DetectAndStartOpenClawLocalAiAsync(provider);
+            if (provider == "ollama")
+            {
+                _ollamaStatusMessage = status.Message;
+                if (status.IsRunning)
+                {
+                    // 服务已运行，自动扫描模型
+                    await ScanModelsAsync("ollama");
+                }
+            }
+            else if (provider == "lmstudio")
+            {
+                _lmStudioStatusMessage = status.Message;
+                if (status.IsRunning)
+                {
+                    await ScanModelsAsync("lmstudio");
+                }
+            }
+            else if (provider == "llamacpp")
+            {
+                _llamaCppStatusMessage = status.Message;
+                if (status.IsRunning)
+                {
+                    await ScanModelsAsync("llamacpp");
+                }
+            }
+        }
+        catch (Exception ex)
+        {
+            if (provider == "ollama")
+                _ollamaStatusMessage = $"检测失败: {ex.Message}";
+            else if (provider == "lmstudio")
+                _lmStudioStatusMessage = $"检测失败: {ex.Message}";
+            else if (provider == "llamacpp")
+                _llamaCppStatusMessage = $"检测失败: {ex.Message}";
+        }
+        finally
+        {
+            if (provider == "ollama")
+                _ollamaDetecting = false;
+            else if (provider == "lmstudio")
+                _lmStudioDetecting = false;
+            else if (provider == "llamacpp")
+                _llamaCppDetecting = false;
+            await InvokeAsync(StateHasChanged);
+        }
+    }
+
+    private async Task ScanOllamaModels() => await ScanModelsAsync("ollama");
+    private async Task ScanLmStudioModels() => await ScanModelsAsync("lmstudio");
+    private async Task ScanLlamaCppModels() => await ScanModelsAsync("llamacpp");
+
+    private async Task ScanModelsAsync(string provider)
+    {
+        if (provider == "ollama")
+        {
+            _isScanningOllama = true;
+            _ollamaScanned = false;
+        }
+        else if (provider == "lmstudio")
+        {
+            _isScanningLmStudio = true;
+            _lmStudioScanned = false;
+        }
+        else if (provider == "llamacpp")
+        {
+            _isScanningLlamaCpp = true;
+            _llamaCppScanned = false;
+        }
+        await InvokeAsync(StateHasChanged);
+
+        try
+        {
+            // 先临时保存当前配置以便扫描接口能读到
+            var temp = new SaveOpenClawLocalAiConfigRequest
+            {
+                Ollama = _ollamaConfig,
+                LmStudio = _lmStudioConfig,
+                LlamaCpp = _llamaCppConfig
+            };
+            await ApiService.SaveOpenClawLocalAiConfigAsync(temp);
+
+            if (provider == "ollama")
+            {
+                _ollamaModels = await ApiService.ScanOpenClawLocalModelsAsync("ollama");
+                _ollamaScanned = true;
+            }
+            else if (provider == "lmstudio")
+            {
+                _lmStudioModels = await ApiService.ScanOpenClawLocalModelsAsync("lmstudio");
+                _lmStudioScanned = true;
+            }
+            else if (provider == "llamacpp")
+            {
+                _llamaCppModels = await ApiService.ScanOpenClawLocalModelsAsync("llamacpp");
+                _llamaCppScanned = true;
+            }
+        }
+        catch (Exception ex)
+        {
+            _configError = $"扫描失败: {ex.Message}";
+        }
+        finally
+        {
+            if (provider == "ollama")
+                _isScanningOllama = false;
+            else if (provider == "lmstudio")
+                _isScanningLmStudio = false;
+            else if (provider == "llamacpp")
+                _isScanningLlamaCpp = false;
+            await InvokeAsync(StateHasChanged);
+        }
+    }
+
+    private async Task SaveConfigAsync()
+    {
+        _isSavingConfig = true;
+        _configError = null;
+        _configSuccess = null;
+        _defaultModelMessage = null;
+        StateHasChanged();
+
+        try
+        {
+            var request = new SaveOpenClawLocalAiConfigRequest
+            {
+                Ollama = _ollamaConfig,
+                LmStudio = _lmStudioConfig,
+                LlamaCpp = _llamaCppConfig
+            };
+
+            if (_ollamaConfig.Enabled)
+            {
+                _ollamaConfig.Models = _ollamaModels.ToList();
+                if (string.IsNullOrWhiteSpace(_ollamaConfig.BaseUrl))
+                    _ollamaConfig.BaseUrl = "http://localhost:11434";
+                if (_ollamaConfig.ApiType == "")
+                    _ollamaConfig.ApiType = "ollama";
+            }
+
+            if (_lmStudioConfig.Enabled)
+            {
+                _lmStudioConfig.Models = _lmStudioModels.ToList();
+                if (string.IsNullOrWhiteSpace(_lmStudioConfig.BaseUrl))
+                    _lmStudioConfig.BaseUrl = "http://localhost:1234/v1";
+                if (_lmStudioConfig.ApiType == "")
+                    _lmStudioConfig.ApiType = "openai-completions";
+            }
+
+            if (_llamaCppConfig.Enabled)
+            {
+                if (string.IsNullOrWhiteSpace(_llamaCppConfig.BaseUrl))
+                    _llamaCppConfig.BaseUrl = "http://localhost:8080";
+                if (_llamaCppConfig.ApiType == "")
+                    _llamaCppConfig.ApiType = "openai-completions";
+                if (_llamaCppConfig.Port == 0)
+                    _llamaCppConfig.Port = 8080;
+                if (_llamaCppConfig.NGpuLayers == 0)
+                    _llamaCppConfig.NGpuLayers = 999;
+                if (_llamaCppConfig.ContextSize == 0)
+                    _llamaCppConfig.ContextSize = 4096;
+            }
+
+            var success = await ApiService.SaveOpenClawLocalAiConfigAsync(request);
+            if (success)
+            {
+                _configSuccess = "配置已保存（通过 openclaw config set 写入）";
+                // 刷新可用模型列表
+                await RefreshAvailableModelsAsync();
+            }
+            else
+            {
+                _configError = "保存配置失败";
+            }
+        }
+        catch (Exception ex)
+        {
+            _configError = $"保存失败: {ex.Message}";
+        }
+        finally
+        {
+            _isSavingConfig = false;
+            StateHasChanged();
+        }
+    }
+
+    private async Task RefreshAvailableModelsAsync()
+    {
+        _availableModels.Clear();
+        if (_ollamaConfig.Enabled)
+        {
+            foreach (var m in _ollamaModels)
+                _availableModels.Add($"ollama/{m.Id}");
+        }
+        if (_lmStudioConfig.Enabled)
+        {
+            foreach (var m in _lmStudioModels)
+                _availableModels.Add($"lmstudio/{m.Id}");
+        }
+        if (_llamaCppConfig.Enabled && !string.IsNullOrWhiteSpace(_llamaCppConfig.ModelPath))
+        {
+            var modelName = System.IO.Path.GetFileNameWithoutExtension(_llamaCppConfig.ModelPath);
+            var modelId = modelName.Replace(".", "-").ToLowerInvariant();
+            _availableModels.Add($"llamacpp/{modelId}");
+        }
+    }
+
+    private async Task SelectProfileAsync(string profileId)
+    {
+        _profileMessage = null;
+        StateHasChanged();
+
+        try
+        {
+            var success = await ApiService.SetModelProfileAsync(profileId);
+            if (success)
+            {
+                _currentProfile = profileId;
+                var profile = _modelProfiles.FirstOrDefault(p => p.Id == profileId);
+                _profileMessage = $"已切换到 {profile?.Name ?? profileId} 配置";
+                // 同步更新默认模型下拉框
+                _selectedDefaultModel = profile?.Model ?? "";
+            }
+            else
+            {
+                _configError = "切换模型配置失败";
+            }
+        }
+        catch (Exception ex)
+        {
+            _configError = $"切换模型配置失败: {ex.Message}";
+        }
+        finally
+        {
+            StateHasChanged();
+        }
+    }
+
+    private async Task SaveDefaultModelAsync()
+    {
+        _isSavingDefaultModel = true;
+        _defaultModelMessage = null;
+        StateHasChanged();
+
+        try
+        {
+            var success = await ApiService.SetOpenClawDefaultModelAsync(_selectedDefaultModel);
+            if (success)
+            {
+                _defaultModelMessage = string.IsNullOrWhiteSpace(_selectedDefaultModel)
+                    ? "已恢复使用 OpenClaw 内置默认模型"
+                    : $"默认模型已设置为 {_selectedDefaultModel}";
+                // 检查是否匹配某个 profile
+                var matchedProfile = _modelProfiles.FirstOrDefault(p => p.Model == _selectedDefaultModel);
+                _currentProfile = matchedProfile?.Id;
+            }
+            else
+            {
+                _configError = "设置默认模型失败";
+            }
+        }
+        catch (Exception ex)
+        {
+            _configError = $"设置默认模型失败: {ex.Message}";
+        }
+        finally
+        {
+            _isSavingDefaultModel = false;
+            StateHasChanged();
+        }
+    }
+
+    private async Task SyncModelsAsync(string provider)
+    {
+        if (provider == "ollama")
+            _isSyncingOllama = true;
+        else if (provider == "lmstudio")
+            _isSyncingLmStudio = true;
+        else if (provider == "llamacpp")
+            _isSyncingLlamaCpp = true;
+        _syncMessage = null;
+        StateHasChanged();
+
+        try
+        {
+            var success = await ApiService.SyncLocalModelsToOpenClawAsync(provider);
+            if (success)
+            {
+                _syncMessage = $"{provider} 模型已同步到 OpenClaw";
+                // 刷新可用模型列表
+                await RefreshAvailableModelsAsync();
+                // 重新加载默认模型选项
+                try
+                {
+                    var defaultModel = await ApiService.GetOpenClawDefaultModelAsync();
+                    _availableModels = defaultModel.AvailableModels.ToList();
+                }
+                catch { }
+            }
+            else
+            {
+                _configError = $"同步 {provider} 模型到 OpenClaw 失败";
+            }
+        }
+        catch (Exception ex)
+        {
+            _configError = $"同步失败: {ex.Message}";
+        }
+        finally
+        {
+            if (provider == "ollama")
+                _isSyncingOllama = false;
+            else if (provider == "lmstudio")
+                _isSyncingLmStudio = false;
+            else if (provider == "llamacpp")
+                _isSyncingLlamaCpp = false;
+            StateHasChanged();
+        }
+    }
+
+    private async Task RefreshTasksAsync(bool silent = false)
+    {
+        if (!silent)
+            _isLoading = true;
+
+        try
+        {
+            _tasks = await ApiService.GetOpenClawTasksAsync();
+        }
+        catch (Exception ex)
+        {
+            if (!silent)
+                _submitError = $"刷新失败: {ex.Message}";
+        }
+        finally
+        {
+            if (!silent)
+                _isLoading = false;
+            await InvokeAsync(StateHasChanged);
+        }
+    }
+
+    private async Task SubmitTaskAsync()
+    {
+        if (!CanSubmit) return;
+
+        _isSubmitting = true;
+        _submitError = null;
+        try
+        {
+            var result = await ApiService.CreateOpenClawTaskAsync(_newPrompt.Trim());
+            if (result.Status == "failed" && !string.IsNullOrEmpty(result.ErrorMessage))
+            {
+                _submitError = result.ErrorMessage;
+            }
+            else
+            {
+                _newPrompt = "";
+                await RefreshTasksAsync();
+            }
+        }
+        catch (Exception ex)
+        {
+            _submitError = $"提交失败: {ex.Message}";
+        }
+        finally
+        {
+            _isSubmitting = false;
+        }
+    }
+
+    private async Task CancelTaskAsync(int id)
+    {
+        var confirmed = await JSRuntime.InvokeAsync<bool>("confirm", "确定要取消此任务吗？OpenClaw 进程将被终止。");
+        if (!confirmed) return;
+
+        var success = await ApiService.CancelOpenClawTaskAsync(id);
+        if (success)
+        {
+            await RefreshTasksAsync();
+        }
+    }
+
+    private async Task DeleteTaskAsync(int id)
+    {
+        var confirmed = await JSRuntime.InvokeAsync<bool>("confirm", "确定要删除此任务及其报告吗？");
+        if (!confirmed) return;
+
+        var success = await ApiService.DeleteOpenClawTaskAsync(id);
+        if (success)
+        {
+            await RefreshTasksAsync();
+        }
+    }
+
+    private async Task ViewReportAsync(int id)
+    {
+        _selectedTask = _tasks?.FirstOrDefault(t => t.Id == id);
+        _showReportModal = true;
+        _reportLoading = true;
+        _reportContent = null;
+        StateHasChanged();
+
+        try
+        {
+            _reportContent = await ApiService.GetOpenClawReportAsync(id);
+        }
+        catch (Exception ex)
+        {
+            _reportContent = $"加载报告失败: {ex.Message}";
+        }
+        finally
+        {
+            _reportLoading = false;
+            StateHasChanged();
+        }
+    }
+
+    private async Task ViewErrorAsync(int id)
+    {
+        _selectedTask = _tasks?.FirstOrDefault(t => t.Id == id);
+        _showReportModal = true;
+        _reportLoading = true;
+        _reportContent = null;
+        StateHasChanged();
+
+        try
+        {
+            // 优先使用已存储的错误信息（避免额外 API 调用）
+            if (_selectedTask != null && !string.IsNullOrEmpty(_selectedTask.ErrorMessage))
+            {
+                _reportContent = StripAnsiCodes(_selectedTask.ErrorMessage);
+            }
+            else
+            {
+                _reportContent = "暂无错误详情，可能已被清理。";
+            }
+        }
+        catch (Exception ex)
+        {
+            _reportContent = $"加载错误信息失败: {ex.Message}";
+        }
+        finally
+        {
+            _reportLoading = false;
+            StateHasChanged();
+        }
+    }
+
+    private static string StripAnsiCodes(string text)
+    {
+        if (string.IsNullOrEmpty(text)) return text;
+        // 移除 ANSI 转义序列 \u001b[...m
+        return System.Text.RegularExpressions.Regex.Replace(text, @"\u001b\[[0-9;]*m", "");
+    }
+
+    private void CloseReportModal()
+    {
+        _showReportModal = false;
+        _selectedTask = null;
+        _reportContent = null;
+    }
+
+    private async Task CopyReportAsync()
+    {
+        if (string.IsNullOrEmpty(_reportContent)) return;
+        await JSRuntime.InvokeVoidAsync("navigator.clipboard.writeText", _reportContent);
+    }
+
+    private static string GetStatusBadgeClass(string status) => status.ToLowerInvariant() switch
+    {
+        "completed" => "bg-success",
+        "running" => "bg-primary",
+        "pending" => "bg-secondary",
+        "failed" => "bg-danger",
+        _ => "bg-secondary"
+    };
+
+    private static string GetStatusLabel(string status) => status.ToLowerInvariant() switch
+    {
+        "completed" => "已完成",
+        "running" => "执行中",
+        "pending" => "待处理",
+        "failed" => "失败",
+        _ => status
+    };
+}
+
+<style>
+    .markdown-body {
+        font-size: 0.95rem;
+        line-height: 1.7;
+    }
+    .markdown-body pre {
+        background: #f8f9fa;
+        padding: 1rem;
+        border-radius: 6px;
+        overflow-x: auto;
+    }
+    .modal-xl {
+        max-width: 1140px;
+    }
+</style>

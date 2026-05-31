@@ -1,0 +1,29 @@
+# 基础镜像 - Runtime 阶段（包含运行时依赖）
+# 用于加速 TaskRunner 和 WebUI 的最终镜像构建
+#
+# 构建命令：
+#   docker build -f Dockerfile.base-runtime -t yj-family/base-runtime:latest ..
+#
+# 更新频率：
+#   - 仅当系统依赖变化时需要重建
+#   - 应用代码变更无需重建此镜像
+
+FROM mcr.microsoft.com/dotnet/aspnet:10.0
+WORKDIR /app
+
+# 安装运行时依赖：
+# - libgomp1: LLamaSharp (OpenMP 支持)
+# - curl: 健康检查
+# - ca-certificates: HTTPS 证书
+RUN apt-get update && \
+    apt-get install -y --no-install-recommends \
+        libgomp1 \
+        curl \
+        ca-certificates && \
+    rm -rf /var/lib/apt/lists/*
+
+# 创建数据/日志目录
+RUN mkdir -p /app/data /app/logs
+
+# 设置默认环境变量
+ENV DOTNET_RUNNING_IN_CONTAINER=true

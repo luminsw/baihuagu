@@ -1,0 +1,191 @@
+# CodeArts IDE 个人配置
+.arts/
+
+# 灵码 AI 助手配置
+.lingma/
+
+# Kilo CLI 本地配置
+.kilo/
+
+# Playwright CLI 运行时日志与快照
+.playwright-cli/
+
+# hvigor 构建缓存（根目录）
+.hvigor/
+
+# Miscellaneous
+*.class
+*.log
+*.pyc
+*.swp
+.DS_Store
+.atom/
+.build/
+.buildlog/
+.history
+.svn/
+.swiftpm/
+migrate_working_dir/
+
+# IntelliJ related
+*.iml
+*.ipr
+*.iws
+.idea/
+
+# VS Code workspace settings/tasks：不建议提交到仓库
+.vscode/
+
+# Symbolication related
+app.*.symbols
+
+# Obfuscation related
+app.*.map.json
+
+# Android Studio will place build artifacts here
+/android/app/debug
+/android/app/profile
+/android/app/release
+
+# 知识库（开发时本地使用，不提交）
+/vault/
+/.vs
+
+# task_runner 服务运行时产物（不提交）
+/services/task_runner/.venv/
+/services/task_runner/data/
+
+# Docker data
+docker/data/
+
+# Service runtime data (SQLite databases, local dev state)
+/data/
+services/**/data/
+
+# Test files
+check_task.py
+test_*.py
+temp_*.json
+test_split.json
+
+# Node modules
+node_modules/
+ohos/node_modules/
+ohos/oh_modules/
+tests/webui-e2e/node_modules/
+tests/webui-e2e/playwright-report/
+tests/webui-e2e/test-results/
+
+# CodeArts CI：工作区内缓存的 .NET SDK（由 build YAML 写入）
+.ci/
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+.venv/
+services/task_runner/.venv/
+
+# C# / .NET
+**/.vs/
+services/task_runner_csharp/bin/
+services/task_runner_csharp/obj/
+services/TaskRunner.Family/secrets.json
+services/TaskRunner.Family/appsettings.local.json
+services/WebUI/bin/
+services/WebUI/obj/
+# 本地开发覆盖配置（含敏感信息，不提交）
+**/appsettings.Local.json
+# .NET User Secrets 存储在用户目录，但项目内不应有 secrets.json
+**/secrets.json
+*.user
+*.suo
+*.userosscache
+*.sln.docstates
+[Dd]ebug/
+[Rr]elease/
+x64/
+x86/
+[Aa][Rr][Mm]/
+[Aa][Rr][Mm]64/
+bld/
+[Bb]in/
+[Oo]bj/
+*.dll
+*.pdb
+*.exe
+
+# Docker 数据
+docker/data/
+
+# 鸿蒙依赖
+ohos/node_modules/
+ohos/oh_modules/
+ohos/.ohos/
+
+# 额外的 IDE 和编辑器
+*.sublime-workspace
+*.sublime-project
+.vs/
+*.ncb
+*.sdf
+*.opensdf
+*.cache
+
+# 操作系统文件
+Thumbs.db
+ehthumbs.db
+Desktop.ini
+$RECYCLE.BIN/
+
+# 备份和临时文件
+*.orig
+*.rej
+*.diff
+*.patch
+*.tmp
+*~
+*.tmp
+*.temp
+*.pid
+*.seed
+*.pid.lock
+
+# 本地环境配置
+.env
+.env.local
+.env.*.local
+.env.development
+.env.production
+
+# 运行时数据
+*.pid
+*.seed
+*.pid.lock
+*.db
+*.sqlite
+*.sqlite3
+
+# 发布和打包
+publish/
+artifacts/
+package/
+
+# 测试覆盖率
+coverage/
+*.coverage
+.nyc_output/
+
+# 本地工作文件
+TODO.local.md
+NOTES.local.md
+
+
+
+# 本地模型文件（大文件，不提交）
+models/
+tests/e2e/test-results/
+tests/e2e/test-results.json
+/playwright/.cache/

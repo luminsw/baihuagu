@@ -1,0 +1,18 @@
+[Unit]
+Description=WebUI Cloud
+After=network.target taskrunner.service
+
+[Service]
+Type=simple
+WorkingDirectory=/opt/yj/webui
+EnvironmentFile=/etc/systemd/system/webui.env
+Environment=WEBUI_CONFIG_DIR=/opt/yj/data
+Environment=ASPNETCORE_URLS=http://0.0.0.0:5177
+ExecStart=/usr/bin/dotnet WebUI.Cloud.dll --urls http://0.0.0.0:5177
+Restart=always
+RestartSec=5
+StandardOutput=append:/opt/yj/logs/webui.log
+StandardError=append:/opt/yj/logs/webui.log
+
+[Install]
+WantedBy=multi-user.target

@@ -1,0 +1,75 @@
+@using Microsoft.AspNetCore.Components.Web
+@using static Microsoft.AspNetCore.Components.Web.RenderMode
+@using WebUI.Services
+@rendermode @(new InteractiveServerRenderMode(prerender: false))
+@inject GlobalStateService GlobalStateService
+@inject NavigationManager Navigation
+@implements IDisposable
+
+<div class="ai-status-container">
+    <a href="settings" class="ai-status-badge @(GetAiBadgeClass())" title="@GetAiTitle()" style="text-decoration:none;">
+        <span class="ai-icon">🤖</span>
+        <span class="ai-info">
+            <span class="ai-provider">@(aiStatus?.IsConfigured ?? false ? (aiStatus?.ProviderName ?? "AI") : "AI 未配置")</span>
+            <span class="ai-model">@(aiStatus?.IsConfigured ?? false ? GetShortModelName(aiStatus?.Model) : "点击设置 API Key")</span>
+        </span>
+        <span class="ai-indicator @(aiStatus?.IsConfigured ?? false ? "online" : "offline")">●</span>
+    </a>
+</div>
+
+<style>
+    .ai-status-container {
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+        flex: 1;
+    }
+</style>
+
+@code {
+    private AIStatusSummary? aiStatus;
+
+    protected override void OnInitialized()
+    {
+        aiStatus = GlobalStateService.GetAIStatus();
+        GlobalStateService.StateChanged += OnGlobalStateChanged;
+        GlobalStateService.Initialize(Navigation.ToAbsoluteUri("/hubs/status").ToString());
+    }
+
+    private void OnGlobalStateChanged(object? sender, EventArgs e)
+    {
+        aiStatus = GlobalStateService.GetAIStatus();
+        InvokeAsync(StateHasChanged);
+    }
+
+    public void Dispose()
+    {
+        GlobalStateService.StateChanged -= OnGlobalStateChanged;
+    }
+
+    private string GetAiBadgeClass() => aiStatus?.IsConfigured ?? false ? "ai-configured" : "ai-not-configured";
+    private string GetAiTitle() => aiStatus?.IsConfigured ?? false ? "AI 已配置 - 点击修改" : "AI 未配置 - 点击设置";
+
+    private string GetShortModelName(string? fullName)
+    {
+        if (string.IsNullOrWhiteSpace(fullName))
+            return "默认模型";
+        var parts = fullName.Split('/', StringSplitOptions.RemoveEmptyEntries);
+        if (parts.Length > 0)
+        {
+            var lastPart = parts[^1];
+            if (lastPart.Length > 20)
+            {
+                if (lastPart.Contains("DeepSeek"))
+                    return "DeepSeek";
+                if (lastPart.Contains("Qwen"))
+                    return "Qwen";
+                if (lastPart.Contains("GPT"))
+                    return "GPT";
+                return lastPart.Substring(0, 20) + "...";
+            }
+            return lastPart;
+        }
+        return fullName.Length > 20 ? fullName.Substring(0, 20) + "..." : fullName;
+    }
+}

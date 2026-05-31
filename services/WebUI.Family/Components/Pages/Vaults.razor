@@ -1,0 +1,2008 @@
+@page "/vaults"
+@rendermode InteractiveServer
+@inherits WebUI.Components.PerformanceComponentBase
+@using System.IO
+@inject VaultsService VaultsService
+@inject VaultStatusService VaultStatusService
+@inject WebUI.Hubs.StatusUpdateService StatusUpdateService
+@inject IHttpClientFactory HttpClientFactory
+@inject NavigationManager Navigation
+@inject IJSRuntime JS
+@inject IApiService ApiService
+@inject ILogger<Vaults> Logger
+@inject BackupService BackupService
+
+<PageTitle>知识库管理</PageTitle>
+
+<div class="container mt-4">
+    <div class="card">
+        <div class="card-header d-flex justify-content-between align-items-center">
+            <h2 class="mb-0">📚 知识库管理</h2>
+            <div>
+                <button class="btn btn-sm btn-outline-secondary" @onclick="RefreshCurrentTab" disabled="@isLoading">🔄 刷新</button>
+            </div>
+        </div>
+        <div class="card-body">
+            <!-- Tab导航 -->
+            <ul class="nav nav-tabs mb-4">
+                <li class="nav-item">
+                    <button class="nav-link @(activeTab == "vaults" ? "active" : "")" @onclick='() => SwitchTab("vaults")'>
+                        📁 知识库路径配置
+                    </button>
+                </li>
+                <li class="nav-item">
+                    <button class="nav-link @(activeTab == "git" ? "active" : "")" @onclick='() => SwitchTab("git")'>
+                        🌿 根路径 Git
+                    </button>
+                </li>
+                <li class="nav-item">
+                    <button class="nav-link @(activeTab == "backup" ? "active" : "")" @onclick='() => SwitchTab("backup")'>
+                        💾 备份恢复
+                    </button>
+                </li>
+                <li class="nav-item">
+                    <button class="nav-link @(activeTab == "trash" ? "active" : "")" @onclick='() => SwitchTab("trash")'>
+                        🗑️ 回收站
+                        @if (trashVaults.Count > 0)
+                        {
+                            <span class="badge bg-danger ms-1">@trashVaults.Count</span>
+                        }
+                    </button>
+                </li>
+            </ul>
+
+            @if (!string.IsNullOrEmpty(message))
+            {
+                <div class="alert alert-@(success ? "success" : "danger") alert-dismissible fade show">
+                    @message
+                    @if (success && !string.IsNullOrEmpty(lastCreatedTaskId))
+                    {
+                        <a href="tasks" class="alert-link ms-2">→ 查看任务</a>
+                    }
+                    <button type="button" class="btn-close" @onclick="() => { message = null; lastCreatedTaskId = null; }"></button>
+                </div>
+            }
+
+            @if (activeTab == "vaults")
+            {
+                <!-- 知识库路径配置 Tab -->
+
+                <!-- 加载中状态 -->
+                @if (isInitializing)
+                {
+                    <div class="text-center py-5">
+                        <div class="spinner-border text-primary" role="status">
+                            <span class="visually-hidden">加载中...</span>
+                        </div>
+                        <p class="mt-3 text-muted">正在加载知识库数据...</p>
+                    </div>
+                }
+                else
+                {
+                    <!-- 知识库根路径（约定的固定路径） -->
+                    <div class="card mb-4">
+                        <div class="card-header">
+                            <h5 class="mb-0">📂 知识库根路径</h5>
+                        </div>
+                        <div class="card-body">
+                            <p class="text-muted small mb-2">新建知识库时，将在此路径下创建子目录。</p>
+                            <div class="alert alert-info mb-2 py-2">
+                                <small>🔒 使用约定的固定路径，不可修改</small>
+                            </div>
+                            <div class="row g-3">
+                                <div class="col-md-8">
+                                    <input type="text" class="form-control" value="@vaultRootPathPreference" readonly style="background-color: #f8f9fa;" />
+                                </div>
+                            </div>
+                            @if (!string.IsNullOrEmpty(vaultRootPathPreference))
+                            {
+                                <small class="text-muted mt-2 d-block">
+                                    @if (Directory.Exists(vaultRootPathPreference))
+                                    {
+                                        <span class="text-success">✅ 路径存在</span>
+                                    }
+                                    else
+                                    {
+                                        <span class="text-warning">⚠️ 路径不存在，新建知识库时会自动创建</span>
+                                    }
+                                </small>
+                            }
+                        </div>
+                    </div>
+
+                <!-- NotesMD CLI 推荐/状态 -->
+                @if (notesMdStatus == null)
+                {
+                    <div class="alert alert-light border mb-3">
+                        <h6 class="alert-heading">💡 推荐安装 NotesMD CLI</h6>
+                        <p class="mb-1 small">
+                            <a href="https://github.com/Yakitrak/notesmd-cli" target="_blank">notesmd-cli</a> 
+                            是一个无需运行 Obsidian 即可管理 vault 的命令行工具，非常适合脚本化和自动化场景。
+                            安装后可将本系统的知识库一键注册到 Obsidian，实现无缝衔接。
+                        </p>
+                        <p class="mb-0 small text-muted">
+                            安装命令（Windows: <code>scoop install notesmd-cli</code> | macOS/Linux: <code>brew install yakitrak/yakitrak/notesmd-cli</code>）
+                        </p>
+                    </div>
+                }
+                else if (notesMdStatus.Available)
+                {
+                    <div class="card mb-3">
+                        <div class="card-body py-2">
+                            <div class="d-flex justify-content-between align-items-center flex-wrap gap-2">
+                                <div class="small">
+                                    <span class="badge bg-success">✅ notesmd-cli 已就绪</span>
+                                    <span class="text-muted ms-2">
+                                        已注册 @(notesMdStatus.RegisteredPaths.Count) 个 Obsidian 知识库
+                                        @if (GetUnregisteredVaultCount() > 0)
+                                        {
+                                            <span class="text-warning">，尚有 @(GetUnregisteredVaultCount()) 个未注册</span>
+                                        }
+                                    </span>
+                                </div>
+                                @if (GetUnregisteredVaultCount() > 0)
+                                {
+                                    <button class="btn btn-sm btn-outline-success" @onclick="BatchAddVaultsToNotesMd" disabled="@isNotesMdLoading">
+                                        @if (isNotesMdLoading)
+                                        {
+                                            <span class="spinner-border spinner-border-sm me-1"></span>
+                                        }
+                                        📌 一键注册全部到 Obsidian
+                                    </button>
+                                }
+                            </div>
+                        </div>
+                    </div>
+                }
+                else
+                {
+                    <div class="alert alert-light border mb-3">
+                        <h6 class="alert-heading">💡 推荐安装 NotesMD CLI</h6>
+                        <p class="mb-1 small">
+                            <a href="https://github.com/Yakitrak/notesmd-cli" target="_blank">notesmd-cli</a> 
+                            是一个无需运行 Obsidian 即可管理 vault 的命令行工具，非常适合脚本化和自动化场景。
+                            安装后可将本系统的知识库一键注册到 Obsidian，实现无缝衔接。
+                        </p>
+                        <p class="mb-0 small text-muted">
+                            安装命令（Windows: <code>scoop install notesmd-cli</code> | macOS/Linux: <code>brew install yakitrak/yakitrak/notesmd-cli</code>）
+                        </p>
+                    </div>
+                }
+
+                <!-- 添加新知识库 -->
+                <div class="card mb-4">
+                    <div class="card-header">
+                        <h5 class="mb-0">➕ 添加新知识库</h5>
+                    </div>
+                    <div class="card-body">
+                        <div class="row g-2 align-items-end">
+                            <div class="col-md-3">
+                                <label class="form-label small mb-1">行业</label>
+                                <select class="form-select form-select-sm" @bind="newVaultIndustry">
+                                    <option value="笔记">📝 笔记</option>
+                                    <option value="计算机">💻 计算机</option>
+                                    <option value="通用">📘 通用</option>
+                                </select>
+                            </div>
+                            <div class="col-md-6">
+                                <label class="form-label small mb-1">知识库名称</label>
+                                <input type="text" class="form-control form-control-sm" @bind="newVaultName" placeholder="例如：脾胃病、Python入门..." />
+                            </div>
+                            <div class="col-md-3">
+                                <button class="btn btn-sm btn-primary w-100" @onclick="AddNewVault" disabled="@isLoading">
+                                    @if (isLoading) { <span class="spinner-border spinner-border-sm me-1"></span> }
+                                    添加
+                                </button>
+                            </div>
+                        </div>
+                        @if (!string.IsNullOrEmpty(vaultRootPathPreference) && !string.IsNullOrEmpty(newVaultIndustry) && !string.IsNullOrEmpty(newVaultName))
+                        {
+                            <small class="text-muted d-block mt-2">
+                                将创建到：<code>@System.IO.Path.Combine(vaultRootPathPreference, "local", newVaultIndustry, newVaultName)</code>
+                            </small>
+                        }
+                        else if (string.IsNullOrEmpty(vaultRootPathPreference))
+                        {
+                            <small class="text-warning d-block mt-2">⚠️ 请先设置知识库根路径</small>
+                        }
+                    </div>
+                </div>
+
+                <!-- 知识库列表 -->
+                <div class="card">
+                    <div class="card-header d-flex justify-content-between align-items-center">
+                        <h5 class="mb-0">📋 所有知识库 (@vaults.Count)</h5>
+                        <button class="btn btn-sm btn-outline-primary" @onclick="SyncVaults" disabled="@isLoading">
+                            @if (isLoading) { <span class="spinner-border spinner-border-sm me-1"></span> }
+                            🔄 同步知识库
+                        </button>
+                    </div>
+                    <div class="card-body p-0">
+                        @if (vaults.Count == 0)
+                        {
+                            <div class="text-center py-4 text-muted">
+                                暂无知识库，请添加一个
+                            </div>
+                        }
+                        else
+                        {
+                            <table class="table table-hover mb-0">
+                                <thead>
+                                    <tr>
+                                        <th>名称</th>
+                                        <th>路径</th>
+                                        <th>行业</th>
+                                        <th>创建时间</th>
+                                        <th>标签</th>
+                                        <th>笔记</th>
+                                        <th>记忆卡片</th>
+                                        <th>操作</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    @foreach (var vault in vaults)
+                                    {
+                                        <tr @key="vault.Id">
+                                            <td>
+                                                @if (editingVaultId == vault.Id)
+                                                {
+                                                    <div class="input-group input-group-sm">
+                                                        <input type="text" class="form-control" @bind="editingName" />
+                                                        <button class="btn btn-success" @onclick="SaveEdit">✓</button>
+                                                        <button class="btn btn-secondary" @onclick="CancelEdit">✕</button>
+                                                    </div>
+                                                }
+                                                else
+                                                {
+                                                    <strong>@vault.Name</strong>
+                                                }
+                                            </td>
+                                            <td><code class="small">@vault.Path</code></td>
+                                            <td>
+                                                @if (editingIndustryVaultId == vault.Id)
+                                                {
+                                                    <div class="input-group input-group-sm">
+                                                        <select class="form-select form-select-sm" @bind="editingIndustry">
+                                                            <option value="笔记">📝 笔记</option>
+                                                            <option value="计算机">💻 计算机</option>
+                                                            <option value="通用">📘 通用</option>
+                                                        </select>
+                                                        <button class="btn btn-success" @onclick="SaveIndustryEdit">✓</button>
+                                                        <button class="btn btn-secondary" @onclick="CancelIndustryEdit">✕</button>
+                                                    </div>
+                                                }
+                                                else
+                                                {
+                                                    <span class="badge bg-secondary" style="cursor: pointer;" @onclick="() => StartIndustryEdit(vault)" title="点击编辑行业">
+                                                        @(string.IsNullOrWhiteSpace(vault.Industry) ? "+ 设置行业" : vault.Industry)
+                                                    </span>
+                                                }
+                                            </td>
+                                            <td>@vault.CreatedAt.ToLocalTime().ToString("yyyy-MM-dd")</td>
+                                            <td>
+                                                @if (editingTagVaultId == vault.Id)
+                                                {
+                                                    <div class="input-group input-group-sm">
+                                                        <input type="text" class="form-control" @bind="editingTags" placeholder="标签1, 标签2..." />
+                                                        <button class="btn btn-success" @onclick="SaveTagEdit">✓</button>
+                                                        <button class="btn btn-secondary" @onclick="CancelTagEdit">✕</button>
+                                                    </div>
+                                                }
+                                                else
+                                                {
+                                                    <div class="d-flex flex-wrap gap-1 align-items-center" style="min-height: 31px; cursor: pointer;" @onclick="() => StartTagEdit(vault)" title="点击编辑标签">
+                                                        @if (vault.Tags?.Any() == true)
+                                                        {
+                                                            @foreach (var tag in vault.Tags)
+                                                            {
+                                                                <span class="badge bg-info text-dark" @key="tag">@tag</span>
+                                                            }
+                                                        }
+                                                        else
+                                                        {
+                                                            <span class="text-muted small">+ 添加标签</span>
+                                                        }
+                                                    </div>
+                                                }
+                                            </td>
+                                            <td>
+                                                @if (vaultNoteCounts.GetValueOrDefault(vault.Id, -1) < 0)
+                                                {
+                                                    <span class="spinner-border spinner-border-sm text-muted"></span>
+                                                }
+                                                else
+                                                {
+                                                    <span class="badge bg-primary">📝 @vaultNoteCounts[vault.Id] 篇</span>
+                                                }
+                                            </td>
+                                            <td>
+                                                @if (vaultCardCounts.GetValueOrDefault(vault.Id, -1) < 0)
+                                                {
+                                                    <span class="spinner-border spinner-border-sm text-muted"></span>
+                                                }
+                                                else if (vaultCardCounts.GetValueOrDefault(vault.Id, 0) == 0)
+                                                {
+                                                    <button class="btn btn-sm btn-outline-primary" @onclick="() => GenerateCardsForVault(vault)" disabled="@isGeneratingCards">
+                                                        @if (isGeneratingCards && generatingVaultId == vault.Id)
+                                                        {
+                                                            <span class="spinner-border spinner-border-sm"></span>
+                                                        }
+                                                        else
+                                                        {
+                                                            <span>🃏 生成记忆卡片</span>
+                                                        }
+                                                    </button>
+                                                }
+                                                else
+                                                {
+                                                    <span class="badge bg-success">🃏 @vaultCardCounts[vault.Id] 张</span>
+                                                }
+                                            </td>
+                                            <td>
+                                                <div class="btn-group btn-group-sm">
+                                                    <button class="btn btn-outline-dark" @onclick="() => OpenInObsidian(vault)" title="用 Obsidian 打开">
+                                                        🔮
+                                                    </button>
+                                                    @if (notesMdStatus?.Available == true && !IsVaultRegisteredInNotesMd(vault.Path))
+                                                    {
+                                                        <button class="btn btn-outline-success" @onclick="() => AddVaultToNotesMd(vault)" disabled="@(notesMdAddingVaultId == vault.Id)" title="注册到 Obsidian (notesmd-cli)">
+                                                            @if (notesMdAddingVaultId == vault.Id)
+                                                            {
+                                                                <span class="spinner-border spinner-border-sm"></span>
+                                                            }
+                                                            else
+                                                            {
+                                                                <span>📌</span>
+                                                            }
+                                                        </button>
+                                                    }
+                                                    else if (notesMdStatus?.Available == true && IsVaultRegisteredInNotesMd(vault.Path))
+                                                    {
+                                                        <button class="btn btn-outline-success" disabled title="已注册到 Obsidian">
+                                                            ✓
+                                                        </button>
+                                                    }
+                                                    <button class="btn btn-outline-secondary" @onclick="() => StartEdit(vault)" title="重命名">
+                                                        重命名
+                                                    </button>
+                                                    <button class="btn btn-outline-danger" @onclick="() => ConfirmDelete(vault)" title="删除">
+                                                        删除
+                                                    </button>
+                                                </div>
+                                            </td>
+                                        </tr>
+                                    }
+                                </tbody>
+                            </table>
+                        }
+                    </div>
+                </div>
+                }
+            }
+            else if (activeTab == "git")
+            {
+                @if (isGitLoading)
+                {
+                    <div class="text-center py-4">
+                        <div class="spinner-border text-primary"></div>
+                        <p class="mt-2">正在加载...</p>
+                    </div>
+                }
+                else if (activeVault == null && string.IsNullOrEmpty(vaultRootPathPreference))
+                {
+                    <div class="alert alert-info">
+                        <h5>📋 根路径 Git</h5>
+                        <p class="mb-0">此功能对<strong>知识库根路径</strong>进行 Git 版本管理。请先在"知识库路径配置"Tab 中设置知识库根路径。</p>
+                    </div>
+                }
+                else if (gitStatus == null)
+                {
+                    <div class="alert alert-warning">
+                        <h5>⚠️ 加载失败</h5>
+                        <p class="mb-0">无法获取 Git 状态。请检查后端服务是否正常运行。</p>
+                    </div>
+                }
+                else if (!gitStatus.IsGitRepo)
+                {
+                    <div class="alert alert-warning">
+                        <h5>⚠️ @gitStatus.Message</h5>
+                        <p class="mb-0">请在知识库目录中运行 <code>git init</code> 初始化仓库。</p>
+                    </div>
+                }
+                else
+                {
+                    <!-- 状态概览 -->
+                    <div class="row mb-4">
+                        <div class="col-md-6">
+                            <div class="card bg-light">
+                                <div class="card-body">
+                                    <h5 class="card-title">📊 仓库状态</h5>
+                                    <table class="table table-sm mb-0">
+                                        <tr><td width="100"><strong>分支</strong></td><td><code class="bg-white px-2 rounded">@gitStatus.Branch</code></td></tr>
+                                        <tr><td><strong>远程</strong></td><td>@(gitStatus.HasRemote ? "✅ 已配置" : "❌ 未配置")</td></tr>
+                                        <tr><td><strong>变更</strong></td><td><span class="badge bg-@(gitStatus.Changes.Count > 0 ? "warning" : "success")">@gitStatus.Changes.Count 个文件</span></td></tr>
+                                        @if (gitStatus.Ahead > 0 || gitStatus.Behind > 0)
+                                        {
+                                            <tr><td><strong>同步</strong></td><td>
+                                                @if (gitStatus.Ahead > 0) { <span class="badge bg-primary me-1">↑ @gitStatus.Ahead 待推送</span> }
+                                                @if (gitStatus.Behind > 0) { <span class="badge bg-secondary">↓ @gitStatus.Behind 待拉取</span> }
+                                            </td></tr>
+                                        }
+                                    </table>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="col-md-6">
+                            <div class="card">
+                                <div class="card-body">
+                                    <h5 class="card-title">⚡ 快捷操作</h5>
+                                    <button class="btn btn-outline-primary w-100 mb-2" @onclick="DoPull" disabled="@isLoading">
+                                        @if (isLoading && action == "pull") { <span class="spinner-border spinner-border-sm me-1"></span> }
+                                        ↓ 拉取远程变更
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- 变更列表 -->
+                    @if (gitStatus.Changes.Count > 0)
+                    {
+                        <div class="card mb-4">
+                            <div class="card-header bg-warning bg-opacity-25">
+                                <h5 class="mb-0">📝 待提交的变更 (@gitStatus.Changes.Count)</h5>
+                            </div>
+                            <div class="card-body" style="max-height: 250px; overflow-y: auto;">
+                                <ul class="list-group list-group-flush">
+                                    @foreach (var change in gitStatus.Changes)
+                                    {
+                                        <li class="list-group-item d-flex justify-content-between align-items-center">
+                                            <code>@change.File</code>
+                                            <span class="badge @GetStatusBadgeClass(change.Status)">@change.Status</span>
+                                        </li>
+                                    }
+                                </ul>
+                            </div>
+                            <div class="card-footer">
+                                <div class="row g-2">
+                                    <div class="col">
+                                        <div class="input-group">
+                                            <input type="text" class="form-control" placeholder="输入提交信息..." 
+                                                   @bind="commitMessage" @bind:event="oninput" />
+                                            <button class="btn btn-success" @onclick="DoCommit" 
+                                                    disabled="@(isLoading || string.IsNullOrWhiteSpace(commitMessage))">
+                                                @if (isLoading && action == "commit") { <span class="spinner-border spinner-border-sm me-1"></span> }
+                                                ✅ 提交
+                                            </button>
+                                        </div>
+                                    </div>
+                                    <div class="col-auto">
+                                        <button class="btn btn-outline-danger" @onclick="ConfirmDiscard" disabled="@isLoading">
+                                            @if (isLoading && action == "discard") { <span class="spinner-border spinner-border-sm me-1"></span> }
+                                            🗑️ 撤销更改
+                                        </button>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    }
+                    else
+                    {
+                        <div class="alert alert-success mb-4">
+                            ✅ @gitStatus.Message
+                        </div>
+                    }
+
+                    <!-- 推送按钮 -->
+                    @if (gitStatus.Ahead > 0)
+                    {
+                        <div class="card mb-4 border-primary">
+                            <div class="card-header bg-primary text-white">
+                                <h5 class="mb-0">🚀 待推送的提交 (@gitStatus.Ahead)</h5>
+                            </div>
+                            <div class="card-body">
+                                @if (unpushedCommits.Count > 0)
+                                {
+                                    <table class="table table-sm mb-3">
+                                        <tbody>
+                                            @foreach (var c in unpushedCommits)
+                                            {
+                                                <tr>
+                                                    <td style="width: 70px;"><code class="small">@c.Hash.Substring(0, Math.Min(7, c.Hash.Length))</code></td>
+                                                    <td>
+                                                        <strong>@c.Message</strong>
+                                                        <br />
+                                                        <small class="text-muted">@c.Author · @c.Date</small>
+                                                    </td>
+                                                </tr>
+                                            }
+                                        </tbody>
+                                    </table>
+                                }
+                                <div class="d-flex justify-content-end">
+                                    <button class="btn btn-primary btn-lg" @onclick="DoPush" disabled="@isLoading">
+                                        @if (isLoading && action == "push") { <span class="spinner-border spinner-border-sm me-1"></span> }
+                                        ↑ 推送到远程
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                    }
+
+                    <!-- 提交历史 -->
+                    <div class="card">
+                        <div class="card-header">
+                            <h5 class="mb-0">📜 最近提交</h5>
+                        </div>
+                        <div class="card-body p-0" style="max-height: 300px; overflow-y: auto;">
+                            @if (commits.Count > 0)
+                            {
+                                <table class="table table-hover mb-0">
+                                    <tbody>
+                                        @foreach (var c in commits)
+                                        {
+                                            <tr>
+                                                <td style="width: 80px;"><code class="small">@c.Hash.Substring(0, Math.Min(7, c.Hash.Length))</code></td>
+                                                <td>
+                                                    <strong>@c.Message</strong>
+                                                    <br />
+                                                    <small class="text-muted">@c.Author · @c.Date</small>
+                                                </td>
+                                            </tr>
+                                        }
+                                    </tbody>
+                                </table>
+                            }
+                            else
+                            {
+                                <p class="text-muted text-center py-3 mb-0">暂无提交历史</p>
+                            }
+                        </div>
+                    </div>
+                }
+            }
+            else if (activeTab == "backup")
+            {
+                <!-- 备份恢复 Tab -->
+                <div class="row">
+                    <!-- 创建备份 -->
+                    <div class="col-md-6">
+                        <div class="card mb-4">
+                            <div class="card-header">
+                                <h5 class="mb-0">💾 创建备份</h5>
+                            </div>
+                            <div class="card-body">
+                                <p class="text-muted small">全量备份包含：数据库、AI 配置、知识库文件、用户偏好。支持跨平台恢复。</p>
+
+                                <div class="mb-3">
+                                    <label class="form-label">备份保存目录</label>
+                                    <input type="text" class="form-control form-control-sm" @bind="backupDir" placeholder="留空使用默认目录（文档/DoctorNotesBackups）" />
+                                </div>
+
+                                <div class="mb-3">
+                                    <label class="form-label">备份密码（可选，用于保护 API Key）</label>
+                                    <input type="password" class="form-control form-control-sm" @bind="backupPassword" placeholder="不设密码则 API Key 明文存储" />
+                                    <small class="text-muted">设置密码后，API Key 将用此密码加密，恢复时需输入相同密码。</small>
+                                </div>
+
+                                <button class="btn btn-primary btn-sm" @onclick="CreateBackup" disabled="@isBackupLoading">
+                                    @if (isBackupLoading)
+                                    {
+                                        <span class="spinner-border spinner-border-sm me-1"></span>
+                                    }
+                                    创建全量备份
+                                </button>
+
+                                @if (!string.IsNullOrEmpty(backupResultMessage))
+                                {
+                                    <div class="alert alert-@(backupResultSuccess ? "success" : "danger") mt-3 mb-0 small">
+                                        @backupResultMessage
+                                    </div>
+                                }
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- 恢复备份 -->
+                    <div class="col-md-6">
+                        <div class="card mb-4">
+                            <div class="card-header">
+                                <h5 class="mb-0">📂 恢复备份</h5>
+                            </div>
+                            <div class="card-body">
+                                <div class="mb-3">
+                                    <label class="form-label">备份文件路径</label>
+                                    <input type="text" class="form-control form-control-sm" @bind="restoreBackupPath" placeholder="选择 .zip 备份文件" />
+                                </div>
+
+                                <div class="mb-3">
+                                    <label class="form-label">备份密码</label>
+                                    <input type="password" class="form-control form-control-sm" @bind="restorePassword" placeholder="如果备份有密码保护则输入" />
+                                </div>
+
+                                <div class="mb-3">
+                                    <label class="form-label">知识库根路径覆盖（跨平台恢复时）</label>
+                                    <input type="text" class="form-control form-control-sm" @bind="restoreVaultRootOverride" placeholder="留空使用当前系统根路径" />
+                                    <small class="text-muted">从 Windows 恢复到 Linux 时，可在此指定新的知识库根路径。</small>
+                                </div>
+
+                                <div class="form-check mb-3">
+                                    <input class="form-check-input" type="checkbox" @bind="restoreOverwrite" id="restoreOverwrite" />
+                                    <label class="form-check-label" for="restoreOverwrite">覆盖现有数据</label>
+                                </div>
+
+                                @if (restoreValidation != null)
+                                {
+                                    <div class="alert alert-info small mb-3">
+                                        <strong>备份信息：</strong><br />
+                                        版本：@restoreValidation.Version<br />
+                                        创建时间：@(restoreValidation.CreatedAt?.ToLocalTime().ToString("yyyy-MM-dd HH:mm") ?? "未知")<br />
+                                        源平台：@restoreValidation.SourceOS<br />
+                                        @if (restoreValidation.HasPassword)
+                                        {
+                                            <span class="text-warning">🔒 有密码保护</span><br />
+                                        }
+                                        知识库数量：@restoreValidation.VaultCount
+                                    </div>
+                                }
+
+                                <div class="d-flex gap-2">
+                                    <button class="btn btn-outline-secondary btn-sm" @onclick="ValidateBackup" disabled="@isRestoreLoading || string.IsNullOrEmpty(restoreBackupPath)">
+                                        验证备份
+                                    </button>
+                                    <button class="btn btn-warning btn-sm" @onclick="RestoreBackup" disabled="@isRestoreLoading || string.IsNullOrEmpty(restoreBackupPath)">
+                                        @if (isRestoreLoading)
+                                        {
+                                            <span class="spinner-border spinner-border-sm me-1"></span>
+                                        }
+                                        恢复备份
+                                    </button>
+                                </div>
+
+                                @if (!string.IsNullOrEmpty(restoreResultMessage))
+                                {
+                                    <div class="alert alert-@(restoreResultSuccess ? "success" : "danger") mt-3 mb-0 small">
+                                        @restoreResultMessage
+                                    </div>
+                                }
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- 备份列表 -->
+                <div class="card">
+                    <div class="card-header">
+                        <h5 class="mb-0">📋 已有备份</h5>
+                    </div>
+                    <div class="card-body">
+                        @if (backupList.Count == 0)
+                        {
+                            <p class="text-muted text-center py-3 mb-0">暂无备份文件</p>
+                        }
+                        else
+                        {
+                            <table class="table table-sm table-hover mb-0">
+                                <thead>
+                                    <tr>
+                                        <th>文件名</th>
+                                        <th>大小</th>
+                                        <th>创建时间</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    @foreach (var b in backupList)
+                                    {
+                                        <tr>
+                                            <td><code>@b.FileName</code></td>
+                                            <td>@FormatFileSize(b.Size)</td>
+                                            <td>@b.CreationTime.ToLocalTime().ToString("yyyy-MM-dd HH:mm")</td>
+                                        </tr>
+                                    }
+                                </tbody>
+                            </table>
+                        }
+                    </div>
+                </div>
+            }
+            else if (activeTab == "trash")
+            {
+                <!-- 回收站 Tab -->
+                <div class="d-flex justify-content-between align-items-center mb-3">
+                    <h5 class="mb-0">🗑️ 回收站 (@trashVaults.Count)</h5>
+                    @if (trashVaults.Count > 0)
+                    {
+                        <button class="btn btn-sm btn-outline-danger" @onclick="ConfirmEmptyTrash" disabled="@isLoading">
+                            🧹 清空回收站
+                        </button>
+                    }
+                </div>
+
+                @if (trashVaults.Count == 0)
+                {
+                    <div class="text-center py-5 text-muted">
+                        <p class="mb-0">回收站为空</p>
+                        <small>删除的知识库会暂存在这里</small>
+                    </div>
+                }
+                else
+                {
+                    <div class="card">
+                        <div class="card-body p-0">
+                            <table class="table table-hover mb-0">
+                                <thead>
+                                    <tr>
+                                        <th>名称</th>
+                                        <th>路径</th>
+                                        <th>行业</th>
+                                        <th>操作</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    @foreach (var vault in trashVaults)
+                                    {
+                                        <tr @key="vault.Id">
+                                            <td><strong>@vault.Name</strong></td>
+                                            <td><code class="small">@vault.Path</code></td>
+                                            <td>@(string.IsNullOrWhiteSpace(vault.Industry) ? "-" : vault.Industry)</td>
+                                            <td>
+                                                <button class="btn btn-sm btn-outline-success" @onclick="() => ConfirmRestore(vault)">
+                                                    ↩️ 恢复
+                                                </button>
+                                            </td>
+                                        </tr>
+                                    }
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                }
+            }
+        </div>
+    </div>
+</div>
+
+<!-- 删除确认对话框 -->
+@if (showDeleteConfirm)
+{
+    <div class="modal fade show d-block" style="background-color: rgba(0,0,0,0.5);">
+        <div class="modal-dialog modal-dialog-centered">
+            <div class="modal-content">
+                <div class="modal-header bg-danger text-white">
+                    <h5 class="modal-title">⚠️ 确认删除知识库</h5>
+                </div>
+                <div class="modal-body">
+                    <p>确定要删除知识库 <strong>"@vaultToDelete?.Name"</strong> 吗？</p>
+                    <p class="text-muted mb-0">知识库将移入回收站，可随时恢复。</p>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" @onclick="CancelDelete">取消</button>
+                    <button type="button" class="btn btn-danger" @onclick="DoDelete">确认删除</button>
+                </div>
+            </div>
+        </div>
+    </div>
+}
+
+<!-- 恢复确认对话框 -->
+@if (showRestoreConfirm)
+{
+    <div class="modal fade show d-block" style="background-color: rgba(0,0,0,0.5);">
+        <div class="modal-dialog modal-dialog-centered">
+            <div class="modal-content">
+                <div class="modal-header bg-success text-white">
+                    <h5 class="modal-title">↩️ 确认恢复知识库</h5>
+                </div>
+                <div class="modal-body">
+                    <p>确定要恢复知识库 <strong>"@vaultToRestore?.Name"</strong> 吗？</p>
+                    <p class="text-muted mb-0">将移回原始路径：<code>@vaultToRestore?.Path</code></p>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" @onclick="CancelRestore">取消</button>
+                    <button type="button" class="btn btn-success" @onclick="DoRestore">确认恢复</button>
+                </div>
+            </div>
+        </div>
+    </div>
+}
+
+<!-- 清空回收站确认对话框 -->
+@if (showEmptyTrashConfirm)
+{
+    <div class="modal fade show d-block" style="background-color: rgba(0,0,0,0.5);">
+        <div class="modal-dialog modal-dialog-centered">
+            <div class="modal-content">
+                <div class="modal-header bg-danger text-white">
+                    <h5 class="modal-title">⚠️ 确认清空回收站</h5>
+                </div>
+                <div class="modal-body">
+                    <p>确定要清空回收站吗？</p>
+                    <p class="text-muted mb-0"><strong>@trashVaults.Count</strong> 个知识库将被<strong>永久删除</strong>，无法恢复。</p>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" @onclick="CancelEmptyTrash">取消</button>
+                    <button type="button" class="btn btn-danger" @onclick="DoEmptyTrash">确认清空</button>
+                </div>
+            </div>
+        </div>
+    </div>
+}
+
+<!-- 撤销确认对话框 -->
+@if (showDiscardConfirm)
+{
+    <div class="modal fade show d-block" style="background-color: rgba(0,0,0,0.5);">
+        <div class="modal-dialog modal-dialog-centered">
+            <div class="modal-content">
+                <div class="modal-header bg-danger text-white">
+                    <h5 class="modal-title">⚠️ 确认撤销更改</h5>
+                </div>
+                <div class="modal-body">
+                    <p class="mb-0">此操作将撤销所有未提交的工作区更改，<strong>无法恢复</strong>。</p>
+                    <p class="text-muted mt-2 mb-0">包括：已修改的文件、新增的文件、删除的文件。</p>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" @onclick="CancelDiscard">取消</button>
+                    <button type="button" class="btn btn-danger" @onclick="DoDiscard">确认撤销</button>
+                </div>
+            </div>
+        </div>
+    </div>
+}
+
+
+@code {
+    // Tab状态
+    private string activeTab = "vaults";
+
+    // Vault相关
+    private List<VaultConfig> vaults = new();
+    private VaultConfig? activeVault;
+    private string? editingVaultId;
+    private string editingName = "";
+    private string? editingTagVaultId;
+    private string editingTags = "";
+    private string? editingIndustryVaultId;
+    private string editingIndustry = "笔记";
+    private bool showDeleteConfirm;
+    private VaultConfig? vaultToDelete;
+
+    // 回收站相关
+    private List<VaultConfig> trashVaults = new();
+    private bool showRestoreConfirm;
+    private VaultConfig? vaultToRestore;
+    private bool showEmptyTrashConfirm;
+
+    // Git相关
+    private GitStatusResponse? gitStatus;
+    private bool isGitLoading = false;
+    private List<CommitResponse> commits = new();
+    private List<CommitResponse> unpushedCommits = new();
+    private string commitMessage = "";
+    private bool showDiscardConfirm = false;
+
+    // 通用
+    private string? message;
+    private bool success;
+    private bool isLoading;
+    private bool isInitializing = true;  // 页面首次加载状态
+    private string action = "";
+
+    // 知识库根路径偏好
+    private string vaultRootPathPreference = "";
+    private bool isVaultRootEnvConfigured = false;
+
+    // 添加新知识库
+    private string newVaultIndustry = "笔记";
+    private string newVaultName = "";
+
+    // 笔记数 / 记忆卡片
+    private Dictionary<string, int> vaultNoteCounts = new();
+    private Dictionary<string, int> vaultCardCounts = new();
+    private bool isGeneratingCards = false;
+    private string? generatingVaultId;
+
+    // 备份恢复
+    private bool isBackupLoading = false;
+    private bool isRestoreLoading = false;
+    private string backupDir = "";
+    private string backupPassword = "";
+    private string backupResultMessage = "";
+    private bool backupResultSuccess = false;
+    private string restoreBackupPath = "";
+    private string restorePassword = "";
+    private string restoreVaultRootOverride = "";
+    private bool restoreOverwrite = true;
+    private string restoreResultMessage = "";
+    private bool restoreResultSuccess = false;
+    private ValidateBackupResponse? restoreValidation = null;
+    private List<BackupFileInfo> backupList = new();
+
+    // 平台信息（用于路径示例）
+    private PlatformInfoResponse? _platformInfo;
+
+    // NotesMD CLI
+    private NotesMdCliStatus? notesMdStatus;
+    private bool isNotesMdLoading;
+    private string? notesMdAddingVaultId;
+
+    protected override void OnInitialized()
+    {
+        // 从URL查询参数读取tab设置
+        var uri = Navigation.ToAbsoluteUri(Navigation.Uri);
+        var query = System.Web.HttpUtility.ParseQueryString(uri.Query);
+        var tabParam = query.Get("tab");
+        if (!string.IsNullOrEmpty(tabParam) && (tabParam == "vaults" || tabParam == "git" || tabParam == "backup"))
+        {
+            activeTab = tabParam;
+        }
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (firstRender)
+        {
+            // 异步加载数据，不阻塞初始渲染
+            await LoadDataAsync();
+        }
+    }
+
+    private async Task LoadDataAsync()
+    {
+        try
+        {
+            isInitializing = true;
+
+            // 并行加载平台信息和当前 tab 数据
+            var platformTask = LoadPlatformInfoAsync();
+            var tabTask = activeTab == "vaults" ? LoadVaultsData() : LoadGitData();
+            await Task.WhenAll(platformTask, tabTask);
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "加载知识库数据失败");
+            message = $"加载失败: {ex.Message}";
+            success = false;
+        }
+        finally
+        {
+            isInitializing = false;
+        }
+
+        // 数据加载完成后刷新UI
+        await InvokeAsync(StateHasChanged);
+    }
+
+    private async Task LoadPlatformInfoAsync()
+    {
+        try
+        {
+            _platformInfo = await ApiService.GetPlatformAsync();
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "加载平台信息失败");
+        }
+    }
+
+    private async Task LoadVaultsData()
+    {
+        isLoading = true;
+        try
+        {
+            // 并行加载知识库列表、根路径偏好、NotesMD CLI 状态
+            var vaultsTask = VaultsService.GetVaultsAsync(forceRefresh: true);
+            var rootPathTask = VaultsService.GetVaultRootPathPreferenceAsync();
+            var notesMdTask = ApiService.GetNotesMdCliStatusAsync();
+
+            await Task.WhenAll(vaultsTask, rootPathTask, notesMdTask);
+
+            var response = vaultsTask.Result;
+            vaults = response.Vaults;
+            activeVault = vaults.FirstOrDefault();
+            vaultRootPathPreference = rootPathTask.Result;
+            notesMdStatus = notesMdTask.Result;
+
+            // 并行加载各知识库的笔记数量和卡片数量
+            _ = LoadVaultNoteCountsAsync();
+            _ = LoadVaultCardCountsAsync();
+        }
+        catch (Exception ex)
+        {
+            message = $"加载失败: {ex.Message}";
+            success = false;
+        }
+        finally
+        {
+            isLoading = false;
+        }
+    }
+
+    private bool IsVaultRegisteredInNotesMd(string path)
+    {
+        if (notesMdStatus?.RegisteredPaths == null || notesMdStatus.RegisteredPaths.Count == 0)
+            return false;
+        var normalized = path.Trim().Replace("\\", "/").TrimEnd('/');
+        return notesMdStatus.RegisteredPaths.Any(r =>
+        {
+            var regNormalized = r.Trim().Replace("\\", "/").TrimEnd('/');
+            return string.Equals(regNormalized, normalized, StringComparison.OrdinalIgnoreCase);
+        });
+    }
+
+    private async Task LoadVaultNoteCountsAsync()
+    {
+        if (vaults == null || vaults.Count == 0) return;
+        foreach (var vault in vaults)
+        {
+            vaultNoteCounts[vault.Id] = -1;
+        }
+        try
+        {
+            var tasks = vaults.Select(async v =>
+            {
+                try
+                {
+                    var count = await ApiService.GetVaultNoteCountAsync(v.Id);
+                    vaultNoteCounts[v.Id] = count;
+                }
+                catch
+                {
+                    vaultNoteCounts[v.Id] = 0;
+                }
+            });
+            await Task.WhenAll(tasks);
+        }
+        catch { /* 非关键功能，失败不影响主流程 */ }
+        await InvokeAsync(StateHasChanged);
+    }
+
+    private async Task LoadVaultCardCountsAsync()
+    {
+        if (vaults == null || vaults.Count == 0) return;
+        foreach (var vault in vaults)
+        {
+            vaultCardCounts[vault.Id] = -1;
+        }
+        try
+        {
+            var tasks = vaults.Select(async v =>
+            {
+                try
+                {
+                    var count = await ApiService.GetVaultCardCountAsync(v.Id);
+                    vaultCardCounts[v.Id] = count;
+                }
+                catch
+                {
+                    vaultCardCounts[v.Id] = 0;
+                }
+            });
+            await Task.WhenAll(tasks);
+        }
+        catch { /* 非关键功能，失败不影响主流程 */ }
+        StateHasChanged();
+    }
+
+    private string? lastCreatedTaskId = null;
+
+    private async Task GenerateCardsForVault(VaultConfig vault)
+    {
+        isGeneratingCards = true;
+        generatingVaultId = vault.Id;
+        StateHasChanged();
+        try
+        {
+            var result = await ApiService.GenerateAllCardsAsync(vault.Id);
+            if (result != null && result.Success)
+            {
+                lastCreatedTaskId = result.TaskId;
+                message = $"已创建卡片生成任务：{result.VaultName}，可前往任务页查看进度";
+                success = true;
+            }
+            else
+            {
+                message = $"创建任务失败: {result?.Message ?? "未知错误"}";
+                success = false;
+            }
+        }
+        catch (Exception ex)
+        {
+            message = $"生成失败: {ex.Message}";
+            success = false;
+        }
+        finally
+        {
+            isGeneratingCards = false;
+            generatingVaultId = null;
+            StateHasChanged();
+        }
+    }
+
+    private int GetUnregisteredVaultCount()
+    {
+        if (notesMdStatus?.Available != true)
+            return 0;
+        return vaults.Count(v => !IsVaultRegisteredInNotesMd(v.Path));
+    }
+
+    private async Task AddVaultToNotesMd(VaultConfig vault)
+    {
+        if (notesMdStatus?.Available != true) return;
+        notesMdAddingVaultId = vault.Id;
+        try
+        {
+            var result = await ApiService.AddVaultToNotesMdCliAsync(vault.Path);
+            if (result)
+            {
+                notesMdStatus = await ApiService.GetNotesMdCliStatusAsync();
+                message = $"知识库 \"{vault.Name}\" 已注册到 Obsidian";
+                success = true;
+            }
+            else
+            {
+                message = $"注册失败，请检查 notesmd-cli 是否正常工作";
+                success = false;
+            }
+        }
+        catch (Exception ex)
+        {
+            message = $"注册失败: {ex.Message}";
+            success = false;
+        }
+        finally
+        {
+            notesMdAddingVaultId = null;
+        }
+    }
+
+    private async Task BatchAddVaultsToNotesMd()
+    {
+        if (notesMdStatus?.Available != true) return;
+        var unregistered = vaults.Where(v => !IsVaultRegisteredInNotesMd(v.Path)).ToList();
+        if (unregistered.Count == 0) return;
+
+        isNotesMdLoading = true;
+        try
+        {
+            var paths = unregistered.Select(v => v.Path).ToList();
+            var result = await ApiService.BatchAddVaultsToNotesMdCliAsync(paths);
+            if (result != null)
+            {
+                notesMdStatus = await ApiService.GetNotesMdCliStatusAsync();
+                if (result.Success)
+                {
+                    message = $"成功注册 {result.SucceededCount} 个知识库到 Obsidian";
+                    success = true;
+                }
+                else
+                {
+                    message = $"注册完成：成功 {result.SucceededCount} 个，失败 {result.FailedCount} 个";
+                    success = result.FailedCount == 0;
+                }
+            }
+            else
+            {
+                message = "批量注册失败，请检查 notesmd-cli 是否正常工作";
+                success = false;
+            }
+        }
+        catch (Exception ex)
+        {
+            message = $"批量注册失败: {ex.Message}";
+            success = false;
+        }
+        finally
+        {
+            isNotesMdLoading = false;
+        }
+    }
+
+    private async Task LoadGitData()
+    {
+        if (activeVault == null && string.IsNullOrEmpty(vaultRootPathPreference))
+        {
+            // 没有活跃知识库也没有根路径，不需要加载
+            isGitLoading = false;
+            return;
+        }
+
+        isGitLoading = true;
+        isLoading = true;
+        try
+        {
+            var client = HttpClientFactory.CreateClient("TaskRunnerApi");
+            var vaultIdParam = activeVault != null
+                ? $"?vaultId={Uri.EscapeDataString(activeVault.Id)}"
+                : "";
+            gitStatus = await client.GetFromJsonAsync<GitStatusResponse>($"api/git/status{vaultIdParam}");
+            commits = await client.GetFromJsonAsync<List<CommitResponse>>($"api/git/log{vaultIdParam}") ?? new();
+            unpushedCommits = await client.GetFromJsonAsync<List<CommitResponse>>($"api/git/unpushed{vaultIdParam}") ?? new();
+        }
+        catch (Exception ex)
+        {
+            message = $"加载失败: {ex.Message}";
+            success = false;
+            gitStatus = null; // 确保加载失败时 gitStatus 为 null，触发"加载失败"提示
+        }
+        finally
+        {
+            isLoading = false;
+            isGitLoading = false;
+        }
+    }
+
+    // ---- 备份恢复方法 ----
+
+    private async Task CreateBackup()
+    {
+        isBackupLoading = true;
+        backupResultMessage = "";
+        try
+        {
+            var result = await BackupService.CreateFullBackupAsync(
+                string.IsNullOrWhiteSpace(backupDir) ? null : backupDir.Trim(),
+                string.IsNullOrWhiteSpace(backupPassword) ? null : backupPassword);
+
+            backupResultSuccess = result.Success;
+            backupResultMessage = result.Success
+                ? $"备份创建成功！文件：{result.BackupPath}，大小：{FormatFileSize(result.FileSize ?? 0)}"
+                : result.Message;
+
+            // 刷新备份列表
+            await LoadBackupList();
+        }
+        catch (Exception ex)
+        {
+            backupResultSuccess = false;
+            backupResultMessage = $"创建备份失败：{ex.Message}";
+        }
+        finally
+        {
+            isBackupLoading = false;
+        }
+    }
+
+    private async Task ValidateBackup()
+    {
+        isRestoreLoading = true;
+        try
+        {
+            restoreValidation = await BackupService.ValidateBackupAsync(
+                restoreBackupPath,
+                string.IsNullOrWhiteSpace(restorePassword) ? null : restorePassword);
+        }
+        catch (Exception ex)
+        {
+            restoreValidation = new ValidateBackupResponse { IsValid = false, Message = ex.Message };
+        }
+        finally
+        {
+            isRestoreLoading = false;
+        }
+    }
+
+    private async Task RestoreBackup()
+    {
+        var warnMsg = restoreOverwrite
+            ? "⚠️ 将覆盖现有数据，此操作不可撤销！确定要继续恢复备份吗？"
+            : "确定要从此备份恢复吗？";
+        if (!await JS.InvokeAsync<bool>("confirm", warnMsg))
+            return;
+        isRestoreLoading = true;
+        restoreResultMessage = "";
+        try
+        {
+            var result = await BackupService.RestoreFullBackupAsync(
+                restoreBackupPath,
+                string.IsNullOrWhiteSpace(restorePassword) ? null : restorePassword,
+                string.IsNullOrWhiteSpace(restoreVaultRootOverride) ? null : restoreVaultRootOverride.Trim(),
+                restoreOverwrite);
+
+            restoreResultSuccess = result.Success;
+            if (result.Success)
+            {
+                restoreResultMessage = $"恢复成功！源平台：{result.SourcePlatform}，源系统：{result.SourceOS}";
+                // 刷新知识库列表
+                await LoadVaultsData();
+            }
+            else
+            {
+                restoreResultMessage = result.Message;
+            }
+        }
+        catch (Exception ex)
+        {
+            restoreResultSuccess = false;
+            restoreResultMessage = $"恢复失败：{ex.Message}";
+        }
+        finally
+        {
+            isRestoreLoading = false;
+        }
+    }
+
+    private async Task LoadBackupList()
+    {
+        try
+        {
+            var result = await BackupService.GetBackupListAsync();
+            if (result.Success)
+            {
+                backupList = result.Backups;
+            }
+        }
+        catch { }
+    }
+
+    private static string FormatFileSize(long bytes)
+    {
+        if (bytes < 1024) return $"{bytes} B";
+        if (bytes < 1024 * 1024) return $"{bytes / 1024.0:F1} KB";
+        if (bytes < 1024 * 1024 * 1024) return $"{bytes / (1024.0 * 1024):F1} MB";
+        return $"{bytes / (1024.0 * 1024 * 1024):F1} GB";
+    }
+
+
+    private async Task OpenInObsidian(VaultConfig vault)
+    {
+        try
+        {
+            var result = await ApiService.OpenVaultInObsidianAsync(vault.Path);
+            if (!result)
+            {
+                message = "启动 Obsidian 失败，请检查是否已安装";
+                success = false;
+            }
+        }
+        catch (Exception ex)
+        {
+            message = $"启动 Obsidian 失败: {ex.Message}";
+            success = false;
+        }
+    }
+
+    private async Task SwitchTab(string tab)
+    {
+        activeTab = tab;
+        message = null;
+        
+        if (tab == "vaults")
+        {
+            await LoadVaultsData();
+        }
+        else if (tab == "git")
+        {
+            await LoadGitData();
+        }
+        else if (tab == "backup")
+        {
+            await LoadBackupList();
+        }
+        else if (tab == "trash")
+        {
+            await LoadTrashData();
+        }
+    }
+
+    private async Task RefreshCurrentTab()
+    {
+        if (activeTab == "vaults")
+        {
+            await LoadVaultsData();
+        }
+        else if (activeTab == "trash")
+        {
+            await LoadTrashData();
+        }
+        else
+        {
+            await LoadGitData();
+        }
+    }
+
+    // Vault操作方法
+    private async Task AddNewVault()
+    {
+        if (string.IsNullOrWhiteSpace(newVaultName))
+        {
+            message = "请输入知识库名称";
+            success = false;
+            return;
+        }
+        if (string.IsNullOrEmpty(vaultRootPathPreference))
+        {
+            message = "请先设置知识库根路径";
+            success = false;
+            return;
+        }
+
+        isLoading = true;
+        message = null;
+
+        try
+        {
+            var vaultName = newVaultName.Trim();
+            var industry = newVaultIndustry.Trim();
+            var vaultPath = System.IO.Path.Combine(vaultRootPathPreference, "local", industry, vaultName);
+            var (success, vault, error) = await VaultsService.AddVaultAsync(vaultName, vaultPath, industry);
+
+            if (success && vault != null)
+            {
+                message = $"知识库 \"{vaultName}\" 添加成功";
+                this.success = true;
+                newVaultName = "";
+                await LoadVaultsData();
+                await StatusUpdateService.NotifyVaultStatusChangedAsync();
+                VaultStatusService.NotifyStateChanged();
+            }
+            else
+            {
+                message = $"添加失败: {error}";
+                this.success = false;
+            }
+        }
+        catch (Exception ex)
+        {
+            message = $"添加失败: {ex.Message}";
+            success = false;
+        }
+        finally
+        {
+            isLoading = false;
+        }
+    }
+
+    private async Task SyncVaults()
+    {
+        if (!await JS.InvokeAsync<bool>("confirm", "同步知识库将检测并移除已不存在的知识库。确定要继续吗？"))
+            return;
+        isLoading = true;
+        message = null;
+
+        try
+        {
+            var (success, added, removed, error) = await VaultsService.SyncVaultsAsync();
+
+            if (success)
+            {
+                var parts = new List<string>();
+                if (added > 0) parts.Add($"新增 {added} 个");
+                if (removed > 0) parts.Add($"移除 {removed} 个");
+                message = parts.Count > 0 ? $"同步完成：{string.Join("，", parts)}" : "知识库已是最新状态";
+                this.success = true;
+                await LoadVaultsData();
+                await StatusUpdateService.NotifyVaultStatusChangedAsync();
+                VaultStatusService.NotifyStateChanged();
+            }
+            else
+            {
+                message = $"同步失败: {error}";
+                this.success = false;
+            }
+        }
+        catch (Exception ex)
+        {
+            message = $"同步失败: {ex.Message}";
+            success = false;
+        }
+        finally
+        {
+            isLoading = false;
+        }
+    }
+
+    private void StartEdit(VaultConfig vault)
+    {
+        editingVaultId = vault.Id;
+        editingName = vault.Name;
+    }
+
+    private void CancelEdit()
+    {
+        editingVaultId = null;
+        editingName = "";
+    }
+
+    private async Task SaveEdit()
+    {
+        if (string.IsNullOrWhiteSpace(editingName) || string.IsNullOrWhiteSpace(editingVaultId))
+            return;
+
+        isLoading = true;
+        message = null;
+
+        try
+        {
+            var (success, error) = await VaultsService.UpdateVaultNameAsync(editingVaultId, editingName.Trim());
+            
+            if (success)
+            {
+                message = "重命名成功";
+                this.success = true;
+                editingVaultId = null;
+                await LoadVaultsData();
+            }
+            else
+            {
+                message = $"重命名失败: {error}";
+                this.success = false;
+            }
+        }
+        catch (Exception ex)
+        {
+            message = $"重命名失败: {ex.Message}";
+            success = false;
+        }
+        finally
+        {
+            isLoading = false;
+        }
+    }
+
+    private void StartTagEdit(VaultConfig vault)
+    {
+        editingTagVaultId = vault.Id;
+        editingTags = string.Join(", ", vault.Tags ?? new List<string>());
+    }
+
+    private void CancelTagEdit()
+    {
+        editingTagVaultId = null;
+        editingTags = "";
+    }
+
+    private async Task SaveTagEdit()
+    {
+        if (string.IsNullOrWhiteSpace(editingTagVaultId))
+            return;
+
+        isLoading = true;
+        message = null;
+
+        try
+        {
+            var (success, error) = await VaultsService.UpdateVaultTagsAsync(editingTagVaultId, editingTags.Trim());
+
+            if (success)
+            {
+                message = "标签更新成功";
+                this.success = true;
+                editingTagVaultId = null;
+                await LoadVaultsData();
+            }
+            else
+            {
+                message = $"标签更新失败: {error}";
+                this.success = false;
+            }
+        }
+        catch (Exception ex)
+        {
+            message = $"标签更新失败: {ex.Message}";
+            success = false;
+        }
+        finally
+        {
+            isLoading = false;
+        }
+    }
+
+    private void StartIndustryEdit(VaultConfig vault)
+    {
+        editingIndustryVaultId = vault.Id;
+        editingIndustry = string.IsNullOrWhiteSpace(vault.Industry) ? "笔记" : vault.Industry;
+    }
+
+    private void CancelIndustryEdit()
+    {
+        editingIndustryVaultId = null;
+        editingIndustry = "笔记";
+    }
+
+    private async Task SaveIndustryEdit()
+    {
+        if (string.IsNullOrWhiteSpace(editingIndustryVaultId))
+            return;
+
+        isLoading = true;
+        message = null;
+
+        try
+        {
+            var (success, error) = await VaultsService.UpdateVaultIndustryAsync(editingIndustryVaultId, editingIndustry.Trim());
+
+            if (success)
+            {
+                message = "行业更新成功";
+                this.success = true;
+                editingIndustryVaultId = null;
+                await LoadVaultsData();
+            }
+            else
+            {
+                message = $"行业更新失败: {error}";
+                this.success = false;
+            }
+        }
+        catch (Exception ex)
+        {
+            message = $"行业更新失败: {ex.Message}";
+            success = false;
+        }
+        finally
+        {
+            isLoading = false;
+        }
+    }
+
+    private void ConfirmDelete(VaultConfig vault)
+    {
+        vaultToDelete = vault;
+        showDeleteConfirm = true;
+    }
+
+    private void CancelDelete()
+    {
+        showDeleteConfirm = false;
+        vaultToDelete = null;
+    }
+
+    private async Task DoDelete()
+    {
+        if (vaultToDelete == null) return;
+
+        showDeleteConfirm = false;
+        isLoading = true;
+        message = null;
+
+        try
+        {
+            var (success, error) = await VaultsService.RemoveVaultAsync(vaultToDelete.Id);
+            
+            if (success)
+            {
+                message = $"知识库 \"{vaultToDelete.Name}\" 已删除";
+                this.success = true;
+                await LoadVaultsData();
+                // 通过 SignalR 推送状态变更到所有客户端
+                await StatusUpdateService.NotifyVaultStatusChangedAsync();
+                // 触发事件通知（用于同一页面内的组件更新）
+                VaultStatusService.NotifyStateChanged();
+            }
+            else
+            {
+                message = $"删除失败: {error}";
+                this.success = false;
+            }
+        }
+        catch (Exception ex)
+        {
+            message = $"删除失败: {ex.Message}";
+            success = false;
+        }
+        finally
+        {
+            isLoading = false;
+            vaultToDelete = null;
+        }
+    }
+
+    // 回收站操作方法
+    private async Task LoadTrashData()
+    {
+        isLoading = true;
+        try
+        {
+            var response = await VaultsService.GetTrashVaultsAsync();
+            trashVaults = response.Vaults;
+        }
+        catch (Exception ex)
+        {
+            message = $"加载回收站失败: {ex.Message}";
+            success = false;
+        }
+        finally
+        {
+            isLoading = false;
+        }
+    }
+
+    private void ConfirmRestore(VaultConfig vault)
+    {
+        vaultToRestore = vault;
+        showRestoreConfirm = true;
+    }
+
+    private void CancelRestore()
+    {
+        showRestoreConfirm = false;
+        vaultToRestore = null;
+    }
+
+    private async Task DoRestore()
+    {
+        if (vaultToRestore == null) return;
+
+        showRestoreConfirm = false;
+        isLoading = true;
+        message = null;
+
+        try
+        {
+            var (success, error) = await VaultsService.RestoreVaultAsync(vaultToRestore.Id);
+
+            if (success)
+            {
+                message = $"知识库 \"{vaultToRestore.Name}\" 已恢复";
+                this.success = true;
+                await LoadTrashData();
+                await StatusUpdateService.NotifyVaultStatusChangedAsync();
+                VaultStatusService.NotifyStateChanged();
+            }
+            else
+            {
+                message = $"恢复失败: {error}";
+                this.success = false;
+            }
+        }
+        catch (Exception ex)
+        {
+            message = $"恢复失败: {ex.Message}";
+            success = false;
+        }
+        finally
+        {
+            isLoading = false;
+            vaultToRestore = null;
+        }
+    }
+
+    private void ConfirmEmptyTrash()
+    {
+        showEmptyTrashConfirm = true;
+    }
+
+    private void CancelEmptyTrash()
+    {
+        showEmptyTrashConfirm = false;
+    }
+
+    private async Task DoEmptyTrash()
+    {
+        showEmptyTrashConfirm = false;
+        isLoading = true;
+        message = null;
+
+        try
+        {
+            var (success, error) = await VaultsService.EmptyTrashAsync();
+
+            if (success)
+            {
+                message = "回收站已清空";
+                this.success = true;
+                await LoadTrashData();
+                await StatusUpdateService.NotifyVaultStatusChangedAsync();
+                VaultStatusService.NotifyStateChanged();
+            }
+            else
+            {
+                message = $"清空失败: {error}";
+                this.success = false;
+            }
+        }
+        catch (Exception ex)
+        {
+            message = $"清空失败: {ex.Message}";
+            success = false;
+        }
+        finally
+        {
+            isLoading = false;
+        }
+    }
+
+    // Git操作方法
+    private async Task DoCommit()
+    {
+        if (activeVault == null)
+        {
+            message = "请先选择知识库";
+            success = false;
+            return;
+        }
+
+        if (string.IsNullOrWhiteSpace(commitMessage)) return;
+        
+        isLoading = true;
+        action = "commit";
+        message = null;
+        
+        try
+        {
+            var client = HttpClientFactory.CreateClient("TaskRunnerApi");
+            var url = $"api/git/commit?vaultId={Uri.EscapeDataString(activeVault.Id)}";
+            var resp = await client.PostAsJsonAsync(url, new { message = commitMessage });
+            var result = await resp.Content.ReadFromJsonAsync<GitResultResponse>();
+            message = result?.Message;
+            success = result?.Success ?? false;
+            if (success) commitMessage = "";
+            await LoadGitData();
+        }
+        catch (Exception ex)
+        {
+            message = $"提交失败: {ex.Message}";
+            success = false;
+        }
+        finally
+        {
+            isLoading = false;
+            action = "";
+        }
+    }
+
+    private async Task DoPush()
+    {
+        if (activeVault == null)
+        {
+            message = "请先选择知识库";
+            success = false;
+            return;
+        }
+
+        isLoading = true;
+        action = "push";
+        message = null;
+        
+        try
+        {
+            var client = HttpClientFactory.CreateClient("TaskRunnerApi");
+            var url = $"api/git/push?vaultId={Uri.EscapeDataString(activeVault.Id)}";
+            var resp = await client.PostAsync(url, null);
+            var result = await resp.Content.ReadFromJsonAsync<GitResultResponse>();
+            message = result?.Message;
+            success = result?.Success ?? false;
+            await LoadGitData();
+        }
+        catch (Exception ex)
+        {
+            message = $"推送失败: {ex.Message}";
+            success = false;
+        }
+        finally
+        {
+            isLoading = false;
+            action = "";
+        }
+    }
+
+    private async Task DoPull()
+    {
+        if (activeVault == null)
+        {
+            message = "请先选择知识库";
+            success = false;
+            return;
+        }
+
+        isLoading = true;
+        action = "pull";
+        message = null;
+        
+        try
+        {
+            var client = HttpClientFactory.CreateClient("TaskRunnerApi");
+            var url = $"api/git/pull?vaultId={Uri.EscapeDataString(activeVault.Id)}";
+            var resp = await client.PostAsync(url, null);
+            var result = await resp.Content.ReadFromJsonAsync<GitResultResponse>();
+            message = result?.Message;
+            success = result?.Success ?? false;
+            await LoadGitData();
+        }
+        catch (Exception ex)
+        {
+            message = $"拉取失败: {ex.Message}";
+            success = false;
+        }
+        finally
+        {
+            isLoading = false;
+            action = "";
+        }
+    }
+
+    private void ConfirmDiscard()
+    {
+        showDiscardConfirm = true;
+    }
+
+    private void CancelDiscard()
+    {
+        showDiscardConfirm = false;
+    }
+
+    private async Task DoDiscard()
+    {
+        if (activeVault == null)
+        {
+            message = "请先选择知识库";
+            success = false;
+            return;
+        }
+
+        showDiscardConfirm = false;
+        isLoading = true;
+        action = "discard";
+        message = null;
+        
+        try
+        {
+            var client = HttpClientFactory.CreateClient("TaskRunnerApi");
+            var url = $"api/git/discard?vaultId={Uri.EscapeDataString(activeVault.Id)}";
+            var resp = await client.PostAsync(url, null);
+            var result = await resp.Content.ReadFromJsonAsync<GitResultResponse>();
+            message = result?.Message;
+            success = result?.Success ?? false;
+            await LoadGitData();
+        }
+        catch (Exception ex)
+        {
+            message = $"撤销失败: {ex.Message}";
+            success = false;
+        }
+        finally
+        {
+            isLoading = false;
+            action = "";
+        }
+    }
+
+    private string GetStatusBadgeClass(string status) => status switch
+    {
+        "Added" => "bg-success",
+        "Deleted" => "bg-danger",
+        "Modified" => "bg-warning text-dark",
+        _ => "bg-secondary"
+    };
+
+    /// <summary>
+    /// 获取知识库根路径的默认值
+    /// </summary>
+    private string GetDefaultRootPath()
+    {
+        if (_platformInfo == null) return "";
+
+        if (_platformInfo.IsWindows)
+        {
+            return @"C:\Vaults";
+        }
+        if (_platformInfo.IsMacOS)
+        {
+            return $"/Users/{_platformInfo.UserName}/Vaults";
+        }
+        // Linux
+        return $"/home/{_platformInfo.UserName}/Vaults";
+    }
+
+    /// <summary>
+    /// 获取知识库根路径输入框的 placeholder
+    /// </summary>
+    private string GetRootPathPlaceholder()
+    {
+        var defaultPath = GetDefaultRootPath();
+        return string.IsNullOrEmpty(defaultPath) ? "例如：C:\\Vaults 或 /home/user/Vaults" : $"推荐：{defaultPath}";
+    }
+
+    /// <summary>
+    /// 填充默认根路径
+    /// </summary>
+    private void FillDefaultRootPath()
+    {
+        var defaultPath = GetDefaultRootPath();
+        if (!string.IsNullOrEmpty(defaultPath))
+        {
+            vaultRootPathPreference = defaultPath;
+        }
+    }
+}

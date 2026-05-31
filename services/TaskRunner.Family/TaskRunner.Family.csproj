@@ -1,0 +1,56 @@
+<Project Sdk="Microsoft.NET.Sdk.Web">
+
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <RuntimeIdentifier>linux-x64</RuntimeIdentifier>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <GenerateDocumentationFile>true</GenerateDocumentationFile>
+    <NoWarn>$(NoWarn);1591</NoWarn>
+    <UseAppHost Condition="'$(Configuration)' == 'Debug'">false</UseAppHost>
+    <GenerateResource>false</GenerateResource>
+    <EnableDefaultEmbeddedResourceItems>false</EnableDefaultEmbeddedResourceItems>
+    <RootNamespace>TaskRunner</RootNamespace>
+    <UserSecretsId>yj-family-taskrunner-2026</UserSecretsId>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="LLamaSharp" Version="0.26.0" />
+    <PackageReference Include="Makaretu.Dns.Multicast.New" Version="0.38.0" />
+    <PackageReference Include="Microsoft.ML.OnnxRuntimeGenAI" Version="0.13.1" />
+    <PackageReference Include="Serilog.AspNetCore" Version="10.0.0" />
+    <PackageReference Include="Swashbuckle.AspNetCore" Version="6.5.0" />
+    <PackageReference Include="OpenTelemetry" Version="1.11.2" />
+    <PackageReference Include="OpenTelemetry.Exporter.OpenTelemetryProtocol" Version="1.11.2" />
+    <PackageReference Include="OpenTelemetry.Extensions.Hosting" Version="1.11.2" />
+    <PackageReference Include="Microsoft.Data.Sqlite" Version="9.0.0" />
+    <PackageReference Include="Microsoft.EntityFrameworkCore.Sqlite" Version="9.0.0" />
+    <PackageReference Include="Microsoft.EntityFrameworkCore.Design" Version="9.0.0">
+      <PrivateAssets>all</PrivateAssets>
+      <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
+    </PackageReference>
+
+    <PackageReference Include="OpenAI" Version="2.10.0" />
+    <PackageReference Include="Microsoft.Extensions.AI" Version="10.5.0" />
+    <PackageReference Include="Microsoft.Extensions.AI.OpenAI" Version="10.5.0" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="AnkiGen.Core" Version="1.0.0" />
+    <ProjectReference Include="..\TaskRunner.Contracts\TaskRunner.Contracts.csproj" />
+    <ProjectReference Include="..\..\libs\MobileContract\MobileContract.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <EmbeddedResource Remove="**/*.resx" />
+  </ItemGroup>
+
+  <Target Name="CopyLlamaNativeLibs" AfterTargets="Build" Condition="$([MSBuild]::IsOSPlatform('Linux'))">
+    <ItemGroup>
+      <LlamaNativeLibs Include="$(NuGetPackageRoot)/llamasharp.backend.cpu/0.26.0/LLamaSharpRuntimes/linux-x64/native/avx2/*.so" />
+    </ItemGroup>
+    <Copy SourceFiles="@(LlamaNativeLibs)" DestinationFolder="$(TargetDir)" SkipUnchangedFiles="true" />
+    <Exec Command="cd $(TargetDir) &amp;&amp; ln -sf libggml.so libggml.so.0 &amp;&amp; ln -sf libggml-base.so libggml-base.so.0 &amp;&amp; ln -sf libggml-cpu.so libggml-cpu.so.0" />
+  </Target>
+
+</Project>

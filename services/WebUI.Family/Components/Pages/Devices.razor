@@ -1,0 +1,975 @@
+@page "/devices"
+@rendermode InteractiveServer
+@inject HttpClient HttpClient
+@inject NavigationManager Navigation
+@inject IJSRuntime JSRuntime
+@inject ILogger<Devices> Logger
+@implements IDisposable
+
+<PageTitle>移动端管理</PageTitle>
+
+<div class="container mt-4">
+    <h2 class="mb-4">📱 移动端管理</h2>
+
+    <!-- Tab 导航 -->
+    <ul class="nav nav-tabs mb-4">
+        <li class="nav-item">
+            <button class="nav-link @(activeTab == "discover" ? "active" : "")" @onclick='() => SwitchTab("discover")'>🔍 发现</button>
+        </li>
+        <li class="nav-item">
+            <button class="nav-link @(activeTab == "devices" ? "active" : "")" @onclick='() => SwitchTab("devices")'>📱 设备</button>
+        </li>
+    </ul>
+
+    @if (!string.IsNullOrEmpty(message))
+    {
+        <div class="alert alert-@(isSuccess ? "success" : "danger") alert-dismissible fade show">
+            @message
+            <button type="button" class="btn-close" @onclick="() => message = null"></button>
+        </div>
+    }
+
+    <div class="alert alert-info mb-4">
+        <p class="mb-1"><strong>📱 局域网自动发现</strong></p>
+        <p class="mb-0 small">确保手机和电脑连接同一 WiFi，打开移动端「原记」APP 即可自动被发现。</p>
+    </div>
+
+    @if (activeTab == "discover")
+    {
+        <!-- 发现 Tab -->
+        <div class="card mb-4">
+            <div class="card-header d-flex justify-content-between align-items-center">
+                <h5 class="mb-0">🔍 OneHop 局域网发现</h5>
+                <div class="d-flex gap-2">
+                    @if (oneHopStatus?.IsRunning == true)
+                    {
+                        <span class="badge bg-success">发现服务运行中</span>
+                        <button class="btn btn-sm btn-outline-danger" @onclick="StopDiscoveryAsync" disabled="@isDiscovering">停止发现</button>
+                    }
+                    else
+                    {
+                        <span class="badge bg-secondary">发现服务未运行</span>
+                        <button class="btn btn-sm btn-outline-primary" @onclick="StartDiscoveryAsync" disabled="@isDiscovering">开始发现</button>
+                    }
+                    <button class="btn btn-sm btn-outline-secondary" @onclick="LoadOneHopDataAsync" disabled="@isDiscovering">刷新</button>
+                </div>
+            </div>
+            <div class="card-body">
+                @if (oneHopStatus != null)
+                {
+                    <div class="row g-3 mb-3">
+                        <div class="col-md-3">
+                            <div class="p-2 bg-light rounded text-center">
+                                <div class="text-muted small">状态</div>
+                                <div class="fw-bold">@(oneHopStatus.IsRunning ? "运行中" : "已停止")</div>
+                            </div>
+                        </div>
+                        <div class="col-md-3">
+                            <div class="p-2 bg-light rounded text-center">
+                                <div class="text-muted small">已发现设备</div>
+                                <div class="fw-bold">@oneHopStatus.DiscoveredDevicesCount</div>
+                            </div>
+                        </div>
+                        <div class="col-md-3">
+                            <div class="p-2 bg-light rounded text-center">
+                                <div class="text-muted small">当前连接</div>
+                                <div class="fw-bold">@(string.IsNullOrEmpty(oneHopStatus.CurrentConnection?.DeviceName) ? "无" : oneHopStatus.CurrentConnection.DeviceName)</div>
+                            </div>
+                        </div>
+                        <div class="col-md-3">
+                            <div class="p-2 bg-light rounded text-center">
+                                <div class="text-muted small">ServiceId</div>
+                                <div class="fw-bold text-truncate" title="@oneHopStatus.ServiceId">@oneHopStatus.ServiceId</div>
+                            </div>
+                        </div>
+                    </div>
+                }
+
+                @if (isDiscovering)
+                {
+                    <div class="text-center py-4">
+                        <div class="spinner-border text-primary" role="status"></div>
+                        <p class="mt-2 text-muted">正在发现设备...</p>
+                    </div>
+                }
+                else if (oneHopDevices.Any())
+                {
+                    <h6 class="mb-3">发现的设备</h6>
+                    <div class="table-responsive">
+                        <table class="table table-hover table-sm">
+                            <thead class="table-light">
+                                <tr>
+                                    <th>设备名称</th>
+                                    <th>信号强度</th>
+                                    <th>发现时间</th>
+                                    <th>操作</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                @foreach (var device in oneHopDevices)
+                                {
+                                    var isAuthorized = authorizedDevices.Any(a => a.DeviceName.Equals(device.DeviceName, StringComparison.OrdinalIgnoreCase));
+                                    var deviceType = device.ExtraData.TryGetValue("deviceType", out var dt) ? dt : "mobile";
+                                    var typeLabel = deviceType switch
+                                    {
+                                        "android" => "🤖 Android",
+                                        "harmonyos" => "🔷 HarmonyOS",
+                                        "ios" => "🍎 iOS",
+                                        _ => "📱 移动端"
+                                    };
+                                    <tr>
+                                        <td>
+                                            <strong>@device.DeviceName</strong>
+                                            @if (isAuthorized)
+                                            {
+                                                <span class="badge bg-success ms-2">已授权</span>
+                                            }
+                                            <div class="text-muted small">@device.DeviceId</div>
+                                            <span class="badge bg-secondary">@typeLabel</span>
+                                        </td>
+                                        <td>
+                                            <div class="progress" style="height: 8px; width: 80px;">
+                                                <div class="progress-bar @(device.SignalStrength > 80 ? "bg-success" : device.SignalStrength > 50 ? "bg-warning" : "bg-danger")" style="width: @device.SignalStrength%"></div>
+                                            </div>
+                                            <small class="text-muted">@device.SignalStrength%</small>
+                                        </td>
+                                        <td class="small">@device.DiscoveredAt.ToLocalTime().ToString("MM-dd HH:mm:ss")</td>
+                                        <td>
+                                            <div class="d-flex gap-2 align-items-center">
+                                                @if (!isAuthorized)
+                                                {
+                                                    <button class="btn btn-sm btn-success" @onclick="() => AuthorizeOneHopDeviceAsync(device.DeviceName)" disabled="@isProcessingDevice">
+                                                        授权
+                                                    </button>
+                                                }
+                                                else
+                                                {
+                                                    <button class="btn btn-sm btn-outline-primary" @onclick="() => ConnectOneHopDeviceAsync(device.DeviceId)" disabled="@isProcessingDevice">
+                                                        连接
+                                                    </button>
+                                                }
+                                            </div>
+                                        </td>
+                                    </tr>
+                                }
+                            </tbody>
+                        </table>
+                    </div>
+                }
+                else
+                {
+                    <div class="text-center py-5 text-muted">
+                        <p>未发现局域网设备</p>
+                        <button class="btn btn-primary" @onclick="StartDiscoveryAsync" disabled="@isDiscovering">开始发现</button>
+                    </div>
+                }
+            </div>
+        </div>
+    }
+    else
+    {
+        <!-- 设备 Tab -->
+        <div class="row">
+            <!-- 待授权设备 -->
+            <div class="col-12 mb-4">
+                <div class="card">
+                    <div class="card-header bg-warning bg-opacity-25">
+                        <h5 class="mb-0">⏳ 待授权设备 (@pendingDevices.Count)</h5>
+                    </div>
+                    <div class="card-body">
+                        @if (isLoadingDevices)
+                        {
+                            <div class="text-center py-3">
+                                <div class="spinner-border spinner-border-sm text-primary"></div>
+                                <span class="ms-2 text-muted">加载中...</span>
+                            </div>
+                        }
+                        else if (!pendingDevices.Any())
+                        {
+                            <p class="text-muted mb-0">暂无待授权设备</p>
+                        }
+                        else
+                        {
+                            <div class="table-responsive">
+                                <table class="table table-hover table-sm mb-0">
+                                    <thead class="table-light">
+                                        <tr>
+                                            <th>设备信息</th>
+                                            <th>IP 地址</th>
+                                            <th>请求时间</th>
+                                            <th>操作</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        @foreach (var device in pendingDevices)
+                                        {
+                                            <tr>
+                                                <td>@device.DeviceName</td>
+                                                <td class="text-muted small">@device.IpAddress</td>
+                                                <td class="small">@device.RequestTime.ToLocalTime().ToString("MM-dd HH:mm:ss")</td>
+                                                <td>
+                                                    <div class="d-flex gap-2">
+                                                        <button class="btn btn-sm btn-success" @onclick="() => AuthorizeDeviceAsync(device.RequestId)" disabled="@isProcessingDevice">授权</button>
+                                                        <button class="btn btn-sm btn-outline-danger" @onclick="() => RejectDeviceAsync(device.RequestId)" disabled="@isProcessingDevice">拒绝</button>
+                                                    </div>
+                                                </td>
+                                            </tr>
+                                        }
+                                    </tbody>
+                                </table>
+                            </div>
+                        }
+                    </div>
+                </div>
+            </div>
+
+            <!-- 已授权设备 -->
+            <div class="col-12">
+                <div class="card">
+                    <div class="card-header bg-success bg-opacity-10 d-flex justify-content-between align-items-center">
+                        <h5 class="mb-0">✅ 已授权设备 (@authorizedDevices.Count)</h5>
+                        <button class="btn btn-sm btn-outline-secondary" @onclick="LoadDevicesAsync" disabled="@isLoadingDevices">刷新</button>
+                    </div>
+                    <div class="card-body">
+                        @if (isLoadingDevices)
+                        {
+                            <div class="text-center py-3">
+                                <div class="spinner-border spinner-border-sm text-primary"></div>
+                                <span class="ms-2 text-muted">加载中...</span>
+                            </div>
+                        }
+                        else if (!authorizedDevices.Any())
+                        {
+                            <p class="text-muted mb-0">暂无已授权设备</p>
+                        }
+                        else
+                        {
+                            <div class="table-responsive">
+                                <table class="table table-hover table-sm mb-0">
+                                    <thead class="table-light">
+                                        <tr>
+                                            <th>设备名称</th>
+                                            <th>IP 地址</th>
+                                            <th>授权时间</th>
+                                            <th>首次同步</th>
+                                            <th>最后同步</th>
+                                            <th>同步次数</th>
+                                            <th>推送知识库</th>
+                                            <th>操作</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        @foreach (var device in authorizedDevices.GroupBy(d => d.DeviceName).Select(g => g.First()))
+                                        {
+                                            <tr>
+                                                <td>
+                                                    <strong>@device.DeviceName</strong>
+                                                    <div class="text-muted small">@device.DeviceId</div>
+                                                </td>
+                                                <td class="text-muted small">@device.IpAddress</td>
+                                                <td class="small">
+                                                    @(device.AuthorizedTime.HasValue ? device.AuthorizedTime.Value.ToLocalTime().ToString("MM-dd HH:mm") : "-")
+                                                </td>
+                                                <td class="small">
+                                                    @(device.FirstSyncTime.HasValue ? device.FirstSyncTime.Value.ToLocalTime().ToString("MM-dd HH:mm") : "-")
+                                                </td>
+                                                <td class="small">
+                                                    @(device.LastSyncTime.HasValue ? device.LastSyncTime.Value.ToLocalTime().ToString("MM-dd HH:mm") : "-")
+                                                </td>
+                                                <td class="small">
+                                                    <span class="badge bg-info">@(device.SyncCount)</span>
+                                                </td>
+                                                <td>
+                                                    <div class="input-group input-group-sm" style="width: 220px;">
+                                                        <select class="form-select form-select-sm" @bind="device.SelectedVaultId">
+                                                            @foreach (var vault in availableVaults)
+                                                            {
+                                                                var isSynced = device.SyncedVaultIds.Contains(vault.Id);
+                                                                <option value="@vault.Id">@(isSynced ? "✅ " : "")@vault.Name</option>
+                                                            }
+                                                        </select>
+                                                        <button class="btn btn-outline-primary" @onclick="() => PushToVaultAsync(device.DeviceId, device.SelectedVaultId)" disabled="@device.IsPushing">
+                                                            @(device.IsPushing ? "推送中..." : "推送")
+                                                        </button>
+                                                    </div>
+                                                    @if (device.SyncedVaultIds.Any())
+                                                    {
+                                                        <div class="mt-1">
+                                                            @foreach (var sv in device.SyncedVaultIds)
+                                                            {
+                                                                var svName = availableVaults.FirstOrDefault(v => v.Id == sv)?.Name ?? sv;
+                                                                <span class="badge bg-success bg-opacity-75 me-1" style="font-size: 0.65rem;">@svName</span>
+                                                            }
+                                                        </div>
+                                                    }
+                                                </td>
+                                                <td>
+                                                    <button class="btn btn-sm btn-outline-danger" @onclick="() => RevokeDeviceAsync(device.DeviceId)" disabled="@isProcessingDevice">撤销授权</button>
+                                                </td>
+                                            </tr>
+                                        }
+                                    </tbody>
+                                </table>
+                            </div>
+                        }
+                    </div>
+                </div>
+            </div>
+        </div>
+    }
+</div>
+
+@code {
+    private string activeTab = "discover";
+
+    // 通用状态
+    private string? message;
+    private bool isSuccess;
+    private bool isLoading;
+
+    // 设备管理
+    private bool isLoadingDevices;
+    private bool isProcessingDevice;
+    private List<PendingDeviceInfo> pendingDevices = new();
+    private List<AuthorizedDeviceInfo> authorizedDevices = new();
+    private List<VaultInfo> availableVaults = new();
+
+    // OneHop 发现
+    private bool isDiscovering;
+    private OneHopStatusResponse? oneHopStatus;
+    private List<OneHopDeviceResponse> oneHopDevices = new();
+
+    // 自动轮询定时器
+    private System.Timers.Timer? _autoRefreshTimer;
+
+    protected override void OnInitialized()
+    {
+        // 立即渲染，后台异步加载数据
+        isLoading = true;
+        isLoadingDevices = true;
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (!firstRender) return;
+
+        // 后台并行加载所有数据，不阻塞首屏
+        _ = Task.Run(async () =>
+        {
+            try
+            {
+                await Task.WhenAll(
+                    StartDiscoveryAsync(),
+                    LoadDevicesAsync(),
+                    LoadVaultsAsync()
+                );
+            }
+            catch (Exception ex)
+            {
+                Logger.LogWarning(ex, "[Devices] 后台加载失败");
+            }
+            finally
+            {
+                await InvokeAsync(() =>
+                {
+                    isLoading = false;
+                    isLoadingDevices = false;
+                    StateHasChanged();
+                });
+            }
+        });
+
+        // 启动自动轮询（每 5 秒刷新发现列表和设备列表）
+        _autoRefreshTimer = new System.Timers.Timer(5000);
+        _autoRefreshTimer.Elapsed += async (_, _) =>
+        {
+            try
+            {
+                await InvokeAsync(async () =>
+                {
+                    await LoadOneHopDataAsync();
+                    await LoadDevicesAsync();
+                    StateHasChanged();
+                });
+            }
+            catch (Exception ex)
+            {
+                Logger.LogDebug(ex, "[Devices] 自动刷新失败");
+            }
+        };
+        _autoRefreshTimer.AutoReset = true;
+        _autoRefreshTimer.Start();
+    }
+
+    public void Dispose()
+    {
+        _autoRefreshTimer?.Stop();
+        _autoRefreshTimer?.Dispose();
+    }
+
+    private async Task SwitchTab(string tab)
+    {
+        activeTab = tab;
+        message = null;
+        if (tab == "discover")
+        {
+            await LoadOneHopDataAsync();
+        }
+        else if (tab == "devices")
+        {
+            await LoadDevicesAsync();
+        }
+    }
+
+    #region 设备管理
+
+    private async Task LoadDevicesAsync()
+    {
+        try
+        {
+            isLoadingDevices = true;
+
+            var pendingTask = HttpClient.GetFromJsonAsync<List<DevicePendingResponse>>("api/devices/pending");
+            var authorizedTask = HttpClient.GetFromJsonAsync<List<DeviceAuthorizedResponse>>("api/devices/authorized");
+
+            await Task.WhenAll(pendingTask, authorizedTask);
+
+            var pendingResult = pendingTask.Result;
+            var authorizedResult = authorizedTask.Result;
+
+            pendingDevices = (pendingResult ?? new()).Select(d => new PendingDeviceInfo
+            {
+                RequestId = d.SessionId ?? "",
+                DeviceName = d.DeviceInfo ?? "未知设备",
+                RequestTime = d.CreatedAt != default ? d.CreatedAt : DateTime.Now,
+                IpAddress = d.IpAddress
+            }).ToList();
+
+            var prevDeviceMap = authorizedDevices.ToDictionary(d => d.DeviceId);
+            authorizedDevices = (authorizedResult ?? new()).Select(d => new AuthorizedDeviceInfo
+            {
+                DeviceId = d.DeviceId ?? "",
+                DeviceName = d.DeviceName ?? "未知设备",
+                AuthorizedTime = d.AuthorizedTime,
+                LastSyncTime = d.LastSyncTime,
+                IpAddress = d.IpAddress,
+                SyncCount = d.SyncCount,
+                FirstSyncTime = d.FirstSyncTime,
+                SyncedVaultIds = d.SyncedVaultIds ?? new List<string>(),
+                SelectedVaultId = prevDeviceMap.TryGetValue(d.DeviceId ?? "", out var prev) ? prev.SelectedVaultId : null,
+                IsPushing = prevDeviceMap.TryGetValue(d.DeviceId ?? "", out var prev2) && prev2.IsPushing
+            }).ToList();
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "加载设备列表失败");
+        }
+        finally
+        {
+            isLoadingDevices = false;
+        }
+    }
+
+    private async Task LoadVaultsAsync()
+    {
+        try
+        {
+            var response = await HttpClient.GetFromJsonAsync<VaultsListResponse>("api/settings/vaults");
+            if (response?.Vaults != null)
+            {
+                // 过滤掉移动端推送来的知识库（Source=mobile），避免向移动端推送它自己的知识库
+                availableVaults = response.Vaults
+                    .Where(v => v.Source != "mobile")
+                    .Select(v => new VaultInfo
+                    {
+                        Id = v.Id ?? "",
+                        Name = v.Name ?? ""
+                    })
+                    .Where(v => !string.IsNullOrEmpty(v.Id))
+                    .ToList();
+            }
+
+            // 默认选中第一个知识库，避免下拉框显示第一个但绑定值为 null
+            if (availableVaults.Any())
+            {
+                var firstVaultId = availableVaults.First().Id;
+                foreach (var device in authorizedDevices)
+                {
+                    if (string.IsNullOrEmpty(device.SelectedVaultId))
+                    {
+                        device.SelectedVaultId = firstVaultId;
+                    }
+                }
+            }
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "加载知识库列表失败");
+        }
+    }
+
+    private async Task AuthorizeDeviceAsync(string requestId)
+    {
+        try
+        {
+            isProcessingDevice = true;
+            var response = await HttpClient.PostAsJsonAsync("api/devices/authorize", new { requestId });
+            if (response.IsSuccessStatusCode)
+            {
+                message = "设备已授权";
+                isSuccess = true;
+                await LoadDevicesAsync();
+            }
+            else
+            {
+                var error = await response.Content.ReadAsStringAsync();
+                message = $"授权失败: {error}";
+                isSuccess = false;
+            }
+        }
+        catch (Exception ex)
+        {
+            message = $"授权失败: {ex.Message}";
+            isSuccess = false;
+        }
+        finally
+        {
+            isProcessingDevice = false;
+        }
+    }
+
+    private async Task RejectDeviceAsync(string requestId)
+    {
+        try
+        {
+            isProcessingDevice = true;
+            var response = await HttpClient.PostAsJsonAsync("api/devices/reject", new { requestId });
+            if (response.IsSuccessStatusCode)
+            {
+                message = "已拒绝设备配对";
+                isSuccess = true;
+                await LoadDevicesAsync();
+            }
+            else
+            {
+                var error = await response.Content.ReadAsStringAsync();
+                message = $"拒绝失败: {error}";
+                isSuccess = false;
+            }
+        }
+        catch (Exception ex)
+        {
+            message = $"拒绝失败: {ex.Message}";
+            isSuccess = false;
+        }
+        finally
+        {
+            isProcessingDevice = false;
+        }
+    }
+
+    private async Task RevokeDeviceAsync(string deviceId)
+    {
+        if (!await JSRuntime.InvokeAsync<bool>("confirm", "确定要撤销此设备的授权吗？设备将无法再同步和访问知识库。"))
+            return;
+        try
+        {
+            isProcessingDevice = true;
+            var response = await HttpClient.PostAsJsonAsync("api/devices/revoke", new { deviceId });
+            if (response.IsSuccessStatusCode)
+            {
+                message = "已撤销设备授权";
+                isSuccess = true;
+                await LoadDevicesAsync();
+            }
+            else
+            {
+                var error = await response.Content.ReadAsStringAsync();
+                message = $"撤销失败: {error}";
+                isSuccess = false;
+            }
+        }
+        catch (Exception ex)
+        {
+            message = $"撤销失败: {ex.Message}";
+            isSuccess = false;
+        }
+        finally
+        {
+            isProcessingDevice = false;
+        }
+    }
+
+    private async Task PushToVaultAsync(string deviceId, string? vaultId)
+    {
+        var device = authorizedDevices.FirstOrDefault(d => d.DeviceId == deviceId);
+        if (device == null) return;
+
+        if (string.IsNullOrWhiteSpace(vaultId))
+        {
+            message = "请选择要推送的知识库";
+            isSuccess = false;
+            return;
+        }
+
+        try
+        {
+            device.IsPushing = true;
+
+            var request = new
+            {
+                deviceId,
+                vaultId = vaultId,
+                action = "sync"
+            };
+            var response = await HttpClient.PostAsJsonAsync("api/devices/push", request);
+
+            var vaultName = availableVaults.FirstOrDefault(v => v.Id == vaultId)?.Name ?? vaultId;
+            if (response.IsSuccessStatusCode)
+            {
+                message = $"已通知 {device.DeviceName} 同步 {vaultName}";
+            }
+            else
+            {
+                message = $"请在 {device.DeviceName} 上手动同步 {vaultName}（推送通知服务暂不可用）";
+            }
+            isSuccess = true;
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "推送知识库到设备失败，DeviceId: {DeviceId}", deviceId);
+            var vaultName = availableVaults.FirstOrDefault(v => v.Id == vaultId)?.Name ?? vaultId;
+            message = $"请在 {device.DeviceName} 上手动同步 {vaultName}（推送通知暂不可用）";
+            isSuccess = true;
+        }
+        finally
+        {
+            device.IsPushing = false;
+        }
+    }
+
+    #endregion
+
+    #region OneHop 发现
+
+    private async Task LoadOneHopDataAsync()
+    {
+        await Task.WhenAll(LoadOneHopStatusAsync(), LoadOneHopDevicesAsync());
+    }
+
+    private async Task LoadOneHopStatusAsync()
+    {
+        try
+        {
+            oneHopStatus = await HttpClient.GetFromJsonAsync<OneHopStatusResponse>("api/onehop/status");
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "加载 OneHop 状态失败");
+        }
+    }
+
+    private async Task LoadOneHopDevicesAsync()
+    {
+        try
+        {
+            var devices = await HttpClient.GetFromJsonAsync<List<OneHopDeviceResponse>>("api/onehop/devices");
+            oneHopDevices = devices ?? new List<OneHopDeviceResponse>();
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "加载 OneHop 设备列表失败");
+            oneHopDevices = new List<OneHopDeviceResponse>();
+        }
+    }
+
+    private async Task StartDiscoveryAsync()
+    {
+        try
+        {
+            isDiscovering = true;
+            var response = await HttpClient.PostAsync("api/onehop/discovery/start", null);
+            if (response.IsSuccessStatusCode)
+            {
+                message = "设备发现已启动";
+                isSuccess = true;
+            }
+            else
+            {
+                message = "启动发现失败";
+                isSuccess = false;
+            }
+            await LoadOneHopDataAsync();
+        }
+        catch (Exception ex)
+        {
+            message = $"启动发现失败: {ex.Message}";
+            isSuccess = false;
+        }
+        finally
+        {
+            isDiscovering = false;
+        }
+    }
+
+    private async Task StopDiscoveryAsync()
+    {
+        try
+        {
+            isDiscovering = true;
+            var response = await HttpClient.PostAsync("api/onehop/discovery/stop", null);
+            if (response.IsSuccessStatusCode)
+            {
+                message = "设备发现已停止";
+                isSuccess = true;
+            }
+            else
+            {
+                message = "停止发现失败";
+                isSuccess = false;
+            }
+            await LoadOneHopDataAsync();
+        }
+        catch (Exception ex)
+        {
+            message = $"停止发现失败: {ex.Message}";
+            isSuccess = false;
+        }
+        finally
+        {
+            isDiscovering = false;
+        }
+    }
+
+    private async Task ConnectOneHopDeviceAsync(string deviceId)
+    {
+        try
+        {
+            isProcessingDevice = true;
+            var response = await HttpClient.PostAsJsonAsync("api/onehop/connect", new { deviceId });
+            if (response.IsSuccessStatusCode)
+            {
+                var result = await response.Content.ReadFromJsonAsync<OneHopConnectionResponse>();
+                message = $"已连接到 {result?.DeviceName ?? deviceId}";
+                isSuccess = true;
+                await LoadOneHopDataAsync();
+            }
+            else
+            {
+                var error = await response.Content.ReadAsStringAsync();
+                message = $"连接失败: {error}";
+                isSuccess = false;
+            }
+        }
+        catch (Exception ex)
+        {
+            message = $"连接失败: {ex.Message}";
+            isSuccess = false;
+        }
+        finally
+        {
+            isProcessingDevice = false;
+        }
+    }
+
+    private async Task AuthorizeOneHopDeviceAsync(string deviceName)
+    {
+        try
+        {
+            isProcessingDevice = true;
+            // 先刷新 pending 列表，找到对应设备的 requestId
+            await LoadDevicesAsync();
+            var pending = pendingDevices.FirstOrDefault(p =>
+                p.DeviceName.Equals(deviceName, StringComparison.OrdinalIgnoreCase));
+
+            if (pending == null)
+            {
+                message = $"未找到 {deviceName} 的待授权请求，请稍后重试";
+                isSuccess = false;
+                return;
+            }
+
+            var response = await HttpClient.PostAsJsonAsync("api/devices/authorize", new { requestId = pending.RequestId });
+            if (response.IsSuccessStatusCode)
+            {
+                message = $"{deviceName} 已授权";
+                isSuccess = true;
+                await LoadDevicesAsync();
+                await LoadOneHopDataAsync();
+            }
+            else
+            {
+                var error = await response.Content.ReadAsStringAsync();
+                message = $"授权失败: {error}";
+                isSuccess = false;
+            }
+        }
+        catch (Exception ex)
+        {
+            message = $"授权失败: {ex.Message}";
+            isSuccess = false;
+        }
+        finally
+        {
+            isProcessingDevice = false;
+        }
+    }
+
+    private async Task SyncOneHopDeviceAsync(string deviceId, string? vaultId)
+    {
+        if (string.IsNullOrWhiteSpace(vaultId))
+        {
+            message = "请选择要同步的知识库";
+            isSuccess = false;
+            return;
+        }
+
+        try
+        {
+            isProcessingDevice = true;
+            var url = $"api/onehop/sync?vaultId={Uri.EscapeDataString(vaultId)}";
+            var response = await HttpClient.PostAsync(url, null);
+            var vaultName = availableVaults.FirstOrDefault(v => v.Id == vaultId)?.Name ?? vaultId;
+            if (response.IsSuccessStatusCode)
+            {
+                message = $"已向设备发送同步 {vaultName} 的请求";
+                isSuccess = true;
+            }
+            else
+            {
+                message = $"同步请求发送失败，请在设备上手动同步 {vaultName}";
+                isSuccess = false;
+            }
+        }
+        catch (Exception ex)
+        {
+            message = $"同步失败: {ex.Message}";
+            isSuccess = false;
+        }
+        finally
+        {
+            isProcessingDevice = false;
+        }
+    }
+
+    #endregion
+
+    #region DTO 类
+
+    private class DevicePendingResponse
+    {
+        [System.Text.Json.Serialization.JsonPropertyName("sessionId")]
+        public string? SessionId { get; set; }
+
+        [System.Text.Json.Serialization.JsonPropertyName("deviceInfo")]
+        public string? DeviceInfo { get; set; }
+
+        [System.Text.Json.Serialization.JsonPropertyName("createdAt")]
+        public DateTime CreatedAt { get; set; }
+
+        [System.Text.Json.Serialization.JsonPropertyName("ipAddress")]
+        public string? IpAddress { get; set; }
+    }
+
+    private class DeviceAuthorizedResponse
+    {
+        [System.Text.Json.Serialization.JsonPropertyName("deviceId")]
+        public string? DeviceId { get; set; }
+
+        [System.Text.Json.Serialization.JsonPropertyName("deviceName")]
+        public string? DeviceName { get; set; }
+
+        [System.Text.Json.Serialization.JsonPropertyName("authorizedTime")]
+        public DateTime? AuthorizedTime { get; set; }
+
+        [System.Text.Json.Serialization.JsonPropertyName("lastSyncTime")]
+        public DateTime? LastSyncTime { get; set; }
+
+        [System.Text.Json.Serialization.JsonPropertyName("ipAddress")]
+        public string? IpAddress { get; set; }
+
+        [System.Text.Json.Serialization.JsonPropertyName("syncCount")]
+        public int SyncCount { get; set; }
+
+        [System.Text.Json.Serialization.JsonPropertyName("firstSyncTime")]
+        public DateTime? FirstSyncTime { get; set; }
+
+        [System.Text.Json.Serialization.JsonPropertyName("syncedVaultIds")]
+        public List<string>? SyncedVaultIds { get; set; }
+
+    }
+
+    private class VaultsListResponse
+    {
+        public List<VaultItemResponse>? Vaults { get; set; }
+    }
+
+    private class VaultItemResponse
+    {
+        public string? Id { get; set; }
+        public string? Name { get; set; }
+        public string? Path { get; set; }
+        public string? Source { get; set; }
+        public bool IsActive { get; set; }
+    }
+
+    private class PendingDeviceInfo
+    {
+        public string RequestId { get; set; } = "";
+        public string DeviceName { get; set; } = "";
+        public DateTime RequestTime { get; set; }
+        public string? IpAddress { get; set; }
+    }
+
+    private class AuthorizedDeviceInfo
+    {
+        public string DeviceId { get; set; } = "";
+        public string DeviceName { get; set; } = "";
+        public DateTime? AuthorizedTime { get; set; }
+        public DateTime? LastSyncTime { get; set; }
+        public string? IpAddress { get; set; }
+        public int SyncCount { get; set; }
+        public DateTime? FirstSyncTime { get; set; }
+        public string? SelectedVaultId { get; set; }
+        public bool IsPushing { get; set; }
+        public List<string> SyncedVaultIds { get; set; } = new();
+    }
+
+    private class VaultInfo
+    {
+        public string Id { get; set; } = "";
+        public string Name { get; set; } = "";
+    }
+
+    private class OneHopStatusResponse
+    {
+        public bool IsAvailable { get; set; }
+        public bool IsRunning { get; set; }
+        public string ServiceId { get; set; } = "";
+        public int DiscoveredDevicesCount { get; set; }
+        public OneHopConnectionResponse? CurrentConnection { get; set; }
+    }
+
+    private class OneHopDeviceResponse
+    {
+        public string DeviceId { get; set; } = "";
+        public string DeviceName { get; set; } = "";
+        public string ServiceId { get; set; } = "";
+        public int SignalStrength { get; set; }
+        public DateTime DiscoveredAt { get; set; }
+        public Dictionary<string, string> ExtraData { get; set; } = new();
+        public string? SelectedVaultId { get; set; }
+    }
+
+    private class OneHopConnectionResponse
+    {
+        public string DeviceId { get; set; } = "";
+        public string DeviceName { get; set; } = "";
+        public string IpAddress { get; set; } = "";
+        public int Port { get; set; }
+        public DateTime ConnectedAt { get; set; }
+        public string Status { get; set; } = "";
+    }
+
+    #endregion
+}

@@ -1,0 +1,899 @@
+@page "/messages"
+@rendermode InteractiveServer
+@using Microsoft.AspNetCore.Components.Web
+@using WebUI.Services
+@using Markdig
+@using Microsoft.JSInterop
+@inject WebUI.Services.IApiService ApiService
+@inject CapabilityService CapabilityService
+@inject GlobalStateService GlobalStateService
+@inject IJSRuntime JSRuntime
+@implements IDisposable
+
+<PageTitle>消息</PageTitle>
+
+<h1>💬 AI 对话</h1>
+
+<div class="ai-info-bar">
+    @if (aiStatus?.IsConfigured ?? false)
+    {
+        <span class="ai-info-badge">
+            <span class="ai-info-provider">🏢 @aiStatus?.ProviderName</span>
+            <span class="ai-info-sep">·</span>
+            <span class="ai-info-model">🤖 @GetShortModelName(aiStatus?.Model)</span>
+        </span>
+    }
+    else
+    {
+        <span class="ai-info-badge ai-not-ready">⚠️ AI 未配置，请先设置 API Key</span>
+    }
+    @if (messages.Count > 0)
+    {
+        <div style="margin-left: auto; display: flex; gap: 0.5rem;">
+            <button class="btn btn-sm btn-outline-secondary" @onclick="ExportChatAsync">
+                📥 导出对话
+            </button>
+            <button class="btn btn-sm btn-outline-secondary" @onclick="ClearChatHistoryAsync">
+                🗑️ 清空对话
+            </button>
+        </div>
+    }
+</div>
+
+<div class="chat-container">
+    <div class="chat-messages">
+        @foreach (var message in messages)
+        {
+            <div class="message @(message.IsUser ? "user" : "ai")">
+                <div class="message-avatar">
+                    @(message.IsUser ? "👤" : "🤖")
+                </div>
+                <div class="message-content">
+                    @if (message.ToolCalls.Any())
+                    {
+                        <div class="tool-calls">
+                            @foreach (var tool in message.ToolCalls)
+                            {
+                                <span class="tool-call-badge">@tool.DisplayName</span>
+                            }
+                        </div>
+                    }
+                    <div class="message-text">
+                        @if (message.IsUser)
+                        {
+                            @message.Content
+                        }
+                        else
+                        {
+                            @((MarkupString)RenderMarkdown(message.Content))
+                        }
+                    </div>
+                    <div class="message-actions">
+                        @if (!message.IsUser)
+                        {
+                            <button class="msg-action-btn" @onclick="() => RegenerateAsync(message)" title="重新生成">
+                                🔄 重新生成
+                            </button>
+                        }
+                        <span class="message-time">@message.Time.ToString("HH:mm")</span>
+                    </div>
+                </div>
+            </div>
+        }
+
+        @if (isThinking)
+        {
+            <div class="message ai">
+                <div class="message-avatar">🤖</div>
+                <div class="message-content">
+                    <div class="typing-indicator">
+                        <span></span><span></span><span></span>
+                    </div>
+                </div>
+            </div>
+        }
+    </div>
+
+    <div class="chat-controls">
+        <div class="model-selector-bar">
+            <div class="selector-group">
+                <label>模式</label>
+                <div class="btn-group btn-group-sm" role="group">
+                    <button type="button" class="btn @(chatMode == "remote" ? "btn-primary" : "btn-outline-primary")" @onclick="@(() => OnChatModeChangedSync("remote"))" disabled="@isThinking">🌐 远程</button>
+                    <button type="button" class="btn @(chatMode == "gguf" ? "btn-primary" : "btn-outline-primary")" @onclick="@(() => OnChatModeChangedSync("gguf"))" disabled="@isThinking">🦙 GGUF</button>
+                    <button type="button" class="btn @(chatMode == "onnx" ? "btn-primary" : "btn-outline-primary")" @onclick="@(() => OnChatModeChangedSync("onnx"))" disabled="@isThinking">📦 ONNX</button>
+                </div>
+            </div>
+            @if (chatMode == "remote")
+            {
+                <div class="selector-group">
+                    <label>提供商</label>
+                    <select class="form-select" value="@selectedProviderId" @onchange="OnProviderChanged" disabled="@isThinking">
+                        @foreach (var provider in providers)
+                        {
+                            <option value="@provider.Id">@provider.Name @(provider.IsMain ? "(主)" : "")</option>
+                        }
+                    </select>
+                </div>
+                <div class="selector-group">
+                    <label>模型</label>
+                    <select class="form-select" @bind="selectedModel" disabled="@isThinking">
+                        @if (availableModels.Count == 0)
+                        {
+                            <option value="">— 无可用模型 —</option>
+                        }
+                        @foreach (var model in availableModels)
+                        {
+                            <option value="@model.Name">@GetShortModelName(model.Name) @(model.IsMain ? "(默认)" : "")</option>
+                        }
+                    </select>
+                    @if (availableModels.Count == 0 && IsLocalProvider(selectedProviderId))
+                    {
+                        <a href="settings" class="link-small" style="margin-top: 0.25rem; display: inline-block;">
+                            去设置页获取模型 →
+                        </a>
+                    }
+                </div>
+            }
+            else
+            {
+                <div class="selector-group" style="flex: 1; min-width: 12rem;">
+                    <label>模型路径</label>
+                    <div style="display: flex; gap: 0.5rem; flex: 1;">
+                        <input type="text"
+                               class="form-control"
+                               @bind="localModelPath"
+                               placeholder="@(chatMode == "gguf" ? "/path/to/model.gguf" : "/path/to/onnx/model")"
+                               disabled="@isThinking"
+                               style="flex: 1; font-size: 0.85rem;" />
+                        <button @onclick="ScanLocalModels" class="btn btn-secondary" disabled="@isThinking" style="white-space: nowrap; font-size: 0.85rem;">
+                            🔍 扫描
+                        </button>
+                    </div>
+                </div>
+            }
+            @if (chatMode == "remote")
+            {
+                <div class="selector-group" style="align-items: center;">
+                    <label>知识库</label>
+                    <div class="form-check form-switch mb-0">
+                        <input class="form-check-input" type="checkbox" @bind="useVaultSearch" id="vaultSearchSwitch" disabled="@isThinking">
+                        <label class="form-check-label" for="vaultSearchSwitch" style="font-size: 0.85rem;">
+                            @(useVaultSearch ? "🔍 检索中" : "关闭")
+                        </label>
+                    </div>
+                </div>
+            }
+        </div>
+        @if (localModels.Any())
+        {
+            <div class="local-model-list">
+                @foreach (var model in localModels)
+                {
+                    <div class="local-model-item @(localModelPath == model.Path ? "active" : "")" @onclick="() => SelectLocalModel(model)">
+                        <span class="local-model-type">@model.Type.ToUpper()</span>
+                        <span class="local-model-name">@model.Name</span>
+                        <span class="local-model-size">@FormatBytes(model.Size)</span>
+                    </div>
+                }
+            </div>
+        }
+        <div class="chat-input">
+            <textarea @bind="inputMessage"
+                      @bind:event="oninput"
+                      @onkeydown="HandleKeyDown"
+                      placeholder="输入消息...&#10;Shift+Enter 换行，Enter 发送"
+                      class="form-control chat-textarea"
+                      rows="1"
+                      disabled="@isThinking"></textarea>
+            @if (isThinking)
+            {
+                <button @onclick="StopChat" class="btn btn-danger">
+                    ⏹ 停止
+                </button>
+            }
+            else
+            {
+                <button @onclick="SendMessage" class="btn btn-primary" disabled="@(!CanSend)">
+                    发送
+                </button>
+            }
+        </div>
+    </div>
+</div>
+
+<style>
+    .ai-info-bar {
+        margin-bottom: 0.75rem;
+    }
+    .ai-info-badge {
+        display: inline-flex;
+        align-items: center;
+        gap: 0.4rem;
+        padding: 0.3rem 0.75rem;
+        border-radius: 1rem;
+        font-size: 0.85rem;
+        background: linear-gradient(135deg, #e3f2fd 0%, #bbdefb 100%);
+        color: #1565c0;
+        border: 1px solid #90caf9;
+    }
+    .ai-info-badge.ai-not-ready {
+        background: linear-gradient(135deg, #fff3e0 0%, #ffe0b2 100%);
+        color: #e65100;
+        border-color: #ffcc80;
+    }
+    .ai-info-sep {
+        opacity: 0.4;
+    }
+    .chat-controls {
+        display: flex;
+        flex-direction: column;
+        gap: 0.5rem;
+    }
+    .model-selector-bar {
+        display: flex;
+        gap: 0.75rem;
+        flex-wrap: wrap;
+    }
+    .selector-group {
+        display: flex;
+        align-items: center;
+        gap: 0.4rem;
+    }
+    .selector-group label {
+        font-size: 0.8rem;
+        color: #666;
+        white-space: nowrap;
+    }
+    .selector-group select {
+        font-size: 0.85rem;
+        padding: 0.25rem 0.5rem;
+        border-radius: 0.375rem;
+        border: 1px solid #ced4da;
+        background: #fff;
+        min-width: 8rem;
+    }
+    .selector-group select:focus {
+        outline: none;
+        border-color: #86b7fe;
+        box-shadow: 0 0 0 0.15rem rgba(13,110,253,.25);
+    }
+    .chat-input {
+        display: flex;
+        gap: 0.5rem;
+    }
+    .chat-input textarea {
+        flex: 1;
+        resize: none;
+        min-height: 2.5rem;
+        max-height: 8rem;
+        overflow-y: auto;
+        line-height: 1.4;
+        padding: 0.5rem 0.75rem;
+    }
+    .local-model-list {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 0.4rem;
+        max-height: 6rem;
+        overflow-y: auto;
+    }
+    .local-model-item {
+        display: inline-flex;
+        align-items: center;
+        gap: 0.4rem;
+        padding: 0.25rem 0.6rem;
+        border-radius: 0.375rem;
+        background: #f8f9fa;
+        border: 1px solid #dee2e6;
+        cursor: pointer;
+        font-size: 0.8rem;
+        transition: all 0.15s;
+    }
+    .local-model-item:hover {
+        background: #e9ecef;
+        border-color: #adb5bd;
+    }
+    .local-model-item.active {
+        background: #e3f2fd;
+        border-color: #90caf9;
+        color: #1565c0;
+    }
+    .local-model-type {
+        font-weight: 600;
+        font-size: 0.7rem;
+        padding: 0.05rem 0.3rem;
+        border-radius: 0.2rem;
+        background: #6c757d;
+        color: #fff;
+    }
+    .local-model-item.active .local-model-type {
+        background: #1565c0;
+    }
+    .local-model-size {
+        color: #888;
+        font-size: 0.75rem;
+    }
+
+    .tool-calls {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 0.35rem;
+        margin-bottom: 0.5rem;
+    }
+
+    .tool-call-badge {
+        display: inline-flex;
+        align-items: center;
+        gap: 0.25rem;
+        padding: 0.2rem 0.5rem;
+        border-radius: 1rem;
+        font-size: 0.75rem;
+        background: linear-gradient(135deg, #e8f5e9 0%, #c8e6c9 100%);
+        color: #2e7d32;
+        border: 1px solid #a5d6a7;
+        animation: toolCallFadeIn 0.3s ease;
+    }
+
+    @@keyframes toolCallFadeIn {
+        from { opacity: 0; transform: translateY(-4px); }
+        to { opacity: 1; transform: translateY(0); }
+    }
+
+    /* Markdown 渲染样式 */
+    .message-text h1, .message-text h2, .message-text h3, .message-text h4 {
+        margin: 0.75rem 0 0.5rem;
+        font-weight: 600;
+        color: #2c3e50;
+    }
+    .message-text h1 { font-size: 1.3rem; }
+    .message-text h2 { font-size: 1.15rem; }
+    .message-text h3 { font-size: 1rem; }
+    .message-text p {
+        margin: 0.5rem 0;
+        line-height: 1.6;
+    }
+    .message-text ul, .message-text ol {
+        margin: 0.5rem 0;
+        padding-left: 1.5rem;
+    }
+    .message-text li {
+        margin: 0.25rem 0;
+    }
+    .message-text blockquote {
+        margin: 0.5rem 0;
+        padding: 0.5rem 0.75rem;
+        border-left: 3px solid #2196f3;
+        background: #f5f6fa;
+        color: #555;
+    }
+    .message-text code {
+        background: #f0f0f0;
+        padding: 0.15rem 0.35rem;
+        border-radius: 3px;
+        font-size: 0.9em;
+        color: #e91e63;
+    }
+    .message-text pre {
+        background: #2c3e50;
+        color: #ecf0f1;
+        padding: 0.75rem;
+        border-radius: 6px;
+        overflow-x: auto;
+        margin: 0.5rem 0;
+        position: relative;
+    }
+    .code-copy-btn {
+        position: absolute;
+        top: 0.35rem;
+        right: 0.35rem;
+        padding: 0.2rem 0.5rem;
+        font-size: 0.75rem;
+        background: rgba(255,255,255,0.15);
+        color: #ecf0f1;
+        border: none;
+        border-radius: 4px;
+        cursor: pointer;
+        opacity: 0;
+        transition: opacity 0.2s;
+    }
+    .message-text pre:hover .code-copy-btn {
+        opacity: 1;
+    }
+    .code-copy-btn:hover {
+        background: rgba(255,255,255,0.3);
+    }
+    .code-copy-btn.copied {
+        background: rgba(46, 125, 50, 0.8);
+    }
+    .message-text pre code {
+        background: transparent;
+        color: inherit;
+        padding: 0;
+        font-size: 0.85em;
+    }
+    .message-text table {
+        border-collapse: collapse;
+        margin: 0.5rem 0;
+        width: 100%;
+    }
+    .message-text th, .message-text td {
+        border: 1px solid #ddd;
+        padding: 0.5rem;
+        text-align: left;
+    }
+    .message-text th {
+        background: #f5f6fa;
+        font-weight: 600;
+    }
+    .message-text strong {
+        color: #2c3e50;
+    }
+    .message-text a {
+        color: #2196f3;
+        text-decoration: none;
+    }
+    .message-text a:hover {
+        text-decoration: underline;
+    }
+    .message-text hr {
+        border: none;
+        border-top: 1px solid #ddd;
+        margin: 0.75rem 0;
+    }
+
+    .message-actions {
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+        margin-top: 0.25rem;
+    }
+    .msg-action-btn {
+        padding: 0.15rem 0.4rem;
+        font-size: 0.7rem;
+        background: transparent;
+        border: 1px solid #ddd;
+        border-radius: 4px;
+        color: #666;
+        cursor: pointer;
+        opacity: 0;
+        transition: opacity 0.2s, background 0.2s;
+    }
+    .message:hover .msg-action-btn {
+        opacity: 1;
+    }
+    .msg-action-btn:hover {
+        background: #f0f0f0;
+        color: #333;
+    }
+</style>
+
+@code {
+    private string inputMessage = "";
+    private bool isThinking = false;
+    private List<ChatMessage> messages = new();
+    private AIStatusSummary? aiStatus;
+    private CancellationTokenSource? _chatCts;
+    private string chatSessionId = Guid.NewGuid().ToString("N");
+
+    private List<AiConfigProvider> providers = new();
+    private string selectedProviderId = "";
+    private string selectedModel = "";
+
+    private string chatMode = "remote";
+    private string localModelPath = "";
+    private List<LocalModelInfo> localModels = new();
+    private bool _canShowLocalModels = true;
+
+    private List<AiConfigModel> availableModels => providers
+        .FirstOrDefault(p => p.Id == selectedProviderId)?.Models ?? new List<AiConfigModel>();
+
+    private bool CanSend => chatMode == "remote"
+        ? !isThinking && !string.IsNullOrWhiteSpace(inputMessage) && providers.Any()
+        : !isThinking && !string.IsNullOrWhiteSpace(inputMessage) && !string.IsNullOrWhiteSpace(localModelPath);
+
+    protected override void OnInitialized()
+    {
+        aiStatus = GlobalStateService.GetAIStatus();
+        GlobalStateService.StateChanged += OnGlobalStateChanged;
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (firstRender)
+        {
+            _canShowLocalModels = await CapabilityService.CanShowAsync("MessagesLocalModelSelector");
+            await LoadProvidersAsync();
+            await LoadChatHistoryAsync();
+        }
+        // 每次渲染后为代码块添加复制按钮
+        await JSRuntime.InvokeVoidAsync("addCopyButtonsToCodeBlocks");
+    }
+
+    private async Task LoadProvidersAsync()
+    {
+        providers = await ApiService.GetAiConfigProvidersAsync();
+        // 默认选中主提供商；无主提供商则选第一个
+        var defaultProvider = providers.FirstOrDefault(p => p.IsMain) ?? providers.FirstOrDefault();
+        if (defaultProvider != null)
+        {
+            selectedProviderId = defaultProvider.Id;
+            var defaultModel = defaultProvider.Models.FirstOrDefault(m => m.IsMain)
+                               ?? defaultProvider.Models.FirstOrDefault();
+            selectedModel = defaultModel?.Name ?? "";
+        }
+
+        StateHasChanged();
+    }
+
+    private void OnGlobalStateChanged(object? sender, EventArgs e)
+    {
+        aiStatus = GlobalStateService.GetAIStatus();
+        InvokeAsync(StateHasChanged);
+    }
+
+    private string RenderMarkdown(string? content)
+    {
+        if (string.IsNullOrWhiteSpace(content)) return "";
+        var pipeline = new MarkdownPipelineBuilder()
+            .UseAdvancedExtensions()
+            .DisableHtml()
+            .Build();
+        return Markdown.ToHtml(content, pipeline);
+    }
+
+    private async Task CopyToClipboard(string text)
+    {
+        try
+        {
+            await JSRuntime.InvokeVoidAsync("navigator.clipboard.writeText", text);
+        }
+        catch { }
+    }
+
+    private async Task SaveChatHistoryAsync()
+    {
+        try
+        {
+            var history = messages.Select(m => new
+            {
+                m.IsUser,
+                m.Content,
+                m.Time,
+                ToolCalls = m.ToolCalls.Select(t => new { t.Name, t.DisplayName }).ToList()
+            }).ToList();
+            var json = System.Text.Json.JsonSerializer.Serialize(new { sessionId = chatSessionId, messages = history });
+            await JSRuntime.InvokeVoidAsync("localStorage.setItem", "chat_history", json);
+        }
+        catch { }
+    }
+
+    private async Task LoadChatHistoryAsync()
+    {
+        try
+        {
+            var json = await JSRuntime.InvokeAsync<string?>("localStorage.getItem", "chat_history");
+            if (!string.IsNullOrWhiteSpace(json))
+            {
+                using var doc = System.Text.Json.JsonDocument.Parse(json);
+                var root = doc.RootElement;
+                if (root.TryGetProperty("sessionId", out var sidProp))
+                    chatSessionId = sidProp.GetString() ?? Guid.NewGuid().ToString("N");
+                if (root.TryGetProperty("messages", out var msgsProp))
+                {
+                    var history = System.Text.Json.JsonSerializer.Deserialize<List<ChatMessage>>(msgsProp.GetRawText());
+                    if (history != null && history.Count > 0)
+                    {
+                        messages = history;
+                        StateHasChanged();
+                        await Task.Yield();
+                        try { await JSRuntime.InvokeVoidAsync("hljs.highlightAll"); } catch { }
+                    }
+                }
+            }
+        }
+        catch { }
+    }
+
+    private async Task ClearChatHistoryAsync()
+    {
+        messages.Clear();
+        chatSessionId = Guid.NewGuid().ToString("N");
+        try
+        {
+            await JSRuntime.InvokeVoidAsync("localStorage.removeItem", "chat_history");
+        }
+        catch { }
+        StateHasChanged();
+    }
+
+    private async Task ExportChatAsync()
+    {
+        if (messages.Count == 0) return;
+
+        var sb = new System.Text.StringBuilder();
+        sb.AppendLine("# AI 对话记录");
+        sb.AppendLine($"导出时间: {DateTime.Now:yyyy-MM-dd HH:mm:ss}");
+        sb.AppendLine();
+        foreach (var msg in messages)
+        {
+            var role = msg.IsUser ? "**用户**" : "**AI**";
+            sb.AppendLine($"## {role} ({msg.Time:HH:mm:ss})");
+            sb.AppendLine();
+            sb.AppendLine(msg.Content);
+            if (msg.ToolCalls.Any())
+            {
+                sb.AppendLine();
+                sb.AppendLine($"> 🔧 调用了工具: {string.Join(", ", msg.ToolCalls.Select(t => t.DisplayName))}");
+            }
+            sb.AppendLine();
+            sb.AppendLine("---");
+            sb.AppendLine();
+        }
+
+        var markdown = sb.ToString();
+        var bytes = System.Text.Encoding.UTF8.GetBytes(markdown);
+        var base64 = Convert.ToBase64String(bytes);
+        var fileName = $"chat-export-{DateTime.Now:yyyyMMdd-HHmmss}.md";
+
+        try
+        {
+            await JSRuntime.InvokeVoidAsync("downloadFile", fileName, $"data:text/markdown;base64,{base64}");
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"导出失败: {ex.Message}");
+        }
+    }
+
+    private async Task RegenerateAsync(ChatMessage aiMessage)
+    {
+        var index = messages.IndexOf(aiMessage);
+        if (index <= 0) return;
+
+        // 找到对应的用户消息（AI 消息前一条应该是用户消息）
+        var userMessage = messages[index - 1];
+        if (!userMessage.IsUser) return;
+
+        // 删除该 AI 消息及之后的所有消息
+        while (messages.Count > index)
+        {
+            messages.RemoveAt(index);
+        }
+
+        isThinking = true;
+        aiMessage.Content = "";
+        aiMessage.ToolCalls.Clear();
+        aiMessage.Time = DateTime.Now;
+        messages.Add(aiMessage);
+        StateHasChanged();
+
+        await SendStreamCoreAsync(userMessage.Content, aiMessage);
+    }
+
+    /// <summary>
+    /// 核心流式发送逻辑
+    /// </summary>
+    private async Task SendStreamCoreAsync(string content, ChatMessage aiMessage)
+    {
+        // 构建历史消息（后端 ChatMemoryService 负责截断和记忆管理）
+        var history = messages.Take(messages.Count - 1)
+            .Select(m => (m.IsUser, m.Content))
+            .ToList();
+
+        _chatCts = new CancellationTokenSource();
+        try
+        {
+            if (chatMode == "remote")
+            {
+                if (useVaultSearch)
+                {
+                    await foreach (var delta in ApiService.StreamChatWithVaultAsync(content, selectedModel, history, _chatCts.Token))
+                    {
+                        if (_chatCts.IsCancellationRequested) break;
+                        aiMessage.Content += delta;
+                        StateHasChanged();
+                        await Task.Yield();
+                    }
+                }
+                else
+                {
+                    await foreach (var evt in ApiService.StreamChatWithEventsAsync(content, selectedProviderId, selectedModel, history, chatSessionId, _chatCts.Token))
+                    {
+                        if (_chatCts.IsCancellationRequested) break;
+                        if (evt.Type == "delta" && !string.IsNullOrEmpty(evt.Content))
+                        {
+                            aiMessage.Content += evt.Content;
+                        }
+                        else if (evt.Type == "tool_call")
+                        {
+                            var displayName = evt.ToolName switch
+                            {
+                                "search_vault" => "🔍 搜索知识库",
+                                "create_note" => "📝 创建笔记",
+                                "get_system_status" => "📊 获取系统状态",
+                                "get_current_date" => "📅 获取时间",
+                                "list_vaults" => "📚 列出知识库",
+                                _ => $"🔧 {evt.ToolName}"
+                            };
+                            aiMessage.ToolCalls.Add(new ToolCallInfo { Name = evt.ToolName ?? "", DisplayName = displayName });
+                        }
+                        StateHasChanged();
+                        await Task.Yield();
+                    }
+                }
+            }
+            else
+            {
+                await foreach (var delta in ApiService.StreamLocalChatAsync(content, localModelPath, chatMode, history, _chatCts.Token))
+                {
+                    if (_chatCts.IsCancellationRequested) break;
+                    aiMessage.Content += delta;
+                    StateHasChanged();
+                    await Task.Yield();
+                }
+            }
+
+            if (_chatCts.IsCancellationRequested)
+            {
+                aiMessage.Content = string.IsNullOrEmpty(aiMessage.Content)
+                    ? "（已停止）"
+                    : aiMessage.Content + "\n\n（已停止）";
+            }
+        }
+        catch (OperationCanceledException)
+        {
+            aiMessage.Content = string.IsNullOrEmpty(aiMessage.Content)
+                ? "（已停止）"
+                : aiMessage.Content + "\n\n（已停止）";
+        }
+        catch (Exception ex)
+        {
+            aiMessage.Content = $"请求失败：{ex.Message}";
+        }
+        finally
+        {
+            isThinking = false;
+            _chatCts?.Dispose();
+            _chatCts = null;
+            StateHasChanged();
+            await Task.Yield();
+            try { await JSRuntime.InvokeVoidAsync("hljs.highlightAll"); } catch { }
+            await SaveChatHistoryAsync();
+        }
+    }
+
+    private string GetShortModelName(string? fullName)
+    {
+        if (string.IsNullOrWhiteSpace(fullName)) return "默认模型";
+        var parts = fullName.Split('/', StringSplitOptions.RemoveEmptyEntries);
+        return parts.Length > 0 ? parts[^1] : fullName;
+    }
+
+    private bool IsLocalProvider(string providerId)
+    {
+        var provider = providers.FirstOrDefault(p => p.Id == providerId);
+        if (provider == null) return false;
+        var lower = provider.BaseUrl.ToLowerInvariant();
+        return lower.Contains("localhost:11434") || lower.Contains("127.0.0.1:11434") ||
+               lower.Contains("localhost:1234") || lower.Contains("127.0.0.1:1234");
+    }
+
+    private void OnProviderChanged(ChangeEventArgs e)
+    {
+        selectedProviderId = e.Value?.ToString() ?? "";
+        var provider = providers.FirstOrDefault(p => p.Id == selectedProviderId);
+        if (provider != null)
+        {
+            var defaultModel = provider.Models.FirstOrDefault(m => m.IsMain)
+                               ?? provider.Models.FirstOrDefault();
+            selectedModel = defaultModel?.Name ?? "";
+        }
+        else
+        {
+            selectedModel = "";
+        }
+    }
+
+    private void OnChatModeChanged(ChangeEventArgs e)
+    {
+        chatMode = e.Value?.ToString() ?? "remote";
+    }
+
+    private void OnChatModeChangedSync(string mode)
+    {
+        chatMode = mode;
+    }
+
+    private async Task ScanLocalModels()
+    {
+        localModels = await ApiService.ScanLocalModelsAsync();
+        if (!localModels.Any())
+        {
+            // 如果没有扫描到，尝试扫描用户输入的路径所在目录
+            if (!string.IsNullOrWhiteSpace(localModelPath))
+            {
+                var dir = Path.GetDirectoryName(localModelPath);
+                if (!string.IsNullOrWhiteSpace(dir) && Directory.Exists(dir))
+                {
+                    localModels = await ApiService.ScanLocalModelsAsync(dir);
+                }
+            }
+        }
+    }
+
+    private void SelectLocalModel(LocalModelInfo model)
+    {
+        localModelPath = model.Path;
+        chatMode = model.Type.ToLower();
+    }
+
+    private static string FormatBytes(long bytes)
+    {
+        if (bytes < 1024) return $"{bytes}B";
+        if (bytes < 1024 * 1024) return $"{bytes / 1024.0:F1}KB";
+        if (bytes < 1024L * 1024 * 1024) return $"{bytes / (1024.0 * 1024):F1}MB";
+        return $"{bytes / (1024.0 * 1024 * 1024):F1}GB";
+    }
+
+    private async Task HandleKeyDown(KeyboardEventArgs e)
+    {
+        if (e.Key == "Enter" && !e.ShiftKey)
+        {
+            await SendMessage();
+        }
+    }
+
+    private bool useVaultSearch = false;
+
+    private async Task SendMessage()
+    {
+        if (string.IsNullOrWhiteSpace(inputMessage))
+            return;
+
+        messages.Add(new ChatMessage { IsUser = true, Content = inputMessage, Time = DateTime.Now });
+        var userMessage = inputMessage;
+        inputMessage = "";
+        isThinking = true;
+
+        var aiMessage = new ChatMessage { IsUser = false, Content = "", Time = DateTime.Now };
+        messages.Add(aiMessage);
+        StateHasChanged();
+
+        await SendStreamCoreAsync(userMessage, aiMessage);
+    }
+
+    private void StopChat()
+    {
+        try
+        {
+            _chatCts?.Cancel();
+        }
+        catch { }
+    }
+
+    public class ChatMessage
+    {
+        public bool IsUser { get; set; }
+        public string Content { get; set; } = "";
+        public DateTime Time { get; set; }
+        public List<ToolCallInfo> ToolCalls { get; set; } = new();
+    }
+
+    public class ToolCallInfo
+    {
+        public string Name { get; set; } = "";
+        public string DisplayName { get; set; } = "";
+    }
+
+    public void Dispose()
+    {
+        GlobalStateService.StateChanged -= OnGlobalStateChanged;
+        try
+        {
+            _chatCts?.Cancel();
+            _chatCts?.Dispose();
+        }
+        catch { }
+    }
+}
