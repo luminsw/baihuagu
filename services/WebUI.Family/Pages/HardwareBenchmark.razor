@@ -749,7 +749,7 @@ else
     .loading-spinner {
         text-align: center;
         padding: 3rem;
-        color: #8a7a82;
+        color: #5a6a72;
         font-size: 1.1rem;
     }
 
@@ -769,7 +769,7 @@ else
     }
 
     .section-desc {
-        color: #8a7a82;
+        color: #5a6a72;
         font-size: 0.9rem;
         margin-bottom: 1rem;
     }
@@ -782,18 +782,18 @@ else
 
     .machine-card {
         flex: 1;
-        border: 2px solid #f5e8ed;
+        border: 2px solid #e8eef2;
         border-radius: 10px;
         padding: 1.25rem;
-        background: #fdf6f8;
+        background: #f5f8fa;
         transition: border-color 0.2s ease;
     }
 
-    .machine-card.tier-cpu-only { border-color: #c0b0b8; }
-    .machine-card.tier-low-end { border-color: #e8a87c; }
-    .machine-card.tier-mid-range { border-color: #7ec8c8; }
+    .machine-card.tier-cpu-only { border-color: #a0aeb6; }
+    .machine-card.tier-low-end { border-color: #d4a574; }
+    .machine-card.tier-mid-range { border-color: #5ab8c4; }
     .machine-card.tier-high-end { border-color: #6b9e75; }
-    .machine-card.tier-top-tier { border-color: #8b6bb5; }
+    .machine-card.tier-top-tier { border-color: #5a7ab5; }
 
     .card-header {
         display: flex;
@@ -801,7 +801,7 @@ else
         gap: 0.5rem;
         margin-bottom: 1rem;
         padding-bottom: 0.75rem;
-        border-bottom: 1px solid #f5e8ed;
+        border-bottom: 1px solid #e8eef2;
     }
 
     .platform-icon {
@@ -811,7 +811,7 @@ else
     .platform-name {
         font-weight: 600;
         font-size: 1.1rem;
-        color: #4a3540;
+        color: #1e3a4c;
         flex: 1;
     }
 
@@ -820,12 +820,12 @@ else
         padding: 0.25rem 0.6rem;
         border-radius: 12px;
         font-weight: 600;
-        background: #f5e8ed;
-        color: #6a5060;
+        background: #e8eef2;
+        color: #4a5860;
     }
 
-    .machine-card.tier-cpu-only .tier-badge { background: #f0e8ec; color: #5a4a50; }
-    .machine-card.tier-low-end .tier-badge { background: #fdf0e0; color: #7a5a3a; }
+    .machine-card.tier-cpu-only .tier-badge { background: #f0e8ec; color: #4a5a60; }
+    .machine-card.tier-low-end .tier-badge { background: #f5eee0; color: #6a5a3a; }
     .machine-card.tier-mid-range .tier-badge { background: #d1ecf1; color: #0c5460; }
     .machine-card.tier-high-end .tier-badge { background: #e0f0e5; color: #3d6b45; }
     .machine-card.tier-top-tier .tier-badge { background: #e2d4f0; color: #4a2c7a; }
@@ -844,7 +844,7 @@ else
 
     .spec-label {
         font-size: 0.78rem;
-        color: #8a7a82;
+        color: #5a6a72;
         text-transform: uppercase;
         letter-spacing: 0.03em;
     }
@@ -852,7 +852,7 @@ else
     .spec-value {
         font-size: 0.92rem;
         font-weight: 500;
-        color: #4a3540;
+        color: #1e3a4c;
         word-break: break-word;
     }
 
@@ -869,33 +869,33 @@ else
     }
 
     .comparison-table thead th {
-        background: #fdf6f8;
+        background: #f5f8fa;
         padding: 0.75rem 0.6rem;
         text-align: left;
         font-weight: 600;
-        color: #6a5060;
-        border-bottom: 2px solid #f0d5dc;
+        color: #4a5860;
+        border-bottom: 2px solid #d8e2e8;
         white-space: nowrap;
     }
 
     .comparison-table tbody td {
         padding: 0.85rem 0.6rem;
-        border-bottom: 1px solid #f5e8ed;
+        border-bottom: 1px solid #e8eef2;
         vertical-align: top;
         line-height: 1.5;
     }
 
     .comparison-table tbody tr:hover {
-        background: #fdf6f8;
+        background: #f5f8fa;
     }
 
     .comparison-table tbody tr.current-row {
-        background: #fce8ec;
-        border-left: 3px solid #d65a6f;
+        background: #e0ecf4;
+        border-left: 3px solid #2e8baf;
     }
 
     .comparison-table tbody tr.current-row td:first-child {
-        border-left: 3px solid #d65a6f;
+        border-left: 3px solid #2e8baf;
     }
 
     .col-rank {
@@ -919,28 +919,28 @@ else
         width: fit-content;
     }
 
-    .platform-badge.current { background: #d65a6f; color: #fff; }
+    .platform-badge.current { background: #2e8baf; color: #fff; }
     .platform-badge.nvidia { background: #e0f0e5; color: #3d6b45; }
-    .platform-badge.intel { background: #fce8ec; color: #6b3540; }
-    .platform-badge.amd { background: #fce8ec; color: #6b3540; }
-    .platform-badge.apple { background: #f0e8ec; color: #5a4a50; }
+    .platform-badge.intel { background: #e0ecf4; color: #4a2a30; }
+    .platform-badge.amd { background: #e0ecf4; color: #4a2a30; }
+    .platform-badge.apple { background: #f0e8ec; color: #4a5a60; }
 
     .platform-model {
         font-weight: 600;
         font-size: 0.95rem;
-        color: #4a3540;
+        color: #1e3a4c;
     }
 
     .sub-text {
         font-size: 0.78rem;
-        color: #8a7a82;
+        color: #5a6a72;
         display: block;
     }
 
     .tops-value {
         font-weight: 700;
         font-size: 1rem;
-        color: #d65a6f;
+        color: #2e8baf;
     }
 
     .speed-value {
@@ -948,10 +948,10 @@ else
     }
 
     .speed-value.speed-excellent { color: #6b9e75; }
-    .speed-value.speed-good { color: #7ec8c8; }
-    .speed-value.speed-mid { color: #e8a87c; }
-    .speed-value.speed-low { color: #e8a87c; }
-    .speed-value.speed-poor { color: #e07a8a; }
+    .speed-value.speed-good { color: #5ab8c4; }
+    .speed-value.speed-mid { color: #d4a574; }
+    .speed-value.speed-low { color: #d4a574; }
+    .speed-value.speed-poor { color: #c94c4c; }
 
     .col-platform { min-width: 140px; }
     .col-gpu { min-width: 160px; }
@@ -970,17 +970,17 @@ else
     }
 
     .tier-card {
-        border: 1px solid #f5e8ed;
+        border: 1px solid #e8eef2;
         border-radius: 8px;
         padding: 1rem;
-        background: #fdf6f8;
+        background: #f5f8fa;
     }
 
-    .tier-card.tier-cpu { border-left: 4px solid #c0b0b8; }
-    .tier-card.tier-entry { border-left: 4px solid #e8a87c; }
-    .tier-card.tier-mid { border-left: 4px solid #7ec8c8; }
+    .tier-card.tier-cpu { border-left: 4px solid #a0aeb6; }
+    .tier-card.tier-entry { border-left: 4px solid #d4a574; }
+    .tier-card.tier-mid { border-left: 4px solid #5ab8c4; }
     .tier-card.tier-high { border-left: 4px solid #6b9e75; }
-    .tier-card.tier-pro { border-left: 4px solid #8b6bb5; }
+    .tier-card.tier-pro { border-left: 4px solid #5a7ab5; }
 
     .tier-title {
         font-weight: 600;
@@ -990,14 +990,14 @@ else
 
     .tier-range {
         font-size: 0.82rem;
-        color: #6a5060;
+        color: #4a5860;
         margin-bottom: 0.5rem;
         font-weight: 500;
     }
 
     .tier-desc {
         font-size: 0.85rem;
-        color: #8a7a82;
+        color: #5a6a72;
         line-height: 1.5;
     }
 
@@ -1014,8 +1014,8 @@ else
         gap: 1rem;
         padding: 0.85rem 1rem;
         border-radius: 8px;
-        border: 1px solid #f5e8ed;
-        background: #fdf6f8;
+        border: 1px solid #e8eef2;
+        background: #f5f8fa;
     }
 
     .rec-icon {
@@ -1036,7 +1036,7 @@ else
 
     .rec-desc {
         font-size: 0.85rem;
-        color: #8a7a82;
+        color: #5a6a72;
         line-height: 1.4;
     }
 
@@ -1050,13 +1050,13 @@ else
 
     .rec-badge.level-excellent { background: #e0f0e5; color: #3d6b45; }
     .rec-badge.level-good { background: #d1ecf1; color: #0c5460; }
-    .rec-badge.level-ok { background: #fdf0e0; color: #7a5a3a; }
-    .rec-badge.level-bad { background: #fce8ec; color: #6b3540; }
+    .rec-badge.level-ok { background: #f5eee0; color: #6a5a3a; }
+    .rec-badge.level-bad { background: #e0ecf4; color: #4a2a30; }
 
     .recommendation-item.level-excellent { border-left: 4px solid #6b9e75; }
-    .recommendation-item.level-good { border-left: 4px solid #7ec8c8; }
-    .recommendation-item.level-ok { border-left: 4px solid #e8a87c; }
-    .recommendation-item.level-bad { border-left: 4px solid #e07a8a; }
+    .recommendation-item.level-good { border-left: 4px solid #5ab8c4; }
+    .recommendation-item.level-ok { border-left: 4px solid #d4a574; }
+    .recommendation-item.level-bad { border-left: 4px solid #c94c4c; }
 
     .refresh-section {
         display: flex;
@@ -1070,13 +1070,13 @@ else
     }
 
     .alert-info {
-        background: #fce8ec;
-        color: #d65a6f;
+        background: #e0ecf4;
+        color: #2e8baf;
         border: 1px solid #b6d4fe;
     }
 
     .text-muted {
-        color: #8a7a82;
+        color: #5a6a72;
     }
 
     @@media (max-width: 768px) {
@@ -1094,11 +1094,11 @@ else
     .data-source-note {
         margin-top: 1.5rem;
         padding: 1rem 1.25rem;
-        background: #fdf6f8;
+        background: #f5f8fa;
         border-radius: 8px;
-        border-left: 4px solid #8a7a82;
+        border-left: 4px solid #5a6a72;
         font-size: 0.82rem;
-        color: #6a5060;
+        color: #4a5860;
     }
     .data-source-note h5 {
         margin: 0 0 0.5rem 0;
@@ -1114,7 +1114,7 @@ else
         line-height: 1.5;
     }
     .data-source-note code {
-        background: #f5e8ed;
+        background: #e8eef2;
         padding: 0.1rem 0.3rem;
         border-radius: 3px;
         font-size: 0.78rem;

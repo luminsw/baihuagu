@@ -234,7 +234,7 @@
                                         <span class="badge" style="background:#e0f0e5;color:#3d6b45;">问道</span>
                                         break;
                                     case AiModelTier.Tier3_Cloud:
-                                        <span class="badge" style="background:#fce8ec;color:#6b3540;">通玄</span>
+                                        <span class="badge" style="background:#e0ecf4;color:#4a2a30;">通玄</span>
                                         break;
                                 }
                             </div>
@@ -302,7 +302,7 @@
     }
 
     <!-- Embedding 配置（一级·固本模型） -->
-    <div class="embedding-config-section" style="margin-top: 2rem; padding-top: 1.5rem; border-top: 2px solid #f5e8ed;">
+    <div class="embedding-config-section" style="margin-top: 2rem; padding-top: 1.5rem; border-top: 2px solid #e8eef2;">
         <h2>🔍 Embedding 配置（一级·固本）</h2>
         <p style="color:#666;font-size:0.9rem;margin-bottom:1rem;">
             配置 RAG 知识库检索所需的 Embedding 模型。纯 CPU 即可运行，推荐 nomic-embed-text 或 bge-small-zh-v1.5。
@@ -355,7 +355,7 @@
     @if (_canShowLocalModelSettings)
     {
     <!-- 本地模型设置 -->
-    <div class="local-model-settings" style="margin-top: 2rem; padding-top: 1.5rem; border-top: 2px solid #f5e8ed;">
+    <div class="local-model-settings" style="margin-top: 2rem; padding-top: 1.5rem; border-top: 2px solid #e8eef2;">
         <h2>🖥️ 本地模型设置</h2>
         <div class="form-group">
             <label>模型下载目录</label>
@@ -412,8 +412,8 @@
     }
 
     .ai-provider-card {
-        background: #fdf6f8;
-        border: 1px solid #f5e8ed;
+        background: #f5f8fa;
+        border: 1px solid #e8eef2;
         border-radius: 8px;
         padding: 1rem;
     }
@@ -452,7 +452,7 @@
 
     .provider-id {
         color: #666;
-        background: #f5e8ed;
+        background: #e8eef2;
         padding: 0.1rem 0.4rem;
         border-radius: 3px;
     }
@@ -478,7 +478,7 @@
         padding: 0.35rem 0.5rem;
         background: white;
         border-radius: 4px;
-        border: 1px solid #f0d5dc;
+        border: 1px solid #d8e2e8;
     }
 
     .model-name {
@@ -490,8 +490,8 @@
 
     /* 编辑表单 */
     .ai-edit-form {
-        background: #fdf6f8;
-        border: 1px solid #f5e8ed;
+        background: #f5f8fa;
+        border: 1px solid #e8eef2;
         border-radius: 8px;
         padding: 1.5rem;
         margin-bottom: 1.5rem;
@@ -520,7 +520,7 @@
     .form-control {
         width: 100%;
         padding: 0.5rem;
-        border: 1px solid #e0d0d8;
+        border: 1px solid #c8d4dc;
         border-radius: 4px;
         font-size: 0.95rem;
     }
@@ -535,7 +535,7 @@
         display: block;
         margin-top: 0.25rem;
         font-size: 0.85rem;
-        color: #8a7a82;
+        color: #5a6a72;
     }
 
     .checkbox-group {
@@ -563,7 +563,7 @@
         gap: 0.5rem;
         padding: 0.5rem;
         background: white;
-        border: 1px solid #f0d5dc;
+        border: 1px solid #d8e2e8;
         border-radius: 4px;
     }
 
@@ -576,7 +576,7 @@
         gap: 0.75rem;
         margin-top: 1.5rem;
         padding-top: 1rem;
-        border-top: 1px solid #f0d5dc;
+        border-top: 1px solid #d8e2e8;
     }
 
     .list-actions {
@@ -603,7 +603,7 @@
     }
 
     .btn-primary {
-        background: #d65a6f;
+        background: #2e8baf;
         color: white;
     }
 
@@ -612,7 +612,7 @@
     }
 
     .btn-secondary {
-        background: #8a7a82;
+        background: #5a6a72;
         color: white;
     }
 
@@ -621,7 +621,7 @@
     }
 
     .btn-danger {
-        background: #e07a8a;
+        background: #c94c4c;
         color: white;
     }
 
@@ -645,19 +645,19 @@
     }
 
     .badge-primary {
-        background: #d65a6f;
+        background: #2e8baf;
         color: white;
     }
 
     .badge-secondary {
-        background: #8a7a82;
+        background: #5a6a72;
         color: white;
     }
 
     .badge-paid {
-        background: #fdf0e0;
-        color: #7a5a3a;
-        border: 1px solid #e8a87c;
+        background: #f5eee0;
+        color: #6a5a3a;
+        border: 1px solid #d4a574;
     }
 
     .badge-free {
@@ -672,13 +672,13 @@
     }
 
     .badge-info {
-        background: #7ec8c8;
+        background: #5ab8c4;
         color: white;
     }
 
     .badge-warning {
-        background: #e8a87c;
-        color: #4a3540;
+        background: #d4a574;
+        color: #1e3a4c;
     }
 
     /* 提示框 */
@@ -689,15 +689,15 @@
     }
 
     .alert-warning {
-        background: #fdf0e0;
-        border: 1px solid #e8a87c;
-        color: #7a5a3a;
+        background: #f5eee0;
+        border: 1px solid #d4a574;
+        color: #6a5a3a;
     }
 
     .alert-error {
-        background: #fce8ec;
-        border: 1px solid #f5c6cb;
-        color: #6b3540;
+        background: #e0ecf4;
+        border: 1px solid #c8dde8;
+        color: #4a2a30;
         margin-top: 1rem;
     }
 
@@ -713,8 +713,8 @@
     }
 
     .status-message.error {
-        background: #fce8ec;
-        color: #6b3540;
+        background: #e0ecf4;
+        color: #4a2a30;
     }
 
     .code-block {

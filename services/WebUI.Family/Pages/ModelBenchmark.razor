@@ -468,7 +468,7 @@ else
         display: flex;
         gap: 0.5rem;
         margin-bottom: 1.5rem;
-        border-bottom: 1px solid #f0d5dc;
+        border-bottom: 1px solid #d8e2e8;
         padding-bottom: 0.5rem;
     }
     .tab-btn {
@@ -478,14 +478,14 @@ else
         border-radius: 6px 6px 0 0;
         cursor: pointer;
         font-weight: 500;
-        color: #8a7a82;
+        color: #5a6a72;
         transition: all 0.2s;
     }
-    .tab-btn:hover { background: #f5e8ed; }
+    .tab-btn:hover { background: #e8eef2; }
     .tab-btn.active {
-        color: #d65a6f;
-        background: #fce8ec;
-        border-bottom: 2px solid #d65a6f;
+        color: #2e8baf;
+        background: #e0ecf4;
+        border-bottom: 2px solid #2e8baf;
     }
 
     .section {
@@ -520,9 +520,9 @@ else
     .vram-badge {
         font-size: 0.85rem;
         padding: 0.35rem 0.75rem;
-        background: #fce8ec;
+        background: #e0ecf4;
         border-radius: 20px;
-        color: #d65a6f;
+        color: #2e8baf;
         font-weight: 500;
     }
     .vram-match {
@@ -540,21 +540,21 @@ else
         min-width: 700px;
     }
     .tier-table th {
-        background: #fdf6f8;
+        background: #f5f8fa;
         padding: 0.6rem 0.75rem;
         text-align: left;
         font-weight: 600;
-        color: #6a5060;
-        border-bottom: 2px solid #f0d5dc;
+        color: #4a5860;
+        border-bottom: 2px solid #d8e2e8;
         white-space: nowrap;
     }
     .tier-table td {
         padding: 0.75rem;
-        border-bottom: 1px solid #f5e8ed;
+        border-bottom: 1px solid #e8eef2;
         vertical-align: top;
     }
     .tier-row:hover {
-        background: #fdf6f8;
+        background: #f5f8fa;
     }
     .tier-row.tier-recommended {
         background: #e0f0e5;
@@ -570,7 +570,7 @@ else
     .tier-gb {
         font-weight: 700;
         font-size: 1rem;
-        color: #4a3540;
+        color: #1e3a4c;
         display: block;
     }
     .tier-match-tag {
@@ -588,36 +588,36 @@ else
         padding: 0.5rem;
         background: #fff;
         border-radius: 6px;
-        border: 1px solid #f5e8ed;
+        border: 1px solid #e8eef2;
     }
     .tier-model:last-child { margin-bottom: 0; }
     .tier-model-name {
         font-weight: 600;
         font-size: 0.9rem;
-        color: #4a3540;
+        color: #1e3a4c;
     }
     .tier-model-params {
         font-weight: 400;
         font-size: 0.78rem;
-        color: #8a7a82;
-        background: #f5e8ed;
+        color: #5a6a72;
+        background: #e8eef2;
         padding: 0.1rem 0.35rem;
         border-radius: 4px;
         margin-left: 0.25rem;
     }
     .tier-model-meta {
         font-size: 0.78rem;
-        color: #6a5060;
+        color: #4a5860;
         line-height: 1.4;
         margin-top: 0.25rem;
     }
     .tier-model-cmd {
         display: block;
         font-size: 0.72rem;
-        background: #f5e8ed;
+        background: #e8eef2;
         padding: 0.2rem 0.4rem;
         border-radius: 3px;
-        color: #4a3540;
+        color: #1e3a4c;
         word-break: break-all;
         margin-top: 0.25rem;
     }
@@ -634,16 +634,16 @@ else
     .progress-bar-bg {
         width: 100%;
         height: 20px;
-        background: #f5e8ed;
+        background: #e8eef2;
         border-radius: 10px;
         overflow: hidden;
     }
     .progress-bar-fill {
         height: 100%;
-        background: linear-gradient(90deg, #d65a6f, #0dcaf0);
+        background: linear-gradient(90deg, #2e8baf, #0dcaf0);
         transition: width 0.5s ease;
     }
-    .progress-text { margin-top: 0.5rem; font-size: 0.9rem; color: #6a5060; }
+    .progress-text { margin-top: 0.5rem; font-size: 0.9rem; color: #4a5860; }
 
     .result-summary {
         display: flex;
@@ -654,11 +654,11 @@ else
         flex: 1;
         text-align: center;
         padding: 1rem;
-        background: #fdf6f8;
+        background: #f5f8fa;
         border-radius: 8px;
     }
-    .summary-value { font-size: 1.75rem; font-weight: 700; color: #d65a6f; }
-    .summary-label { font-size: 0.85rem; color: #8a7a82; margin-top: 0.25rem; }
+    .summary-value { font-size: 1.75rem; font-weight: 700; color: #2e8baf; }
+    .summary-label { font-size: 0.85rem; color: #5a6a72; margin-top: 0.25rem; }
 
     .score-badge {
         display: inline-block;
@@ -683,24 +683,24 @@ else
     .leaderboard-table th, .leaderboard-table td,
     .history-table th, .history-table td {
         padding: 0.6rem 0.75rem;
-        border-bottom: 1px solid #f5e8ed;
+        border-bottom: 1px solid #e8eef2;
         text-align: left;
     }
     .result-table th, .leaderboard-table th, .history-table th {
-        background: #fdf6f8;
+        background: #f5f8fa;
         font-weight: 600;
-        color: #6a5060;
+        color: #4a5860;
     }
     .result-table tr:hover, .leaderboard-table tr:hover, .history-table tr:hover {
-        background: #fdf6f8;
+        background: #f5f8fa;
     }
 
     .prompt-list { display: flex; flex-direction: column; gap: 0.5rem; }
     .prompt-item {
-        border: 1px solid #f5e8ed;
+        border: 1px solid #e8eef2;
         border-radius: 6px;
         padding: 0.75rem 1rem;
-        background: #fdf6f8;
+        background: #f5f8fa;
     }
     .prompt-item summary { font-weight: 500; cursor: pointer; }
     .prompt-text {
@@ -716,12 +716,12 @@ else
     .prompt-kws {
         margin-top: 0.5rem;
         font-size: 0.8rem;
-        color: #8a7a82;
+        color: #5a6a72;
     }
 
     .loading-spinner {
         text-align: center;
         padding: 3rem;
-        color: #8a7a82;
+        color: #5a6a72;
     }
 </style>

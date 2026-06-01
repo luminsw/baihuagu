@@ -101,22 +101,22 @@
         padding: 0.4rem 0.75rem;
         border-radius: 20px;
         border: 2px solid transparent;
-        background: #f5e8ed;
+        background: #e8eef2;
         cursor: pointer;
         font-size: 0.9rem;
         transition: all 0.2s;
     }
 
     .learner-chip.active {
-        border-color: var(--learner-color, #d65a6f);
-        background: color-mix(in srgb, var(--learner-color, #d65a6f) 15%, white);
+        border-color: var(--learner-color, #2e8baf);
+        background: color-mix(in srgb, var(--learner-color, #2e8baf) 15%, white);
     }
 
     .learner-avatar { font-size: 1.1rem; }
 
     .default-badge {
         font-size: 0.65rem;
-        background: var(--learner-color, #d65a6f);
+        background: var(--learner-color, #2e8baf);
         color: white;
         padding: 0.05rem 0.35rem;
         border-radius: 8px;
@@ -130,13 +130,13 @@
         align-items: center;
         margin-bottom: 1rem;
         padding: 0.75rem;
-        background: #fdf6f8;
+        background: #f5f8fa;
         border-radius: 8px;
     }
 
     .add-learner-form .form-control {
         padding: 0.4rem;
-        border: 1px solid #e0d0d8;
+        border: 1px solid #c8d4dc;
         border-radius: 4px;
         font-size: 0.9rem;
     }
@@ -152,7 +152,7 @@
         text-align: center;
         padding: 1rem;
         background: white;
-        border: 1px solid #f5e8ed;
+        border: 1px solid #e8eef2;
         border-radius: 8px;
     }
 
@@ -169,7 +169,7 @@
         text-align: center;
         padding: 1rem;
         border-radius: 10px;
-        border: 1px solid #f5e8ed;
+        border: 1px solid #e8eef2;
         background: white;
         transition: transform 0.2s;
     }
@@ -185,7 +185,7 @@
 
     .achievement-card.tier-bronze { border-color: #cd7f32; }
     .achievement-card.tier-silver { border-color: #a0a0a0; }
-    .achievement-card.tier-gold { border-color: #f5d76e; background: #fffbea; }
+    .achievement-card.tier-gold { border-color: #e0c860; background: #fffbea; }
     .achievement-card.tier-diamond { border-color: #b9f2ff; background: #f0fdff; }
 
     .achievement-icon { font-size: 2rem; margin-bottom: 0.5rem; }
@@ -203,7 +203,7 @@
     private bool showAddForm = false;
     private string newLearnerName = "";
     private string newLearnerEmoji = "👤";
-    private string newLearnerColor = "#d65a6f";
+    private string newLearnerColor = "#2e8baf";
     private bool isAdding = false;
 
     protected override async Task OnAfterRenderAsync(bool firstRender)
@@ -248,7 +248,7 @@
         showAddForm = true;
         newLearnerName = "";
         newLearnerEmoji = "👤";
-        newLearnerColor = "#d65a6f";
+        newLearnerColor = "#2e8baf";
     }
 
     private async Task AddLearner()
