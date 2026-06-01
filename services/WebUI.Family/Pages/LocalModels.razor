@@ -791,11 +791,11 @@ else
         @if (availableVram.HasValue)
         {
             <div class="hardware-vram-bar" style="margin-bottom:1rem;">
-                <span style="font-size:0.85rem;padding:0.35rem 0.75rem;background:#e7f1ff;border-radius:20px;color:#0d6efd;font-weight:500;">
+                <span style="font-size:0.85rem;padding:0.35rem 0.75rem;background:#fce8ec;border-radius:20px;color:#d65a6f;font-weight:500;">
                     本机显存: @(availableVram.Value.ToString("F1")) GB
                     @if (recommendedTierVramGb.HasValue)
                     {
-                        <span style="color:#1e8449;font-weight:600;"> → 推荐 @recommendedTierVramGb.Value GB 档位</span>
+                        <span style="color:#3d6b45;font-weight:600;"> → 推荐 @recommendedTierVramGb.Value GB 档位</span>
                     }
                 </span>
             </div>
@@ -993,8 +993,8 @@ else
     }
 
     .hw-card {
-        background: #f8f9fa;
-        border: 1px solid #e9ecef;
+        background: #fdf6f8;
+        border: 1px solid #f5e8ed;
         border-radius: 10px;
         padding: 1rem;
         text-align: center;
@@ -1034,8 +1034,8 @@ else
         display: flex;
         align-items: center;
         gap: 0.5rem;
-        background: #f8f9fa;
-        border: 1px solid #e9ecef;
+        background: #fdf6f8;
+        border: 1px solid #f5e8ed;
         border-radius: 6px;
         padding: 0.5rem 0.75rem;
     }
@@ -1047,7 +1047,7 @@ else
 
     .link-small {
         font-size: 0.8rem;
-        color: #007bff;
+        color: #d65a6f;
         text-decoration: none;
     }
 
@@ -1075,7 +1075,7 @@ else
 
     .scenario-tag {
         padding: 0.4rem 1rem;
-        border: 1px solid #dee2e6;
+        border: 1px solid #f0d5dc;
         border-radius: 20px;
         background: white;
         cursor: pointer;
@@ -1084,13 +1084,13 @@ else
     }
 
     .scenario-tag:hover {
-        background: #f8f9fa;
+        background: #fdf6f8;
     }
 
     .scenario-tag.active {
-        background: #007bff;
+        background: #d65a6f;
         color: white;
-        border-color: #007bff;
+        border-color: #d65a6f;
     }
 
     .models-grid {
@@ -1102,7 +1102,7 @@ else
 
     .model-card {
         background: white;
-        border: 1px solid #e9ecef;
+        border: 1px solid #f5e8ed;
         border-radius: 10px;
         padding: 1rem;
         display: flex;
@@ -1125,7 +1125,7 @@ else
     .model-size {
         font-size: 0.85rem;
         color: #666;
-        background: #f1f3f5;
+        background: #f5e8ed;
         padding: 0.2rem 0.5rem;
         border-radius: 4px;
     }
@@ -1163,18 +1163,18 @@ else
     }
 
     .suitability-good {
-        background: #d4edda;
-        color: #155724;
+        background: #e0f0e5;
+        color: #3d6b45;
     }
 
     .suitability-ok {
-        background: #fff3cd;
-        color: #856404;
+        background: #fdf0e0;
+        color: #7a5a3a;
     }
 
     .suitability-slow {
-        background: #f8d7da;
-        color: #721c24;
+        background: #fce8ec;
+        color: #6b3540;
     }
 
     .model-performance {
@@ -1190,13 +1190,13 @@ else
     }
 
     .speed-fast {
-        background: #d4edda;
-        color: #155724;
+        background: #e0f0e5;
+        color: #3d6b45;
     }
 
     .speed-medium {
-        background: #fff3cd;
-        color: #856404;
+        background: #fdf0e0;
+        color: #7a5a3a;
     }
 
     .speed-slow {
@@ -1205,22 +1205,22 @@ else
     }
 
     .speed-very-slow {
-        background: #f8d7da;
-        color: #721c24;
+        background: #fce8ec;
+        color: #6b3540;
     }
 
     /* 显存档位分组 */
     .tier-group {
         margin-bottom: 1.5rem;
-        border: 1px solid #e9ecef;
+        border: 1px solid #f5e8ed;
         border-radius: 10px;
         background: #fff;
         overflow: hidden;
     }
 
     .tier-group.tier-recommended {
-        border-color: #28a745;
-        box-shadow: 0 0 0 1px #28a74520;
+        border-color: #6b9e75;
+        box-shadow: 0 0 0 1px #6b9e7520;
     }
 
     .tier-group-header {
@@ -1228,12 +1228,12 @@ else
         justify-content: space-between;
         align-items: center;
         padding: 0.75rem 1rem;
-        background: #f8f9fa;
-        border-bottom: 1px solid #e9ecef;
+        background: #fdf6f8;
+        border-bottom: 1px solid #f5e8ed;
     }
 
     .tier-group.tier-recommended .tier-group-header {
-        background: #e8f5e9;
+        background: #e0f0e5;
     }
 
     .tier-title {
@@ -1245,13 +1245,13 @@ else
     .tier-badge {
         font-weight: 700;
         font-size: 1rem;
-        color: #212529;
+        color: #4a3540;
     }
 
     .tier-recommended-badge {
         font-size: 0.72rem;
         padding: 0.15rem 0.5rem;
-        background: #28a745;
+        background: #6b9e75;
         color: #fff;
         border-radius: 12px;
         font-weight: 500;
@@ -1259,7 +1259,7 @@ else
 
     .tier-count {
         font-size: 0.8rem;
-        color: #6c757d;
+        color: #8a7a82;
     }
 
     .tier-group .models-grid {
@@ -1274,8 +1274,8 @@ else
     }
 
     .deploy-card {
-        background: #f8f9fa;
-        border: 1px solid #e9ecef;
+        background: #fdf6f8;
+        border: 1px solid #f5e8ed;
         border-radius: 10px;
         padding: 1rem;
         margin-bottom: 1rem;
@@ -1299,18 +1299,18 @@ else
     }
 
     .status-running {
-        background: #cce5ff;
-        color: #004085;
+        background: #fce8ec;
+        color: #6b3540;
     }
 
     .status-completed {
-        background: #d4edda;
-        color: #155724;
+        background: #e0f0e5;
+        color: #3d6b45;
     }
 
     .status-failed {
-        background: #f8d7da;
-        color: #721c24;
+        background: #fce8ec;
+        color: #6b3540;
     }
 
     .deploy-progress {
@@ -1323,14 +1323,14 @@ else
     .progress-bar {
         flex: 1;
         height: 8px;
-        background: #dee2e6;
+        background: #f0d5dc;
         border-radius: 4px;
         overflow: hidden;
     }
 
     .progress-fill {
         height: 100%;
-        background: #007bff;
+        background: #d65a6f;
         border-radius: 4px;
         transition: width 0.3s ease;
     }
@@ -1350,7 +1350,7 @@ else
 
     .deploy-logs {
         background: #1e1e1e;
-        color: #d4d4d4;
+        color: #e0d0d8;
         border-radius: 6px;
         padding: 0.5rem 0.75rem;
         font-family: 'Consolas', 'Monaco', monospace;
@@ -1372,7 +1372,7 @@ else
     }
 
     .deploy-success a {
-        color: #007bff;
+        color: #d65a6f;
     }
 
     .btn-sm {
@@ -1394,7 +1394,7 @@ else
 
     .running-models-table {
         background: white;
-        border: 1px solid #e9ecef;
+        border: 1px solid #f5e8ed;
         border-radius: 8px;
         overflow: hidden;
     }
@@ -1408,19 +1408,19 @@ else
     }
 
     .running-table-header {
-        background: #f8f9fa;
+        background: #fdf6f8;
         font-weight: 600;
         font-size: 0.85rem;
         color: #555;
     }
 
     .running-table-row {
-        border-top: 1px solid #f1f3f5;
+        border-top: 1px solid #f5e8ed;
         font-size: 0.9rem;
     }
 
     .running-table-row:hover {
-        background: #f8f9fa;
+        background: #fdf6f8;
     }
 
     .col-model {
@@ -1442,8 +1442,8 @@ else
     }
 
     .tool-ollama {
-        background: #e3f2fd;
-        color: #1565c0;
+        background: #fce8ec;
+        color: #c44569;
     }
 
     .tool-lmstudio {
@@ -1452,14 +1452,14 @@ else
     }
 
     .tool-llamacpp {
-        background: #fff3e0;
-        color: #e65100;
+        background: #fdf0e8;
+        color: #c27a50;
     }
 
     .mem-bar {
         width: 100%;
         height: 6px;
-        background: #e9ecef;
+        background: #f5e8ed;
         border-radius: 3px;
         margin-top: 0.2rem;
         overflow: hidden;
@@ -1467,7 +1467,7 @@ else
 
     .mem-fill {
         height: 100%;
-        background: #28a745;
+        background: #6b9e75;
         border-radius: 3px;
     }
 
@@ -1480,8 +1480,8 @@ else
 
     /* 加载模型区域 */
     .load-model-section {
-        background: #f8f9fa;
-        border: 1px solid #e9ecef;
+        background: #fdf6f8;
+        border: 1px solid #f5e8ed;
         border-radius: 8px;
         padding: 1rem;
         margin-bottom: 1.5rem;
@@ -1511,45 +1511,45 @@ else
     }
 
     .text-success {
-        color: #28a745;
+        color: #6b9e75;
     }
 
     .text-error {
-        color: #dc3545;
+        color: #e07a8a;
     }
 
     /* Badge styles - Bootstrap 5 removed badge-* color classes */
     .badge-success {
-        background: #28a745;
+        background: #6b9e75;
         color: white;
     }
 
     .badge-info {
-        background: #17a2b8;
+        background: #7ec8c8;
         color: white;
     }
 
     .badge-warning {
-        background: #ffc107;
-        color: #212529;
+        background: #e8a87c;
+        color: #4a3540;
     }
 
     .badge-secondary {
-        background: #6c757d;
+        background: #8a7a82;
         color: white;
     }
 
     .badge-light {
-        background: #f8f9fa;
+        background: #fdf6f8;
         color: #333;
-        border: 1px solid #dee2e6;
+        border: 1px solid #f0d5dc;
     }
 
     /* llama.cpp 配置区 */
     .llamacpp-section {
         margin-bottom: 2rem;
         background: #fff8e1;
-        border: 1px solid #ffe0b2;
+        border: 1px solid #f5dcc8;
         border-radius: 10px;
         padding: 1rem;
     }
@@ -1557,7 +1557,7 @@ else
     .llamacpp-section h2 {
         font-size: 1.2rem;
         margin-bottom: 1rem;
-        color: #e65100;
+        color: #c27a50;
     }
 
     .llamacpp-config-form {
@@ -1603,14 +1603,14 @@ else
         cursor: pointer;
         user-select: none;
         padding: 0.25rem 0.5rem;
-        background: #fff3e0;
+        background: #fdf0e8;
         border-radius: 6px;
-        border: 1px solid #ffe0b2;
+        border: 1px solid #f5dcc8;
         transition: background 0.2s;
     }
 
     .preset-checkbox:hover {
-        background: #ffe0b2;
+        background: #f5dcc8;
     }
 
     .preset-checkbox input[type="checkbox"] {
@@ -1620,7 +1620,7 @@ else
 
     .llamacpp-section-title {
         font-size: 0.95rem;
-        color: #e65100;
+        color: #c27a50;
         margin: 1rem 0 0.5rem 0;
         font-weight: 600;
     }
@@ -1634,7 +1634,7 @@ else
         padding: 0.5rem;
         background: #fff8e1;
         border-radius: 8px;
-        border: 1px dashed #ffe0b2;
+        border: 1px dashed #f5dcc8;
     }
 
     .llamacpp-quick-presets .preset-label {
@@ -1650,7 +1650,7 @@ else
 
     .downloaded-models-table {
         background: white;
-        border: 1px solid #e9ecef;
+        border: 1px solid #f5e8ed;
         border-radius: 8px;
         overflow: hidden;
     }
@@ -1664,19 +1664,19 @@ else
     }
 
     .downloaded-table-header {
-        background: #f8f9fa;
+        background: #fdf6f8;
         font-weight: 600;
         font-size: 0.85rem;
         color: #555;
     }
 
     .downloaded-table-row {
-        border-top: 1px solid #f1f3f5;
+        border-top: 1px solid #f5e8ed;
         font-size: 0.9rem;
     }
 
     .downloaded-table-row:hover {
-        background: #f8f9fa;
+        background: #fdf6f8;
     }
 
     .col-dl-name {
@@ -1735,7 +1735,7 @@ else
         justify-content: space-between;
         align-items: center;
         padding: 1rem 1.25rem;
-        border-bottom: 1px solid #e9ecef;
+        border-bottom: 1px solid #f5e8ed;
     }
 
     .modal-header h3 {
@@ -1767,7 +1767,7 @@ else
         justify-content: flex-end;
         gap: 0.75rem;
         padding: 1rem 1.25rem;
-        border-top: 1px solid #e9ecef;
+        border-top: 1px solid #f5e8ed;
     }
 
     .details-sections {
@@ -1784,7 +1784,7 @@ else
 
     .detail-code {
         background: #1e1e1e;
-        color: #d4d4d4;
+        color: #e0d0d8;
         border-radius: 6px;
         padding: 0.75rem;
         font-family: 'Consolas', 'Monaco', monospace;
@@ -2193,7 +2193,7 @@ else
                 {
                     <span class="badge badge-light">@tag</span>
                 }
-                <span class="badge" style="background:#e9ecef;color:#495057;">@model.Company</span>
+                <span class="badge" style="background:#f5e8ed;color:#6a5060;">@model.Company</span>
             </div>
             <div class="model-download-status">
                 @if (model.IsDownloadedOllama)

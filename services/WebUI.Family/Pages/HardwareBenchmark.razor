@@ -749,7 +749,7 @@ else
     .loading-spinner {
         text-align: center;
         padding: 3rem;
-        color: #6c757d;
+        color: #8a7a82;
         font-size: 1.1rem;
     }
 
@@ -769,7 +769,7 @@ else
     }
 
     .section-desc {
-        color: #6c757d;
+        color: #8a7a82;
         font-size: 0.9rem;
         margin-bottom: 1rem;
     }
@@ -782,18 +782,18 @@ else
 
     .machine-card {
         flex: 1;
-        border: 2px solid #e9ecef;
+        border: 2px solid #f5e8ed;
         border-radius: 10px;
         padding: 1.25rem;
-        background: #fafbfc;
+        background: #fdf6f8;
         transition: border-color 0.2s ease;
     }
 
-    .machine-card.tier-cpu-only { border-color: #adb5bd; }
-    .machine-card.tier-low-end { border-color: #ffc107; }
-    .machine-card.tier-mid-range { border-color: #17a2b8; }
-    .machine-card.tier-high-end { border-color: #28a745; }
-    .machine-card.tier-top-tier { border-color: #6f42c1; }
+    .machine-card.tier-cpu-only { border-color: #c0b0b8; }
+    .machine-card.tier-low-end { border-color: #e8a87c; }
+    .machine-card.tier-mid-range { border-color: #7ec8c8; }
+    .machine-card.tier-high-end { border-color: #6b9e75; }
+    .machine-card.tier-top-tier { border-color: #8b6bb5; }
 
     .card-header {
         display: flex;
@@ -801,7 +801,7 @@ else
         gap: 0.5rem;
         margin-bottom: 1rem;
         padding-bottom: 0.75rem;
-        border-bottom: 1px solid #e9ecef;
+        border-bottom: 1px solid #f5e8ed;
     }
 
     .platform-icon {
@@ -811,7 +811,7 @@ else
     .platform-name {
         font-weight: 600;
         font-size: 1.1rem;
-        color: #212529;
+        color: #4a3540;
         flex: 1;
     }
 
@@ -820,14 +820,14 @@ else
         padding: 0.25rem 0.6rem;
         border-radius: 12px;
         font-weight: 600;
-        background: #e9ecef;
-        color: #495057;
+        background: #f5e8ed;
+        color: #6a5060;
     }
 
-    .machine-card.tier-cpu-only .tier-badge { background: #e2e3e5; color: #383d41; }
-    .machine-card.tier-low-end .tier-badge { background: #fff3cd; color: #856404; }
+    .machine-card.tier-cpu-only .tier-badge { background: #f0e8ec; color: #5a4a50; }
+    .machine-card.tier-low-end .tier-badge { background: #fdf0e0; color: #7a5a3a; }
     .machine-card.tier-mid-range .tier-badge { background: #d1ecf1; color: #0c5460; }
-    .machine-card.tier-high-end .tier-badge { background: #d4edda; color: #155724; }
+    .machine-card.tier-high-end .tier-badge { background: #e0f0e5; color: #3d6b45; }
     .machine-card.tier-top-tier .tier-badge { background: #e2d4f0; color: #4a2c7a; }
 
     .spec-grid {
@@ -844,7 +844,7 @@ else
 
     .spec-label {
         font-size: 0.78rem;
-        color: #6c757d;
+        color: #8a7a82;
         text-transform: uppercase;
         letter-spacing: 0.03em;
     }
@@ -852,7 +852,7 @@ else
     .spec-value {
         font-size: 0.92rem;
         font-weight: 500;
-        color: #212529;
+        color: #4a3540;
         word-break: break-word;
     }
 
@@ -869,33 +869,33 @@ else
     }
 
     .comparison-table thead th {
-        background: #f8f9fa;
+        background: #fdf6f8;
         padding: 0.75rem 0.6rem;
         text-align: left;
         font-weight: 600;
-        color: #495057;
-        border-bottom: 2px solid #dee2e6;
+        color: #6a5060;
+        border-bottom: 2px solid #f0d5dc;
         white-space: nowrap;
     }
 
     .comparison-table tbody td {
         padding: 0.85rem 0.6rem;
-        border-bottom: 1px solid #e9ecef;
+        border-bottom: 1px solid #f5e8ed;
         vertical-align: top;
         line-height: 1.5;
     }
 
     .comparison-table tbody tr:hover {
-        background: #f8f9fa;
+        background: #fdf6f8;
     }
 
     .comparison-table tbody tr.current-row {
-        background: #e7f1ff;
-        border-left: 3px solid #0d6efd;
+        background: #fce8ec;
+        border-left: 3px solid #d65a6f;
     }
 
     .comparison-table tbody tr.current-row td:first-child {
-        border-left: 3px solid #0d6efd;
+        border-left: 3px solid #d65a6f;
     }
 
     .col-rank {
@@ -919,39 +919,39 @@ else
         width: fit-content;
     }
 
-    .platform-badge.current { background: #0d6efd; color: #fff; }
-    .platform-badge.nvidia { background: #d4edda; color: #155724; }
-    .platform-badge.intel { background: #cce5ff; color: #004085; }
-    .platform-badge.amd { background: #f8d7da; color: #721c24; }
-    .platform-badge.apple { background: #e2e3e5; color: #383d41; }
+    .platform-badge.current { background: #d65a6f; color: #fff; }
+    .platform-badge.nvidia { background: #e0f0e5; color: #3d6b45; }
+    .platform-badge.intel { background: #fce8ec; color: #6b3540; }
+    .platform-badge.amd { background: #fce8ec; color: #6b3540; }
+    .platform-badge.apple { background: #f0e8ec; color: #5a4a50; }
 
     .platform-model {
         font-weight: 600;
         font-size: 0.95rem;
-        color: #212529;
+        color: #4a3540;
     }
 
     .sub-text {
         font-size: 0.78rem;
-        color: #6c757d;
+        color: #8a7a82;
         display: block;
     }
 
     .tops-value {
         font-weight: 700;
         font-size: 1rem;
-        color: #0d6efd;
+        color: #d65a6f;
     }
 
     .speed-value {
         font-weight: 600;
     }
 
-    .speed-value.speed-excellent { color: #28a745; }
-    .speed-value.speed-good { color: #17a2b8; }
-    .speed-value.speed-mid { color: #fd7e14; }
-    .speed-value.speed-low { color: #ffc107; }
-    .speed-value.speed-poor { color: #dc3545; }
+    .speed-value.speed-excellent { color: #6b9e75; }
+    .speed-value.speed-good { color: #7ec8c8; }
+    .speed-value.speed-mid { color: #e8a87c; }
+    .speed-value.speed-low { color: #e8a87c; }
+    .speed-value.speed-poor { color: #e07a8a; }
 
     .col-platform { min-width: 140px; }
     .col-gpu { min-width: 160px; }
@@ -970,17 +970,17 @@ else
     }
 
     .tier-card {
-        border: 1px solid #e9ecef;
+        border: 1px solid #f5e8ed;
         border-radius: 8px;
         padding: 1rem;
-        background: #fafbfc;
+        background: #fdf6f8;
     }
 
-    .tier-card.tier-cpu { border-left: 4px solid #adb5bd; }
-    .tier-card.tier-entry { border-left: 4px solid #ffc107; }
-    .tier-card.tier-mid { border-left: 4px solid #17a2b8; }
-    .tier-card.tier-high { border-left: 4px solid #28a745; }
-    .tier-card.tier-pro { border-left: 4px solid #6f42c1; }
+    .tier-card.tier-cpu { border-left: 4px solid #c0b0b8; }
+    .tier-card.tier-entry { border-left: 4px solid #e8a87c; }
+    .tier-card.tier-mid { border-left: 4px solid #7ec8c8; }
+    .tier-card.tier-high { border-left: 4px solid #6b9e75; }
+    .tier-card.tier-pro { border-left: 4px solid #8b6bb5; }
 
     .tier-title {
         font-weight: 600;
@@ -990,14 +990,14 @@ else
 
     .tier-range {
         font-size: 0.82rem;
-        color: #495057;
+        color: #6a5060;
         margin-bottom: 0.5rem;
         font-weight: 500;
     }
 
     .tier-desc {
         font-size: 0.85rem;
-        color: #6c757d;
+        color: #8a7a82;
         line-height: 1.5;
     }
 
@@ -1014,8 +1014,8 @@ else
         gap: 1rem;
         padding: 0.85rem 1rem;
         border-radius: 8px;
-        border: 1px solid #e9ecef;
-        background: #fafbfc;
+        border: 1px solid #f5e8ed;
+        background: #fdf6f8;
     }
 
     .rec-icon {
@@ -1036,7 +1036,7 @@ else
 
     .rec-desc {
         font-size: 0.85rem;
-        color: #6c757d;
+        color: #8a7a82;
         line-height: 1.4;
     }
 
@@ -1048,15 +1048,15 @@ else
         white-space: nowrap;
     }
 
-    .rec-badge.level-excellent { background: #d4edda; color: #155724; }
+    .rec-badge.level-excellent { background: #e0f0e5; color: #3d6b45; }
     .rec-badge.level-good { background: #d1ecf1; color: #0c5460; }
-    .rec-badge.level-ok { background: #fff3cd; color: #856404; }
-    .rec-badge.level-bad { background: #f8d7da; color: #721c24; }
+    .rec-badge.level-ok { background: #fdf0e0; color: #7a5a3a; }
+    .rec-badge.level-bad { background: #fce8ec; color: #6b3540; }
 
-    .recommendation-item.level-excellent { border-left: 4px solid #28a745; }
-    .recommendation-item.level-good { border-left: 4px solid #17a2b8; }
-    .recommendation-item.level-ok { border-left: 4px solid #ffc107; }
-    .recommendation-item.level-bad { border-left: 4px solid #dc3545; }
+    .recommendation-item.level-excellent { border-left: 4px solid #6b9e75; }
+    .recommendation-item.level-good { border-left: 4px solid #7ec8c8; }
+    .recommendation-item.level-ok { border-left: 4px solid #e8a87c; }
+    .recommendation-item.level-bad { border-left: 4px solid #e07a8a; }
 
     .refresh-section {
         display: flex;
@@ -1070,13 +1070,13 @@ else
     }
 
     .alert-info {
-        background: #e7f1ff;
-        color: #0d6efd;
+        background: #fce8ec;
+        color: #d65a6f;
         border: 1px solid #b6d4fe;
     }
 
     .text-muted {
-        color: #6c757d;
+        color: #8a7a82;
     }
 
     @@media (max-width: 768px) {
@@ -1094,11 +1094,11 @@ else
     .data-source-note {
         margin-top: 1.5rem;
         padding: 1rem 1.25rem;
-        background: #f8f9fa;
+        background: #fdf6f8;
         border-radius: 8px;
-        border-left: 4px solid #6c757d;
+        border-left: 4px solid #8a7a82;
         font-size: 0.82rem;
-        color: #495057;
+        color: #6a5060;
     }
     .data-source-note h5 {
         margin: 0 0 0.5rem 0;
@@ -1114,7 +1114,7 @@ else
         line-height: 1.5;
     }
     .data-source-note code {
-        background: #e9ecef;
+        background: #f5e8ed;
         padding: 0.1rem 0.3rem;
         border-radius: 3px;
         font-size: 0.78rem;

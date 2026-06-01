@@ -468,7 +468,7 @@ else
         display: flex;
         gap: 0.5rem;
         margin-bottom: 1.5rem;
-        border-bottom: 1px solid #dee2e6;
+        border-bottom: 1px solid #f0d5dc;
         padding-bottom: 0.5rem;
     }
     .tab-btn {
@@ -478,14 +478,14 @@ else
         border-radius: 6px 6px 0 0;
         cursor: pointer;
         font-weight: 500;
-        color: #6c757d;
+        color: #8a7a82;
         transition: all 0.2s;
     }
-    .tab-btn:hover { background: #f1f3f5; }
+    .tab-btn:hover { background: #f5e8ed; }
     .tab-btn.active {
-        color: #0d6efd;
-        background: #e7f1ff;
-        border-bottom: 2px solid #0d6efd;
+        color: #d65a6f;
+        background: #fce8ec;
+        border-bottom: 2px solid #d65a6f;
     }
 
     .section {
@@ -520,13 +520,13 @@ else
     .vram-badge {
         font-size: 0.85rem;
         padding: 0.35rem 0.75rem;
-        background: #e7f1ff;
+        background: #fce8ec;
         border-radius: 20px;
-        color: #0d6efd;
+        color: #d65a6f;
         font-weight: 500;
     }
     .vram-match {
-        color: #1e8449;
+        color: #3d6b45;
         font-weight: 600;
     }
 
@@ -540,28 +540,28 @@ else
         min-width: 700px;
     }
     .tier-table th {
-        background: #f8f9fa;
+        background: #fdf6f8;
         padding: 0.6rem 0.75rem;
         text-align: left;
         font-weight: 600;
-        color: #495057;
-        border-bottom: 2px solid #dee2e6;
+        color: #6a5060;
+        border-bottom: 2px solid #f0d5dc;
         white-space: nowrap;
     }
     .tier-table td {
         padding: 0.75rem;
-        border-bottom: 1px solid #e9ecef;
+        border-bottom: 1px solid #f5e8ed;
         vertical-align: top;
     }
     .tier-row:hover {
-        background: #f8f9fa;
+        background: #fdf6f8;
     }
     .tier-row.tier-recommended {
-        background: #e8f5e9;
-        border-left: 3px solid #28a745;
+        background: #e0f0e5;
+        border-left: 3px solid #6b9e75;
     }
     .tier-row.tier-recommended td:first-child {
-        border-left: 3px solid #28a745;
+        border-left: 3px solid #6b9e75;
     }
     .tier-label {
         white-space: nowrap;
@@ -570,7 +570,7 @@ else
     .tier-gb {
         font-weight: 700;
         font-size: 1rem;
-        color: #212529;
+        color: #4a3540;
         display: block;
     }
     .tier-match-tag {
@@ -578,7 +578,7 @@ else
         margin-top: 0.25rem;
         font-size: 0.72rem;
         padding: 0.15rem 0.5rem;
-        background: #28a745;
+        background: #6b9e75;
         color: #fff;
         border-radius: 12px;
         font-weight: 500;
@@ -588,36 +588,36 @@ else
         padding: 0.5rem;
         background: #fff;
         border-radius: 6px;
-        border: 1px solid #e9ecef;
+        border: 1px solid #f5e8ed;
     }
     .tier-model:last-child { margin-bottom: 0; }
     .tier-model-name {
         font-weight: 600;
         font-size: 0.9rem;
-        color: #212529;
+        color: #4a3540;
     }
     .tier-model-params {
         font-weight: 400;
         font-size: 0.78rem;
-        color: #6c757d;
-        background: #f1f3f5;
+        color: #8a7a82;
+        background: #f5e8ed;
         padding: 0.1rem 0.35rem;
         border-radius: 4px;
         margin-left: 0.25rem;
     }
     .tier-model-meta {
         font-size: 0.78rem;
-        color: #495057;
+        color: #6a5060;
         line-height: 1.4;
         margin-top: 0.25rem;
     }
     .tier-model-cmd {
         display: block;
         font-size: 0.72rem;
-        background: #f1f3f5;
+        background: #f5e8ed;
         padding: 0.2rem 0.4rem;
         border-radius: 3px;
-        color: #212529;
+        color: #4a3540;
         word-break: break-all;
         margin-top: 0.25rem;
     }
@@ -634,16 +634,16 @@ else
     .progress-bar-bg {
         width: 100%;
         height: 20px;
-        background: #e9ecef;
+        background: #f5e8ed;
         border-radius: 10px;
         overflow: hidden;
     }
     .progress-bar-fill {
         height: 100%;
-        background: linear-gradient(90deg, #0d6efd, #0dcaf0);
+        background: linear-gradient(90deg, #d65a6f, #0dcaf0);
         transition: width 0.5s ease;
     }
-    .progress-text { margin-top: 0.5rem; font-size: 0.9rem; color: #495057; }
+    .progress-text { margin-top: 0.5rem; font-size: 0.9rem; color: #6a5060; }
 
     .result-summary {
         display: flex;
@@ -654,11 +654,11 @@ else
         flex: 1;
         text-align: center;
         padding: 1rem;
-        background: #f8f9fa;
+        background: #fdf6f8;
         border-radius: 8px;
     }
-    .summary-value { font-size: 1.75rem; font-weight: 700; color: #0d6efd; }
-    .summary-label { font-size: 0.85rem; color: #6c757d; margin-top: 0.25rem; }
+    .summary-value { font-size: 1.75rem; font-weight: 700; color: #d65a6f; }
+    .summary-label { font-size: 0.85rem; color: #8a7a82; margin-top: 0.25rem; }
 
     .score-badge {
         display: inline-block;
@@ -667,11 +667,11 @@ else
         font-size: 0.85rem;
         font-weight: 600;
     }
-    .score-badge.good { background: #d1f2eb; color: #1e8449; }
+    .score-badge.good { background: #d1f2eb; color: #3d6b45; }
     .score-badge.medium { background: #fef9e7; color: #b7950b; }
     .score-badge.bad { background: #fadbd8; color: #c0392b; }
 
-    .kw-match { color: #1e8449; font-size: 0.8rem; margin-right: 0.5rem; }
+    .kw-match { color: #3d6b45; font-size: 0.8rem; margin-right: 0.5rem; }
     .kw-miss { color: #c0392b; font-size: 0.8rem; }
 
     .result-table, .leaderboard-table, .history-table {
@@ -683,24 +683,24 @@ else
     .leaderboard-table th, .leaderboard-table td,
     .history-table th, .history-table td {
         padding: 0.6rem 0.75rem;
-        border-bottom: 1px solid #e9ecef;
+        border-bottom: 1px solid #f5e8ed;
         text-align: left;
     }
     .result-table th, .leaderboard-table th, .history-table th {
-        background: #f8f9fa;
+        background: #fdf6f8;
         font-weight: 600;
-        color: #495057;
+        color: #6a5060;
     }
     .result-table tr:hover, .leaderboard-table tr:hover, .history-table tr:hover {
-        background: #f8f9fa;
+        background: #fdf6f8;
     }
 
     .prompt-list { display: flex; flex-direction: column; gap: 0.5rem; }
     .prompt-item {
-        border: 1px solid #e9ecef;
+        border: 1px solid #f5e8ed;
         border-radius: 6px;
         padding: 0.75rem 1rem;
-        background: #fafbfc;
+        background: #fdf6f8;
     }
     .prompt-item summary { font-weight: 500; cursor: pointer; }
     .prompt-text {
@@ -716,12 +716,12 @@ else
     .prompt-kws {
         margin-top: 0.5rem;
         font-size: 0.8rem;
-        color: #6c757d;
+        color: #8a7a82;
     }
 
     .loading-spinner {
         text-align: center;
         padding: 3rem;
-        color: #6c757d;
+        color: #8a7a82;
     }
 </style>
