@@ -22,10 +22,7 @@
         
         <nav class="sidebar">
             <div class="sidebar-header">
-                <h3 class="d-flex align-items-center gap-2">
-                    <img src="favicon.png?v=2" width="36" height="36" alt="应用图标" />
-                    <span>百花谷</span>
-                </h3>
+                <img src="logo.png?v=1" alt="百花谷" class="sidebar-logo" />
             </div>
             
             <NavMenu />
@@ -112,9 +109,16 @@
         flex-shrink: 0;
     }
 
-    .sidebar-header h3 {
-        margin: 0 20px 30px;
-        font-size: 20px;
+    .sidebar-header {
+        text-align: center;
+        margin-bottom: 20px;
+    }
+
+    .sidebar-logo {
+        width: 200px;
+        height: auto;
+        border-radius: 12px;
+        box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
     }
 
     main {
