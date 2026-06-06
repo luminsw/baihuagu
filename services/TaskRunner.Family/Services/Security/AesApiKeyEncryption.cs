@@ -275,23 +275,6 @@ public static class AesApiKeyEncryption
         }
     }
 
-    /// <summary>
-    /// 重新加密（用于密钥轮换或算法升级）
-    /// </summary>
-    public static string? ReEncrypt(string oldCipherText, Func<string, string> decryptFn)
-    {
-        try
-        {
-            var plain = decryptFn(oldCipherText);
-            if (string.IsNullOrEmpty(plain))
-                return null;
-            return Encrypt(plain);
-        }
-        catch
-        {
-            return null;
-        }
-    }
 }
 
 /// <summary>

@@ -845,7 +845,7 @@ namespace TaskRunner.Services
             foreach (var note in notes)
             {
                 var fullPath = Path.Combine(notesPath, note.Path + ".md");
-                var directory = Path.GetDirectoryName(fullPath)!;
+                var directory = Path.GetDirectoryName(fullPath) ?? throw new InvalidOperationException($"无法获取目录：{fullPath}");
                 directoriesToCreate.Add(directory);
             }
             

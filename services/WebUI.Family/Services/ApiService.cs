@@ -195,9 +195,6 @@ namespace WebUI.Services
         private readonly ApiCallMetricsService? _metricsService;
         private readonly EndToEndPerformanceService? _e2eService;
         private readonly string _fallbackBaseUrl = "http://127.0.0.1:8788";
-        
-        // 端到端追踪 ID（由页面设置）
-        private string? _currentE2ETraceId;
 
         public ApiService(IHttpClientFactory httpClientFactory, SettingsService settingsService, ILogger<ApiService> logger, IServiceProvider serviceProvider)
         {
@@ -212,22 +209,6 @@ namespace WebUI.Services
             EnsurePrimaryBaseAddress();
         }
         
-        /// <summary>
-        /// 设置端到端追踪 ID，后续 API 调用将关联到此追踪
-        /// </summary>
-        public void SetE2ETraceId(string? traceId)
-        {
-            _currentE2ETraceId = traceId;
-        }
-        
-        /// <summary>
-        /// 清除端到端追踪 ID
-        /// </summary>
-        public void ClearE2ETraceId()
-        {
-            _currentE2ETraceId = null;
-        }
-
         public async Task<SystemHealthReportDto> GetFullHealthAsync(CancellationToken cancellationToken = default)
         {
             // 完整健康报告在后端有 25s 预算；这里加一个额外超时上限避免前端长时间等待。
@@ -1142,31 +1123,13 @@ namespace WebUI.Services
         {
             // 记录到 API 调用指标服务
             _metricsService?.RecordCall(endpoint, method, elapsedMs, success, statusCode, error);
-            
-            // 记录到端到端追踪服务
-            if (!string.IsNullOrEmpty(_currentE2ETraceId))
-            {
-                _e2eService?.RecordApiCallEnd(_currentE2ETraceId, endpoint, elapsedMs, success);
-            }
         }
         
-        /// <summary>
-        /// 开始记录 API 调用（用于端到端追踪）
-        /// </summary>
-        private void BeginApiCallRecord(string endpoint, string method)
-        {
-            if (!string.IsNullOrEmpty(_currentE2ETraceId))
-            {
-                _e2eService?.RecordApiCallStart(_currentE2ETraceId, endpoint, method);
-            }
-        }
-
         /// <summary>
         /// 包装 GET 请求并记录指标
         /// </summary>
         private async Task<HttpResponseMessage> GetWithMetricsAsync(string endpoint, CancellationToken cancellationToken = default)
         {
-            BeginApiCallRecord(endpoint, "GET");
             var stopwatch = Stopwatch.StartNew();
             try
             {
@@ -1188,7 +1151,6 @@ namespace WebUI.Services
         /// </summary>
         private async Task<HttpResponseMessage> PostWithMetricsAsync(string endpoint, HttpContent content, CancellationToken cancellationToken = default)
         {
-            BeginApiCallRecord(endpoint, "POST");
             var stopwatch = Stopwatch.StartNew();
             try
             {

@@ -13,12 +13,10 @@ namespace TaskRunner.Controllers;
 public class AiMetricsController : ControllerBase
 {
     private readonly IDbContextFactory<AppDbContext> _dbFactory;
-    private readonly ILogger<AiMetricsController> _logger;
 
-    public AiMetricsController(IDbContextFactory<AppDbContext> dbFactory, ILogger<AiMetricsController> logger)
+    public AiMetricsController(IDbContextFactory<AppDbContext> dbFactory)
     {
         _dbFactory = dbFactory;
-        _logger = logger;
     }
 
     private DateTime GetCutoffDate(int days) => DateTime.UtcNow.AddDays(-days);

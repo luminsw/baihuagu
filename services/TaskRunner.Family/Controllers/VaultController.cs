@@ -134,7 +134,6 @@ namespace TaskRunner.Controllers
     {
         private readonly Services.SettingsService _settings;
         private readonly DeviceService _deviceService;
-        private readonly DeviceQuotaService _quotaService;
         private readonly PairingService? _pairingService;
         private readonly ILogger<VaultController> _logger;
         private readonly ISyncAuthorizationStrategy _syncAuthStrategy;
@@ -179,7 +178,6 @@ namespace TaskRunner.Controllers
         public VaultController(
             Services.SettingsService settings,
             DeviceService deviceService,
-            DeviceQuotaService quotaService,
             ILogger<VaultController> logger,
             ISyncAuthorizationStrategy syncAuthStrategy,
             IDbContextFactory<AppDbContext> dbContextFactory,
@@ -188,7 +186,6 @@ namespace TaskRunner.Controllers
         {
             _settings = settings;
             _deviceService = deviceService;
-            _quotaService = quotaService;
             _logger = logger;
             _syncAuthStrategy = syncAuthStrategy;
             _dbContextFactory = dbContextFactory;
@@ -233,19 +230,6 @@ namespace TaskRunner.Controllers
             // 优先使用新的 PairingService 验证（支持 Token 过期检查）
             // 使用DeviceService验证
             return _deviceService.ValidateAccessToken(token);
-        }
-
-        /// <summary>
-        /// 获取授权令牌（用于更新最后同步时间等）
-        /// </summary>
-        private string? GetAccessToken()
-        {
-            var authHeader = Request.Headers.Authorization.FirstOrDefault();
-            if (string.IsNullOrEmpty(authHeader) || !authHeader.StartsWith("Bearer "))
-            {
-                return null;
-            }
-            return authHeader.Substring("Bearer ".Length).Trim();
         }
 
         /// <summary>
@@ -1025,14 +1009,6 @@ namespace TaskRunner.Controllers
         public string Content { get; set; } = string.Empty;
         public DateTime Modified { get; set; }
         public List<string>? Tags { get; set; }
-    }
-
-    /// <summary>
-    /// 获取知识库笔记数量
-    /// </summary>
-    public class VaultNoteCountRequest
-    {
-        public string VaultId { get; set; } = string.Empty;
     }
 
     public class WriteNoteRequest

@@ -121,51 +121,6 @@ namespace TaskRunner.Services
         }
 
         /// <summary>
-        /// 导出为 Anki .apkg 文件
-        /// </summary>
-        public async Task<string?> ExportToApkg(string outputPath)
-        {
-            var cardsPath = _settings.CardsPath;
-            if (string.IsNullOrEmpty(cardsPath) || !Directory.Exists(cardsPath))
-            {
-                return null;
-            }
-
-            try
-            {
-                var package = AnkiPackage.Create();
-                var files = Directory.GetFiles(cardsPath, "*.json");
-
-                foreach (var file in files)
-                {
-                    var json = await File.ReadAllTextAsync(file);
-                    var deckData = JsonSerializer.Deserialize<JsonDeckData>(json);
-                    
-                    if (deckData?.Cards != null && deckData.Cards.Count > 0)
-                    {
-                        var deck = AnkiDeck.Create(deckData.Name ?? "Default");
-                        foreach (var card in deckData.Cards)
-                        {
-                            deck.AddCard(card.Front ?? "", card.Back ?? "", card.Tags?.ToArray() ?? Array.Empty<string>());
-                        }
-                        package.AddDeck(deck);
-                    }
-                }
-
-                Directory.CreateDirectory(Path.GetDirectoryName(outputPath) ?? ".");
-                package.WriteApkg(outputPath);
-                
-                _logger.LogInformation("导出 Anki 包：{Path}", outputPath);
-                return outputPath;
-            }
-            catch (Exception ex)
-            {
-                _logger.LogError(ex, "导出 Anki 包失败");
-                return null;
-            }
-        }
-
-        /// <summary>
         /// 解析笔记内容并添加卡片
         /// </summary>
         private void ParseAndAddCards(AnkiDeck deck, string content, string notePath)

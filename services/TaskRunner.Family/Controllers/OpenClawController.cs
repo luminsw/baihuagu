@@ -9,12 +9,10 @@ namespace TaskRunner.Controllers;
 public class OpenClawController : ControllerBase
 {
     private readonly IOpenClawTaskService _taskService;
-    private readonly ILogger<OpenClawController> _logger;
 
-    public OpenClawController(IOpenClawTaskService taskService, ILogger<OpenClawController> logger)
+    public OpenClawController(IOpenClawTaskService taskService)
     {
         _taskService = taskService;
-        _logger = logger;
     }
 
     [HttpPost("tasks")]

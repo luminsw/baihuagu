@@ -23,7 +23,6 @@ public class RecommendedBenchmarkModel
     public string SizeInfo { get; set; } = "";
     public string VramInfo { get; set; } = "";
     public string? OllamaName { get; set; }
-    public string? HuggingFaceUrl { get; set; }
     public string[] Tags { get; set; } = Array.Empty<string>();
 }
 

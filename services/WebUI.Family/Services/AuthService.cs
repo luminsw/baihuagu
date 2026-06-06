@@ -9,8 +9,6 @@ namespace WebUI.Services;
 /// </summary>
 public class AuthService
 {
-    private readonly ILogger<AuthService> _logger;
-
     // Cookie 名称
     public const string AuthCookieName = "webui_auth";
     // Cookie 有效期（天）
@@ -26,15 +24,14 @@ public class AuthService
     // CLI 令牌有效期（分钟）
     private const int CliTokenExpiryMinutes = 5;
 
-    public AuthService(ILogger<AuthService> logger)
+    public AuthService()
     {
-        _logger = logger;
     }
 
     /// <summary>
     /// 生成认证令牌 - 随机令牌 + 过期时间
     /// </summary>
-    public async Task<string> GenerateAuthTokenAsync()
+    public Task<string> GenerateAuthTokenAsync()
     {
         // 生成随机令牌
         var tokenBytes = RandomNumberGenerator.GetBytes(32);
@@ -47,7 +44,7 @@ public class AuthService
         // 清理过期令牌
         CleanupExpiredTokens();
         
-        return token;
+        return Task.FromResult(token);
     }
 
     /// <summary>
@@ -82,14 +79,6 @@ public class AuthService
         {
             _activeTokens.TryRemove(token, out _);
         }
-    }
-
-    /// <summary>
-    /// 登出所有会话
-    /// </summary>
-    public void RevokeAllTokens()
-    {
-        _activeTokens.Clear();
     }
 
     /// <summary>
@@ -140,17 +129,6 @@ public class AuthService
                 return true;
         }
         return false;
-    }
-
-    /// <summary>
-    /// 验证 CLI 令牌并同时生成正式认证 Cookie 令牌
-    /// </summary>
-    public async Task<string?> ClaimCliTokenAsync(string cliToken)
-    {
-        if (!ValidateCliToken(cliToken))
-            return null;
-
-        return await GenerateAuthTokenAsync();
     }
 
     /// <summary>

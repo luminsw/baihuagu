@@ -235,9 +235,6 @@ else
     [Parameter] public E2EPerformanceSummary? Summary { get; set; }
     [Parameter] public List<E2EPerformanceRecord>? Records { get; set; }
     [Parameter] public List<E2EPerformanceRecord>? SlowestOperations { get; set; }
-    [Parameter] public EventCallback OnRefresh { get; set; }
-    [Parameter] public EventCallback OnClear { get; set; }
-    
     private HashSet<string> ExpandedRows { get; set; } = new();
 
     private void ToggleDetails(string traceId)

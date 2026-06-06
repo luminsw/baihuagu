@@ -119,7 +119,8 @@ public class AiFunctionService
             var safeTitle = GenerateSafeFileName(title);
             var notesRoot = Path.Combine(activeVault.Path, "notes");
             var notePath = Path.Combine(notesRoot, $"AI 生成/{safeTitle}.md");
-            Directory.CreateDirectory(Path.GetDirectoryName(notePath)!);
+            var noteDir = Path.GetDirectoryName(notePath) ?? throw new InvalidOperationException($"无法获取目录：{notePath}");
+            Directory.CreateDirectory(noteDir);
 
             var sourceInfo = $"> 📌 **来源**: AI 生成  \n" +
                 $"> ⏰ **时间**: {DateTime.Now:yyyy-MM-dd HH:mm:ss}  \n\n";

@@ -13,7 +13,6 @@ namespace TaskRunner.Services
     {
         private readonly ILogger<HardwareInfoService> _logger;
         private readonly IMemoryCache _cache;
-        private static readonly TimeSpan CacheDuration = TimeSpan.FromMinutes(5);
         private const string CacheKey = "hardware_info";
 
         /// <summary>
@@ -928,12 +927,6 @@ namespace TaskRunner.Services
         {
             var match = Regex.Match(text, pattern, options);
             return match.Success ? match.Groups[1].Value.Trim() : null;
-        }
-
-        private static string ExtractAfter(string text, string delimiter)
-        {
-            var idx = text.IndexOf(delimiter, StringComparison.Ordinal);
-            return idx >= 0 ? text.Substring(idx + delimiter.Length) : text;
         }
 
         /// <summary>

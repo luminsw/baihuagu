@@ -183,9 +183,6 @@ else
     [Parameter] public ApiCallMetricsSummary? ApiSummary { get; set; }
     [Parameter] public List<ApiCallMetric>? ApiMetrics { get; set; }
     [Parameter] public List<EndpointStats>? EndpointStats { get; set; }
-    [Parameter] public EventCallback OnRefresh { get; set; }
-    [Parameter] public EventCallback OnClear { get; set; }
-
     private string GetBadgeClass(long elapsedMs)
     {
         if (elapsedMs > 2000) return "bg-danger";

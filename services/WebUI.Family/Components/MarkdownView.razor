@@ -16,9 +16,6 @@
     [Parameter]
     public string? Content { get; set; }
 
-    [Parameter]
-    public EventCallback<string> ContentChanged { get; set; }
-
     private string? _renderedContent;
 
     protected override void OnParametersSet()

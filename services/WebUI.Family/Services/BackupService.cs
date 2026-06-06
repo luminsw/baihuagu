@@ -8,12 +8,10 @@ namespace WebUI.Services;
 public class BackupService
 {
     private readonly IHttpClientFactory _httpClientFactory;
-    private readonly ILogger<BackupService> _logger;
 
-    public BackupService(IHttpClientFactory httpClientFactory, ILogger<BackupService> logger)
+    public BackupService(IHttpClientFactory httpClientFactory)
     {
         _httpClientFactory = httpClientFactory;
-        _logger = logger;
     }
 
     /// <summary>

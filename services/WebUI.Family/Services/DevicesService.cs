@@ -3,32 +3,6 @@ using TaskRunner.Contracts.Devices;
 namespace WebUI.Services;
 
 /// <summary>
-/// 设备状态变更类型（与后端 Hub 同步）
-/// </summary>
-public enum DeviceStatusChangeType
-{
-    /// <summary>新配对请求</summary>
-    PairRequestSubmitted,
-    /// <summary>设备已授权</summary>
-    DeviceAuthorized,
-    /// <summary>设备被拒绝</summary>
-    DeviceRejected,
-    /// <summary>授权已撤销</summary>
-    AuthorizationRevoked
-}
-
-/// <summary>
-/// 设备状态变更通知（WebSocket 消息）
-/// </summary>
-public class DeviceStatusChangeNotification
-{
-    public DeviceStatusChangeType Type { get; set; }
-    public string DeviceName { get; set; } = string.Empty;
-    public string? RequestId { get; set; }
-    public DateTime Timestamp { get; set; }
-}
-
-/// <summary>
 /// 设备管理服务
 /// </summary>
 public class DevicesService

@@ -7,7 +7,6 @@
 @inject OnboardingService OnboardingService
 @inject GlobalStateService GlobalStateService
 @inject IHttpClientFactory HttpClientFactory
-@inject IConfiguration Configuration
 @inject UserTypeService UserTypeService
 @inject ILogger<MainLayout> Logger
 @implements IDisposable
@@ -58,9 +57,6 @@
         </article>
     </main>
 </div>
-
-<!-- 每日健康自查弹窗 -->
-<DailyHealthCheck />
 
 <script>
 // 移动端侧边栏：导航后自动关闭

@@ -66,15 +66,6 @@ public class CapabilityService
     }
 
     /// <summary>
-    /// 获取功能限制原因
-    /// </summary>
-    public async Task<string?> GetRestrictionReasonAsync(string featureName)
-    {
-        var info = await GetCapabilityAsync();
-        return info.RestrictedFeatures.TryGetValue(featureName, out var reason) ? reason : null;
-    }
-
-    /// <summary>
     /// 刷新能力信息
     /// </summary>
     public async Task RefreshAsync()

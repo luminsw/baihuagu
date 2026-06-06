@@ -171,41 +171,4 @@ public class DataEncryptionService
         return pbkdf2.GetBytes(32);
     }
 
-    /// <summary>
-    /// 生成随机密码
-    /// </summary>
-    public string GenerateRandomPassword(int length = 16)
-    {
-        const string chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789!@#$%^&*()_+";
-        var password = new char[length];
-        using var rng = RandomNumberGenerator.Create();
-        var bytes = new byte[length];
-        rng.GetBytes(bytes);
-
-        for (int i = 0; i < length; i++)
-        {
-            password[i] = chars[bytes[i] % chars.Length];
-        }
-
-        return new string(password);
-    }
-
-    /// <summary>
-    /// 验证密码强度
-    /// </summary>
-    public bool ValidatePasswordStrength(string password)
-    {
-        if (string.IsNullOrEmpty(password))
-            return false;
-
-        if (password.Length < 8)
-            return false;
-
-        bool hasUpper = password.Any(char.IsUpper);
-        bool hasLower = password.Any(char.IsLower);
-        bool hasDigit = password.Any(char.IsDigit);
-        bool hasSpecial = password.Any(c => !char.IsLetterOrDigit(c));
-
-        return hasUpper && hasLower && hasDigit && hasSpecial;
-    }
 }

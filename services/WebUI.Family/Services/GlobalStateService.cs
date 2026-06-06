@@ -51,11 +51,6 @@ public class GlobalStateService : IDisposable
     public AIStatusSummary? GetAIStatus() => _aiStatus;
 
     /// <summary>
-    /// 获取知识库状态（同步，立即返回当前状态）
-    /// </summary>
-    public VaultStatusSummary? GetVaultStatus() => _vaultStatus;
-
-    /// <summary>
     /// 初始化：加载状态、启动 SignalR 和定期轮询（非阻塞）
     /// </summary>
     public void Initialize(string hubUrl)

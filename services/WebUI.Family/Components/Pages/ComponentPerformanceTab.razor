@@ -232,9 +232,6 @@
 
 @code {
     [Parameter] public required ComponentPerformanceService ComponentPerformanceService { get; set; }
-    [Parameter] public EventCallback OnRefresh { get; set; }
-    [Parameter] public EventCallback OnClear { get; set; }
-
     private PerformanceSummary? summary;
     private List<ComponentMetrics>? allMetrics;
     private List<ComponentMetrics>? slowComponents;

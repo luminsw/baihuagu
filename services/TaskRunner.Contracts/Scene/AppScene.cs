@@ -9,8 +9,6 @@ public enum AppScene
     Tcm = 0,
     /// <summary>计算机</summary>
     Computer = 1,
-    /// <summary>基础设施</summary>
-    Infra = 2,
     /// <summary>通用 / 自定义</summary>
-    General = 3
+    General = 2
 }

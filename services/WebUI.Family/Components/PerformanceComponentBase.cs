@@ -20,7 +20,6 @@ public class PerformanceComponentBase : ComponentBase
     protected EndToEndPerformanceService? E2EPerformanceService { get; set; }
     
     private RenderToken? _renderToken;
-    private bool _isFirstRender = true;
     private string? _componentName;
     private string? _currentTraceId;
     
@@ -82,51 +81,6 @@ public class PerformanceComponentBase : ComponentBase
             }
             
             _renderToken = null; // 清空，下次渲染会重新创建
-        }
-        
-        _isFirstRender = false;
-        base.OnAfterRender(firstRender);
-    }
-}
-
-/// <summary>
-/// 性能监控布局基类
-/// </summary>
-public class PerformanceLayoutComponentBase : LayoutComponentBase
-{
-    [Inject]
-    protected ComponentPerformanceService? PerformanceService { get; set; }
-    
-    private RenderToken? _renderToken;
-    
-    /// <summary>
-    /// 是否启用性能监控
-    /// </summary>
-    protected virtual bool EnablePerformanceTracking => true;
-    
-    /// <summary>
-    /// 自定义组件名称
-    /// </summary>
-    protected virtual string? CustomComponentName => null;
-    
-    protected override void OnInitialized()
-    {
-        var componentName = CustomComponentName ?? GetType().Name;
-        
-        if (EnablePerformanceTracking && PerformanceService != null)
-        {
-            _renderToken = PerformanceService.BeginRender(componentName);
-        }
-        
-        base.OnInitialized();
-    }
-    
-    protected override void OnAfterRender(bool firstRender)
-    {
-        if (EnablePerformanceTracking && PerformanceService != null && _renderToken != null)
-        {
-            PerformanceService.EndRender(_renderToken, firstRender);
-            _renderToken = null;
         }
         
         base.OnAfterRender(firstRender);

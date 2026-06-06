@@ -8,12 +8,10 @@ namespace TaskRunner.Controllers
     public class NotesMdCliController : ControllerBase
     {
         private readonly NotesMdCliService _notesMdCliService;
-        private readonly ILogger<NotesMdCliController> _logger;
 
-        public NotesMdCliController(NotesMdCliService notesMdCliService, ILogger<NotesMdCliController> logger)
+        public NotesMdCliController(NotesMdCliService notesMdCliService)
         {
             _notesMdCliService = notesMdCliService;
-            _logger = logger;
         }
 
         /// <summary>
@@ -89,11 +87,6 @@ namespace TaskRunner.Controllers
                 failed
             });
         }
-    }
-
-    public class NotesMdAddVaultRequest
-    {
-        public string? Path { get; set; }
     }
 
     public class NotesMdBatchAddRequest

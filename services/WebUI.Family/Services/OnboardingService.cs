@@ -119,28 +119,6 @@ public class OnboardingService
         }
     }
 
-    /// <summary>
-    /// 跳过任务
-    /// </summary>
-    public async Task<bool> SkipTaskAsync(string taskId)
-    {
-        try
-        {
-            var client = _httpClientFactory.CreateClient("TaskRunnerApi");
-            var response = await client.PostAsync($"api/onboarding/tasks/{taskId}/skip", null);
-            if (response.IsSuccessStatusCode)
-            {
-                _cachedTasks = null;
-                return true;
-            }
-            return false;
-        }
-        catch (Exception ex)
-        {
-            _logger.LogError(ex, "跳过任务失败: {TaskId}", taskId);
-            return false;
-        }
-    }
 
     /// <summary>
     /// 创建示例知识库

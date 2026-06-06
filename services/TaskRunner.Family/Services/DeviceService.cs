@@ -18,8 +18,7 @@ namespace TaskRunner.Services
     {
         Pending,
         Authorized,
-        Revoked,
-        Rejected
+        Revoked
     }
 
     /// <summary>
@@ -62,7 +61,6 @@ namespace TaskRunner.Services
         private string _pairCode;
         private readonly IHubContext<Hubs.DeviceHub>? _deviceHub;
         private readonly IDbContextFactory<AppDbContext> _dbContextFactory;
-        private readonly IConfiguration _configuration;
         
         // 待授权设备队列（内存中，不持久化）
         private readonly ConcurrentDictionary<string, PairRequestInfo> _pendingRequests = new();
@@ -90,7 +88,6 @@ namespace TaskRunner.Services
             IHubContext<Hubs.DeviceHub>? deviceHub = null)
         {
             _logger = logger;
-            _configuration = configuration;
             _dbContextFactory = dbContextFactory;
             _deviceHub = deviceHub;
             

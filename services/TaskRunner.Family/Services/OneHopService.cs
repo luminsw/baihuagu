@@ -279,8 +279,6 @@ namespace TaskRunner.Services
 
         #region 私有方法
 
-        private string GenerateDeviceId() => _serverAddressService.GetServerInstanceId();
-
         private int GetAvailablePort()
         {
             int oneHopPort = 8789;

@@ -74,30 +74,6 @@ public class ApiCallMetricsService
     }
 
     /// <summary>
-    /// 获取调用频率最高的端点
-    /// </summary>
-    public IReadOnlyList<EndpointFrequency> GetMostFrequentEndpoints(int count = 10)
-    {
-        return _metrics
-            .GroupBy(m => $"{m.Method} {m.Endpoint}")
-            .Select(g => new EndpointFrequency
-            {
-                Endpoint = g.First().Endpoint,
-                Method = g.First().Method,
-                FullPath = g.Key,
-                Count = g.Count(),
-                SuccessCount = g.Count(m => m.Success),
-                ErrorCount = g.Count(m => !m.Success),
-                AvgElapsedMs = (long)(g.Where(m => m.Success).Average(m => (double?)m.ElapsedMilliseconds) ?? 0),
-                MaxElapsedMs = g.Where(m => m.Success).Max(m => (long?)m.ElapsedMilliseconds) ?? 0L,
-                MinElapsedMs = g.Where(m => m.Success).Min(m => (long?)m.ElapsedMilliseconds) ?? 0L
-            })
-            .OrderByDescending(p => p.Count)
-            .Take(count)
-            .ToList();
-    }
-
-    /// <summary>
     /// 获取最近的错误调用
     /// </summary>
     public IReadOnlyList<ApiCallMetric> GetRecentErrors(int count = 10)
@@ -163,22 +139,6 @@ public class ApiCallMetric
     public bool Success { get; set; }
     public int? StatusCode { get; set; }
     public string? Error { get; set; }
-}
-
-/// <summary>
-/// 端点频率统计
-/// </summary>
-public class EndpointFrequency
-{
-    public string Endpoint { get; set; } = "";
-    public string Method { get; set; } = "";
-    public string FullPath { get; set; } = "";
-    public int Count { get; set; }
-    public int SuccessCount { get; set; }
-    public int ErrorCount { get; set; }
-    public long AvgElapsedMs { get; set; }
-    public long MaxElapsedMs { get; set; }
-    public long MinElapsedMs { get; set; }
 }
 
 /// <summary>

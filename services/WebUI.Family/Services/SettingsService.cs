@@ -6,7 +6,6 @@ namespace WebUI.Services;
 
 public class SettingsService
 {
-    private readonly IHttpClientFactory _httpClientFactory;
     private readonly ILogger<SettingsService> _logger;
     private readonly string _configPath;
     private SettingsData _data;
@@ -46,9 +45,8 @@ public class SettingsService
         }
     }
 
-    public SettingsService(IHttpClientFactory httpClientFactory, ILogger<SettingsService> logger)
+    public SettingsService(ILogger<SettingsService> logger)
     {
-        _httpClientFactory = httpClientFactory;
         _logger = logger;
         var configDir = Environment.GetEnvironmentVariable("WEBUI_CONFIG_DIR")
             ?? AppDomain.CurrentDomain.BaseDirectory;

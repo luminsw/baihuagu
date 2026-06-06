@@ -16,20 +16,17 @@ namespace TaskRunner.Services
         private readonly ILogger<OneHopManager> _logger;
         private readonly IOneHopService _oneHopService;
         private readonly ServerAddressService _serverAddressService;
-        private readonly IHostApplicationLifetime _appLifetime;
         private bool _isInitialized = false;
         private string _serviceId = "com.doctornotes.sync";
 
         public OneHopManager(
             ILogger<OneHopManager> logger,
             IOneHopService oneHopService,
-            ServerAddressService serverAddressService,
-            IHostApplicationLifetime appLifetime)
+            ServerAddressService serverAddressService)
         {
             _logger = logger;
             _oneHopService = oneHopService;
             _serverAddressService = serverAddressService;
-            _appLifetime = appLifetime;
 
             // 注册事件处理
             _oneHopService.DeviceDiscovered += OnDeviceDiscovered;

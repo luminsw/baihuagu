@@ -120,9 +120,4 @@ services:
       ZO_ROOT_USER_EMAIL: root@localhost.com
       ZO_ROOT_USER_PASSWORD: Complexpass#123
       ZO_DATA_DIR: /data
-    networks:
-      - yj-family-net
 
-networks:
-  yj-family-net:
-    driver: bridge

@@ -180,25 +180,6 @@ namespace TaskRunner.Services
         }
 
         /// <summary>
-        /// 删除知识库索引
-        /// </summary>
-        public async Task DeleteVaultIndexAsync(string vaultId, CancellationToken ct = default)
-        {
-            try
-            {
-                using var dbContext = await _dbContextFactory.CreateDbContextAsync(ct);
-                await dbContext.Database.ExecuteSqlRawAsync(
-                    "DELETE FROM VaultNoteFts WHERE vault_id = {0}",
-                    vaultId);
-                _logger.LogInformation("已删除知识库 {VaultId} 的 FTS5 索引", vaultId);
-            }
-            catch (Exception ex)
-            {
-                _logger.LogError(ex, "删除 FTS5 索引失败：{VaultId}", vaultId);
-            }
-        }
-
-        /// <summary>
         /// 获取指定知识库的索引统计
         /// </summary>
         public async Task<(int Count, DateTime? LastIndexed)> GetIndexStatsAsync(string vaultId, CancellationToken ct = default)

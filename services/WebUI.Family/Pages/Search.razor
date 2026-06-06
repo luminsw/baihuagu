@@ -3,7 +3,6 @@
 @using Microsoft.AspNetCore.Components.Web
 @inject NavigationManager Navigation
 @inject WebUI.Services.IApiService ApiService
-@inject WebUI.Services.TemporaryStorageService TempStorage
 @inject WebUI.Services.SearchStateService SearchStateService
 @inject WebUI.Services.ISearchHistoryService SearchHistoryService
 @inject WebUI.Services.ObsidianStatusService ObsidianStatusService
@@ -25,7 +24,7 @@
             <p class="mb-0 small mt-1">
                 搜索本地知识库时将使用 Obsidian 的搜索功能，支持更强大的全文检索、标签搜索和链接关系查询。
             </p>
-            <button type="button" class="btn-close" @onclick="() => obsidianHintDismissed = true" aria-label="Close"></button>
+            <button type="button" class="btn-close" aria-label="Close"></button>
         </div>
     }
     else
@@ -36,7 +35,7 @@
                 启动 Obsidian 后可使用其强大的搜索功能检索本地知识库，支持全文检索、标签搜索和链接关系查询。
                 <a href="https://obsidian.md/download" target="_blank" class="alert-link">下载 Obsidian</a>
             </p>
-            <button type="button" class="btn-close" @onclick="() => obsidianHintDismissed = true" aria-label="Close"></button>
+            <button type="button" class="btn-close" aria-label="Close"></button>
         </div>
     }
 }
@@ -218,7 +217,6 @@
     private HashSet<string> expandedGroups = new();
 
     private ObsidianStatusSummary? obsidianStatus;
-    private bool obsidianHintDismissed = false;
     private List<VaultConfig> vaults = new();
     private string selectedVaultId = "";
     private string selectedIndustry = "";

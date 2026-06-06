@@ -17,7 +17,6 @@ const PAGES = [
 const BASE_URL = 'http://localhost:5177';
 
 async function measurePage(page, url, name) {
-  const start = performance.now();
   const navStart = Date.now();
 
   try {

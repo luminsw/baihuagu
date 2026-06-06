@@ -3,7 +3,6 @@
 @inject ComponentPerformanceService ComponentPerformanceService
 @inject ApiCallMetricsService ApiMetricsService
 @inject EndToEndPerformanceService E2EPerformanceService
-@inject IJSRuntime JSRuntime
 
 <PageTitle>性能监控</PageTitle>
 
@@ -49,25 +48,19 @@
         <E2EPerformanceTab 
             Summary="e2eSummary"
             Records="e2eRecords"
-            SlowestOperations="e2eSlowest"
-            OnRefresh="RefreshData"
-            OnClear="ClearE2EData" />
+            SlowestOperations="e2eSlowest" />
     }
     else if (activeTab == "api")
     {
         <ApiCallPerformanceTab 
             ApiMetrics="apiMetrics"
             ApiSummary="apiSummary"
-            EndpointStats="endpointStats"
-            OnRefresh="RefreshData"
-            OnClear="ClearApiData" />
+            EndpointStats="endpointStats" />
     }
     else
     {
         <ComponentPerformanceTab 
-            ComponentPerformanceService="ComponentPerformanceService"
-            OnRefresh="RefreshData"
-            OnClear="ClearComponentData" />
+            ComponentPerformanceService="ComponentPerformanceService" />
     }
 </div>
 
@@ -108,22 +101,5 @@
         ApiMetricsService.Clear();
         ComponentPerformanceService.Clear();
         RefreshData();
-    }
-
-    private void ClearE2EData()
-    {
-        E2EPerformanceService.Clear();
-        RefreshData();
-    }
-
-    private void ClearApiData()
-    {
-        ApiMetricsService.Clear();
-        RefreshData();
-    }
-
-    private void ClearComponentData()
-    {
-        ComponentPerformanceService.Clear();
     }
 }

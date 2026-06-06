@@ -20,7 +20,6 @@ namespace TaskRunner.Services
         private readonly LocalAiAutoStarter _autoStarter;
         private readonly AiConfigService _aiConfigService;
         private readonly SettingsService _settingsService;
-        private readonly WebUINotificationService _webUINotification;
         private readonly IOpenClawTaskService _openClawTaskService;
         private readonly IMemoryCache _cache;
 
@@ -38,7 +37,6 @@ namespace TaskRunner.Services
             LocalAiAutoStarter autoStarter,
             AiConfigService aiConfigService,
             SettingsService settingsService,
-            WebUINotificationService webUINotification,
             IOpenClawTaskService openClawTaskService,
             IMemoryCache cache)
         {
@@ -47,7 +45,6 @@ namespace TaskRunner.Services
             _autoStarter = autoStarter;
             _aiConfigService = aiConfigService;
             _settingsService = settingsService;
-            _webUINotification = webUINotification;
             _openClawTaskService = openClawTaskService;
             _cache = cache;
         }
@@ -60,17 +57,6 @@ namespace TaskRunner.Services
         public DeployTaskStatusDto? GetTaskStatus(string taskId)
         {
             return _tasks.TryGetValue(taskId, out var status) ? status : null;
-        }
-
-        /// <summary>
-        /// 获取所有活跃任务
-        /// </summary>
-        public List<DeployTaskStatusDto> GetActiveTasks()
-        {
-            return _tasks.Values
-                .Where(t => t.Status is "pending" or "running")
-                .OrderByDescending(t => t.CreatedAt)
-                .ToList();
         }
 
         /// <summary>

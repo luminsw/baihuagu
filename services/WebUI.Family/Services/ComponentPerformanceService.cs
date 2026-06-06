@@ -108,14 +108,6 @@ public class ComponentPerformanceService
     }
     
     /// <summary>
-    /// 获取特定组件的指标
-    /// </summary>
-    public ComponentMetrics? GetMetrics(string componentName)
-    {
-        return _metrics.GetValueOrDefault(componentName);
-    }
-    
-    /// <summary>
     /// 清空所有数据
     /// </summary>
     public void Clear()

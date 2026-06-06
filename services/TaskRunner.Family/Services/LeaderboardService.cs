@@ -11,12 +11,10 @@ namespace TaskRunner.Services;
 public class LeaderboardService
 {
     private readonly IDbContextFactory<AppDbContext> _dbFactory;
-    private readonly ILogger<LeaderboardService> _logger;
 
-    public LeaderboardService(IDbContextFactory<AppDbContext> dbFactory, ILogger<LeaderboardService> logger)
+    public LeaderboardService(IDbContextFactory<AppDbContext> dbFactory)
     {
         _dbFactory = dbFactory;
-        _logger = logger;
     }
 
     /// <summary>

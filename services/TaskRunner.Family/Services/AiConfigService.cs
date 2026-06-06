@@ -18,18 +18,15 @@ public class AiConfigService
 {
     private readonly IDbContextFactory<AppDbContext> _dbContextFactory;
     private readonly ApiKeyProtectionService _protectionService;
-    private readonly IConfiguration _configuration;
     private readonly ILogger<AiConfigService> _logger;
 
     public AiConfigService(
         IDbContextFactory<AppDbContext> dbContextFactory,
         ApiKeyProtectionService protectionService,
-        IConfiguration configuration,
         ILogger<AiConfigService> logger)
     {
         _dbContextFactory = dbContextFactory;
         _protectionService = protectionService;
-        _configuration = configuration;
         _logger = logger;
     }
 
@@ -239,27 +236,6 @@ public class AiConfigService
     }
 
     /// <summary>
-    /// 清除主提供商标记（用于切换主提供商）
-    /// </summary>
-    public void ClearMainProvider()
-    {
-        using var dbContext = _dbContextFactory.CreateDbContext();
-        var mainProviders = dbContext.AiProviderSettings
-            .Where(p => p.IsMain)
-            .ToList();
-        
-        foreach (var provider in mainProviders)
-        {
-            provider.IsMain = false;
-        }
-        
-        if (mainProviders.Any())
-        {
-            dbContext.SaveChanges();
-        }
-    }
-
-    /// <summary>
     /// 验证 API Key 格式
     /// </summary>
     public bool ValidateApiKeyFormat(string apiKey)
@@ -333,15 +309,4 @@ public class AiConfigService
     }
 }
 
-/// <summary>
-/// 带有 API Key 的 Provider 配置类（用于从 Configuration 读取）
-/// </summary>
-public class AiProviderConfigWithKey
-{
-    public string Id { get; set; } = "";
-    public string Name { get; set; } = "";
-    public string AiBaseUrl { get; set; } = "";
-    public bool IsMain { get; set; }
-    public List<AiModelConfig> Models { get; set; } = new();
-    public string? ApiKey { get; set; }
-}
+

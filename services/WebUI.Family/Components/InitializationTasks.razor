@@ -350,7 +350,6 @@
 @code {
     private InitTasksResponse? tasksResponse;
     private bool isVisible = true;
-    private bool isLoading = true;
     private string? activeTaskId;
     private bool isCreatingVault = false;
 
@@ -370,7 +369,6 @@
 
     private async Task LoadTasksAsync()
     {
-        isLoading = true;
         try
         {
             tasksResponse = await OnboardingService.GetTasksAsync(forceRefresh: true);
@@ -379,10 +377,6 @@
         catch (Exception ex)
         {
             Logger.LogWarning(ex, "加载任务失败");
-        }
-        finally
-        {
-            isLoading = false;
         }
     }
 

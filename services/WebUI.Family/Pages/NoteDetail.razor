@@ -507,7 +507,6 @@ else
             match =>
             {
                 var path = match.Groups[1].Value.Trim();
-                var text = match.Groups[2].Success ? match.Groups[2].Value : path;
                 
                 // 提取纯文本作为显示文本（去掉路径中的目录）
                 var displayText = System.IO.Path.GetFileName(path);
@@ -535,14 +534,6 @@ else
         public string[] Tags { get; set; } = Array.Empty<string>();
     }
 
-    private class VaultNote
-    {
-        public string Path { get; set; } = string.Empty;
-        public string Title { get; set; } = string.Empty;
-        public string Content { get; set; } = string.Empty;
-        public DateTime Modified { get; set; }
-        public List<string>? Tags { get; set; }
-    }
 }
 
 <style>

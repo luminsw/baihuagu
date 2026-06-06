@@ -109,17 +109,6 @@ public class LocalModelInfo
 public class EnvConfigHelp
 {
     public string Description { get; set; } = "";
-    public string EnvVarFormat { get; set; } = "";
-    public List<EnvVarExample> Examples { get; set; } = new();
-    public string WindowsCommand { get; set; } = "";
-    public string LinuxMacCommand { get; set; } = "";
-    public string DockerCommand { get; set; } = "";
-}
-
-public class EnvVarExample
-{
-    public string Name { get; set; } = "";
-    public string Description { get; set; } = "";
 }
 
 public class UpdateApiKeyRequest

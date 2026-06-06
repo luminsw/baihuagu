@@ -75,12 +75,4 @@ public class AiProviderSetting
     public DateTime UpdatedAt { get; set; } = DateTime.UtcNow;
 }
 
-/// <summary>
-/// 模型配置项（用于 JSON 序列化）
-/// </summary>
-public class ModelConfigItem
-{
-    public string Name { get; set; } = "";
-    public bool IsPaid { get; set; }
-    public bool IsMain { get; set; }
-}
+

@@ -542,15 +542,6 @@
         return Markdown.ToHtml(content, pipeline);
     }
 
-    private async Task CopyToClipboard(string text)
-    {
-        try
-        {
-            await JSRuntime.InvokeVoidAsync("navigator.clipboard.writeText", text);
-        }
-        catch { }
-    }
-
     private async Task SaveChatHistoryAsync()
     {
         try
@@ -793,11 +784,6 @@
         {
             selectedModel = "";
         }
-    }
-
-    private void OnChatModeChanged(ChangeEventArgs e)
-    {
-        chatMode = e.Value?.ToString() ?? "remote";
     }
 
     private void OnChatModeChangedSync(string mode)

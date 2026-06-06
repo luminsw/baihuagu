@@ -517,7 +517,7 @@ public class BackupService
                         EncryptedApiKey = encryptedApiKey,
                         ModelsJson = p.GetProperty("ModelsJson").GetString() ?? "[]",
                         IsMain = p.TryGetProperty("IsMain", out var im) && im.GetBoolean(),
-                        IsEnabled = p.TryGetProperty("IsEnabled", out var ie) || !p.TryGetProperty("IsEnabled", out _),
+                        IsEnabled = p.TryGetProperty("IsEnabled", out _) || !p.TryGetProperty("IsEnabled", out _),
                         SortOrder = p.TryGetProperty("SortOrder", out var so) ? so.GetInt32() : 0,
                         CreatedAt = p.GetProperty("CreatedAt").GetDateTime(),
                         UpdatedAt = p.GetProperty("UpdatedAt").GetDateTime()

@@ -4,11 +4,11 @@ After=network.target taskrunner.service
 
 [Service]
 Type=simple
-WorkingDirectory=/opt/yj/webui
+WorkingDirectory=/opt/yj-family/webui
 EnvironmentFile=/etc/systemd/system/webui.env
 Environment=WEBUI_CONFIG_DIR=/opt/yj/data
 Environment=ASPNETCORE_URLS=http://0.0.0.0:5177
-ExecStart=/usr/bin/dotnet WebUI.Cloud.dll --urls http://0.0.0.0:5177
+ExecStart=/usr/bin/dotnet WebUI.Family.dll --urls http://0.0.0.0:5177
 Restart=always
 RestartSec=5
 StandardOutput=append:/opt/yj/logs/webui.log

@@ -890,7 +890,6 @@
 
     // 知识库根路径偏好
     private string vaultRootPathPreference = "";
-    private bool isVaultRootEnvConfigured = false;
 
     // 添加新知识库
     private string newVaultIndustry = "笔记";
@@ -1966,43 +1965,4 @@
         _ => "bg-secondary"
     };
 
-    /// <summary>
-    /// 获取知识库根路径的默认值
-    /// </summary>
-    private string GetDefaultRootPath()
-    {
-        if (_platformInfo == null) return "";
-
-        if (_platformInfo.IsWindows)
-        {
-            return @"C:\Vaults";
-        }
-        if (_platformInfo.IsMacOS)
-        {
-            return $"/Users/{_platformInfo.UserName}/Vaults";
-        }
-        // Linux
-        return $"/home/{_platformInfo.UserName}/Vaults";
-    }
-
-    /// <summary>
-    /// 获取知识库根路径输入框的 placeholder
-    /// </summary>
-    private string GetRootPathPlaceholder()
-    {
-        var defaultPath = GetDefaultRootPath();
-        return string.IsNullOrEmpty(defaultPath) ? "例如：C:\\Vaults 或 /home/user/Vaults" : $"推荐：{defaultPath}";
-    }
-
-    /// <summary>
-    /// 填充默认根路径
-    /// </summary>
-    private void FillDefaultRootPath()
-    {
-        var defaultPath = GetDefaultRootPath();
-        if (!string.IsNullOrEmpty(defaultPath))
-        {
-            vaultRootPathPreference = defaultPath;
-        }
-    }
 }

@@ -42,15 +42,5 @@ public class IapPurchaseRecord
     /// </summary>
     public bool IsVerified { get; set; } = false;
 
-    /// <summary>
-    /// 华为验证响应（JSON）
-    /// </summary>
-    public string? VerifyResponse { get; set; }
-
-    /// <summary>
-    /// 验证失败原因
-    /// </summary>
-    public string? VerifyError { get; set; }
-
     public DateTime CreatedAt { get; set; }
 }

@@ -42,13 +42,6 @@ public class TaskResult
     public object? Data { get; set; }
 }
 
-public class SplitResponse
-{
-    public bool Success { get; set; }
-    public string Message { get; set; } = "";
-    public string? TaskId { get; set; }
-}
-
 public class AiTaskResponse
 {
     public bool Success { get; set; }
@@ -69,17 +62,6 @@ public class VaultGenerationResponse
     public bool Success { get; set; }
     public string Message { get; set; } = "";
     public string? TaskId { get; set; }
-}
-
-public class SplitRequest
-{
-    public string Title { get; set; } = string.Empty;
-    public string Content { get; set; } = string.Empty;
-    public string? VaultPath { get; set; }
-    public string? VaultId { get; set; }
-    public bool UseChain { get; set; } = true;
-    public List<string>? AiProviderIds { get; set; }
-    public Dictionary<string, List<string>>? AiModels { get; set; }
 }
 
 public class AiTaskRequest

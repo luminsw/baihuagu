@@ -43,7 +43,7 @@ public class ObsidianStatusService
                 Message = "检测超时，Obsidian 可能未运行"
             };
         }
-        catch (Exception ex)
+        catch (Exception)
         {
             return new ObsidianStatusSummary
             {

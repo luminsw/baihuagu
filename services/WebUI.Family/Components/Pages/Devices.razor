@@ -1,7 +1,6 @@
 @page "/devices"
 @rendermode InteractiveServer
 @inject HttpClient HttpClient
-@inject NavigationManager Navigation
 @inject IJSRuntime JSRuntime
 @inject ILogger<Devices> Logger
 @implements IDisposable
@@ -325,7 +324,6 @@
     // 通用状态
     private string? message;
     private bool isSuccess;
-    private bool isLoading;
 
     // 设备管理
     private bool isLoadingDevices;
@@ -345,7 +343,6 @@
     protected override void OnInitialized()
     {
         // 立即渲染，后台异步加载数据
-        isLoading = true;
         isLoadingDevices = true;
     }
 
@@ -372,7 +369,6 @@
             {
                 await InvokeAsync(() =>
                 {
-                    isLoading = false;
                     isLoadingDevices = false;
                     StateHasChanged();
                 });
@@ -807,43 +803,6 @@
         catch (Exception ex)
         {
             message = $"授权失败: {ex.Message}";
-            isSuccess = false;
-        }
-        finally
-        {
-            isProcessingDevice = false;
-        }
-    }
-
-    private async Task SyncOneHopDeviceAsync(string deviceId, string? vaultId)
-    {
-        if (string.IsNullOrWhiteSpace(vaultId))
-        {
-            message = "请选择要同步的知识库";
-            isSuccess = false;
-            return;
-        }
-
-        try
-        {
-            isProcessingDevice = true;
-            var url = $"api/onehop/sync?vaultId={Uri.EscapeDataString(vaultId)}";
-            var response = await HttpClient.PostAsync(url, null);
-            var vaultName = availableVaults.FirstOrDefault(v => v.Id == vaultId)?.Name ?? vaultId;
-            if (response.IsSuccessStatusCode)
-            {
-                message = $"已向设备发送同步 {vaultName} 的请求";
-                isSuccess = true;
-            }
-            else
-            {
-                message = $"同步请求发送失败，请在设备上手动同步 {vaultName}";
-                isSuccess = false;
-            }
-        }
-        catch (Exception ex)
-        {
-            message = $"同步失败: {ex.Message}";
             isSuccess = false;
         }
         finally

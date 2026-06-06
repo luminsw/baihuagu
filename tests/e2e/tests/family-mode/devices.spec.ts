@@ -5,18 +5,17 @@ import { test, expect } from '@playwright/test';
  * 注：设备注册后页面异步刷新测试已移到手动测试列表
  */
 
+const apiPort = process.env.API_PORT || '8788';
+const oneHopPort = 8789;
+
 test.describe('移动端管理', () => {
-  test.beforeEach(async ({ page }) => {
-    await page.goto('http://localhost:5177/devices');
-    await page.waitForLoadState('networkidle');
-  });
 
   test('mDNS 发现端点应返回正确服务信息', async ({ request }) => {
-    const res = await request.get('http://localhost:8788/mg/discovery');
+    const res = await request.get(`http://localhost:${apiPort}/mg/discovery`);
     expect(res.status()).toBe(200);
     const json = await res.json();
     expect(json.serviceId).toBe('com.doctornotes.sync');
     expect(json.oneHopEnabled).toBe(true);
-    expect(json.oneHopPort).toBe(8789);
+    expect(json.oneHopPort).toBe(oneHopPort);
   });
 });

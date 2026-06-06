@@ -3,7 +3,6 @@
 @using TaskRunner.Contracts.LocalModels
 @inject WebUI.Services.SettingsService SettingsService
 @inject WebUI.Services.IApiService ApiService
-@inject WebUI.Services.IUserPreferencesService UserPreferencesService
 @inject WebUI.Services.AIStatusService AIStatusService
 @inject WebUI.Hubs.StatusUpdateService StatusUpdateService
 @inject WebUI.Services.CapabilityService CapabilityService
@@ -742,13 +741,9 @@
 </style>
 
 @code {
-    private string backendUrl = "http://127.0.0.1:8788";
-    private string statusMessage = "";
-    private bool isSuccess = false;
     private bool _canShowLocalModelSettings = true;
     
     private List<AiConfigProvider> aiProviders = new();
-    private bool isLoadingAiProviders = false;
 
     // 视图状态
     private bool isEditing = false;
@@ -770,8 +765,6 @@
 
     protected override void OnInitialized()
     {
-        backendUrl = "http://127.0.0.1:8788";
-        isLoadingAiProviders = true;
     }
 
     protected override async Task OnAfterRenderAsync(bool firstRender)
@@ -813,7 +806,6 @@
         {
             await InvokeAsync(() =>
             {
-                isLoadingAiProviders = false;
                 StateHasChanged();
             });
         }
@@ -1020,8 +1012,6 @@
 
         if (await ApiService.DeleteAiConfigProviderAsync(provider.Id))
         {
-            statusMessage = "✅ 提供商删除成功，配置已立即生效！";
-            isSuccess = true;
             await LoadAiProviders();
             // 通过 SignalR 推送状态变更到所有客户端
             await StatusUpdateService.NotifyAIStatusChangedAsync();
@@ -1030,8 +1020,6 @@
         }
         else
         {
-            statusMessage = "删除提供商失败";
-            isSuccess = false;
         }
     }
 
@@ -1082,8 +1070,6 @@
             if (result.Success)
             {
                 isEditing = false;
-                statusMessage = "✅ 提供商保存成功，API Key 已加密存储！配置已立即生效";
-                isSuccess = true;
                 await LoadAiProviders();
                 // 通过 SignalR 推送状态变更到所有客户端
                 await StatusUpdateService.NotifyAIStatusChangedAsync();

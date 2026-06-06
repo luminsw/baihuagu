@@ -14,18 +14,15 @@ public class AchievementsController : ControllerBase
     private readonly LearnerService _learnerService;
     private readonly AchievementEngine _achievementEngine;
     private readonly LeaderboardService _leaderboardService;
-    private readonly ILogger<AchievementsController> _logger;
 
     public AchievementsController(
         LearnerService learnerService,
         AchievementEngine achievementEngine,
-        LeaderboardService leaderboardService,
-        ILogger<AchievementsController> logger)
+        LeaderboardService leaderboardService)
     {
         _learnerService = learnerService;
         _achievementEngine = achievementEngine;
         _leaderboardService = leaderboardService;
-        _logger = logger;
     }
 
     // ---- 学习者管理 ----

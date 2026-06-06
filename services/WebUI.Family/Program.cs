@@ -182,7 +182,6 @@ builder.Services.AddScoped<WebUI.Services.ObsidianStatusService>();
 builder.Services.AddScoped<WebUI.Services.DevicesService>();
 
 // Add Pairing service (for QR code pairing)
-builder.Services.AddScoped<WebUI.Services.PairingService>();
 
 // Add Onboarding service (for first-time setup and initialization tasks)
 builder.Services.AddScoped<WebUI.Services.OnboardingService>();

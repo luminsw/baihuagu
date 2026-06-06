@@ -439,15 +439,15 @@
 
         @if (perfTab == "e2e")
         {
-            <E2EPerformanceTab Summary="e2eSummary" Records="e2eRecords" SlowestOperations="e2eSlowest" OnRefresh="RefreshPerfData" OnClear="ClearE2EData" />
+            <E2EPerformanceTab Summary="e2eSummary" Records="e2eRecords" SlowestOperations="e2eSlowest" />
         }
         else if (perfTab == "api")
         {
-            <ApiCallPerformanceTab ApiMetrics="apiMetrics" ApiSummary="apiSummary" EndpointStats="endpointStats" OnRefresh="RefreshPerfData" OnClear="ClearApiData" />
+            <ApiCallPerformanceTab ApiMetrics="apiMetrics" ApiSummary="apiSummary" EndpointStats="endpointStats" />
         }
         else
         {
-            <ComponentPerformanceTab ComponentPerformanceService="ComponentPerformanceService" OnRefresh="RefreshPerfData" OnClear="ClearComponentData" />
+            <ComponentPerformanceTab ComponentPerformanceService="ComponentPerformanceService" />
         }
 
         <div class="mt-3 d-flex gap-2">
@@ -808,24 +808,6 @@
     {
         E2EPerformanceService?.Clear();
         ApiMetricsService.Clear();
-        ComponentPerformanceService.Clear();
-        RefreshPerfData();
-    }
-
-    private void ClearE2EData()
-    {
-        E2EPerformanceService?.Clear();
-        RefreshPerfData();
-    }
-
-    private void ClearApiData()
-    {
-        ApiMetricsService.Clear();
-        RefreshPerfData();
-    }
-
-    private void ClearComponentData()
-    {
         ComponentPerformanceService.Clear();
         RefreshPerfData();
     }

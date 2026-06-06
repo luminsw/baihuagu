@@ -45,12 +45,4 @@
     <EmbeddedResource Remove="**/*.resx" />
   </ItemGroup>
 
-  <Target Name="CopyLlamaNativeLibs" AfterTargets="Build" Condition="$([MSBuild]::IsOSPlatform('Linux'))">
-    <ItemGroup>
-      <LlamaNativeLibs Include="$(NuGetPackageRoot)/llamasharp.backend.cpu/0.26.0/LLamaSharpRuntimes/linux-x64/native/avx2/*.so" />
-    </ItemGroup>
-    <Copy SourceFiles="@(LlamaNativeLibs)" DestinationFolder="$(TargetDir)" SkipUnchangedFiles="true" />
-    <Exec Command="cd $(TargetDir) &amp;&amp; ln -sf libggml.so libggml.so.0 &amp;&amp; ln -sf libggml-base.so libggml-base.so.0 &amp;&amp; ln -sf libggml-cpu.so libggml-cpu.so.0" />
-  </Target>
-
 </Project>

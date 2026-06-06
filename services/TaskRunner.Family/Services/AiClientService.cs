@@ -229,43 +229,6 @@ namespace TaskRunner.Services
         }
 
         /// <summary>
-        /// 获取流式响应（先确保本地服务已运行）
-        /// </summary>
-        public IAsyncEnumerable<ChatResponseUpdate> GetStreamingResponseWithAutoStartAsync(
-            AiProviderConfig provider, string model,
-            IList<ChatMessage> messages, ChatOptions options, CancellationToken ct)
-        {
-            // 流式响应在枚举时才真正发起连接，由调用方在 try-catch 中处理连接失败
-            var client = CreateChatClient(provider, model);
-            return GetStreamingWithFallbackAsync(client, provider, model, messages, options, ct);
-        }
-
-        private async IAsyncEnumerable<ChatResponseUpdate> GetStreamingWithFallbackAsync(
-            IChatClient client, AiProviderConfig provider, string model,
-            IList<ChatMessage> messages, ChatOptions options,
-            [System.Runtime.CompilerServices.EnumeratorCancellation] CancellationToken ct = default)
-        {
-            var fallbackTriggered = false;
-            await foreach (var update in client.GetStreamingResponseAsync(messages, options, ct))
-            {
-                yield return update;
-                fallbackTriggered = true;
-            }
-
-            // 如果流式完全没有输出，且配置了 Anthropic fallback，切换协议重试
-            if (!fallbackTriggered && !string.IsNullOrWhiteSpace(provider.AnthropicBaseUrl))
-            {
-                _logger.LogWarning("AI ({Provider}/{Model}) OpenAI 流式响应为空，尝试 Anthropic fallback", provider.Name, model);
-                var apiKey = _settings.GetAiApiKey(provider.Id);
-                await foreach (var update in _anthropicClient.GetStreamingResponseAsync(
-                    provider.AnthropicBaseUrl, apiKey, model, messages, options, ct))
-                {
-                    yield return update;
-                }
-            }
-        }
-
-        /// <summary>
         /// 获取支持 Function Calling 的流式响应
         /// 先通过非流式请求检测 function call，执行后再流式输出最终回复
         /// </summary>

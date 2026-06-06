@@ -38,8 +38,6 @@ namespace TaskRunner.Services
         private bool _isRunning = false;
         private static readonly bool IsLinux = RuntimeInformation.IsOSPlatform(OSPlatform.Linux);
 
-        public event EventHandler<MDnsServiceDiscoveredEventArgs>? ServiceDiscovered;
-
         public MDnsService(ILogger<MDnsService> logger, ServerAddressService serverAddressService)
         {
             _logger = logger;
@@ -48,7 +46,7 @@ namespace TaskRunner.Services
 
         public bool IsRunning => _isRunning;
 
-        public async Task StartAsync(CancellationToken cancellationToken)
+        public Task StartAsync(CancellationToken cancellationToken)
         {
             var platform = IsLinux ? "Avahi" : "Makaretu.Dns";
             _logger.LogInformation("Starting mDNS service ({Platform})...", platform);
@@ -86,7 +84,7 @@ namespace TaskRunner.Services
                 _isRunning = false;
             }
 
-            await Task.CompletedTask;
+            return Task.CompletedTask;
         }
 
         /// <summary>
@@ -213,7 +211,7 @@ namespace TaskRunner.Services
             _multicastService.Start();
         }
 
-        public async Task StopAsync(CancellationToken cancellationToken)
+        public Task StopAsync(CancellationToken cancellationToken)
         {
             _logger.LogInformation("Stopping mDNS service...");
             _isRunning = false;
@@ -261,7 +259,7 @@ namespace TaskRunner.Services
             }
 
             _logger.LogInformation("mDNS service stopped");
-            await Task.CompletedTask;
+            return Task.CompletedTask;
         }
 
         /// <summary>

@@ -33,7 +33,7 @@ echo "请手动在终端运行: cd \"$ROOT/services/TaskRunner.Family\" && dotne
 
 # 启动 WebUI
 echo "[2/2] 启动 WebUI (端口 5177)..."
-osascript -e "tell application \"Terminal\" to do script \"cd '$ROOT/services/WebUI' && dotnet watch run --non-interactive\"" 2>/dev/null || \
+osascript -e "tell application \"Terminal\" to do script \"cd '$ROOT/services/WebUI.Family' && dotnet watch run --non-interactive\"" 2>/dev/null || \
 echo "请手动在终端运行: cd \"$ROOT/services/WebUI\" && dotnet watch run --non-interactive"
 
 echo ""

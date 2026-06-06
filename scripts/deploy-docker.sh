@@ -48,7 +48,7 @@ tar czf "${TMP_PKG}" \
     --exclude='*.user' \
     --exclude='.vscode' \
     --exclude='tests' \
-    services/ libs/ docker/ scripts/
+    services/ libs/ docker/ scripts/ nuget-local/
 echo "      源码包大小: $(du -h "${TMP_PKG}" | cut -f1)"
 
 # ---------- 2. 上传源码与编排文件 ----------

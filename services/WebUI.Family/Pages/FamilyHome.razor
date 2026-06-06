@@ -1,13 +1,9 @@
 @rendermode @(new InteractiveServerRenderMode(prerender: false))
-@inject WebUI.Services.IApiService ApiService
 @inject NavigationManager Navigation
 @inject WebUI.Services.IRecentNotesService RecentNotesService
 @inject WebUI.Services.ISearchHistoryService SearchHistoryService
 @inject WebUI.Services.AIStatusService AIStatusService
 @inject WebUI.Services.VaultStatusService VaultStatusService
-@inject IJSRuntime JSRuntime
-@inject HttpClient HttpClient
-@inject IConfiguration Configuration
 @inject UserTypeService UserTypeService
 @inject Microsoft.Extensions.Logging.ILogger<FamilyHome> Logger
 

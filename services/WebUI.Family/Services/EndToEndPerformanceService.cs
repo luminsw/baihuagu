@@ -24,32 +24,6 @@ public class EndToEndPerformanceService
     }
     
     /// <summary>
-    /// 开始一个新的端到端性能追踪
-    /// </summary>
-    /// <param name="operationName">操作名称（如"搜索笔记"、"加载任务列表"）</param>
-    /// <param name="pageName">页面名称</param>
-    /// <returns>追踪会话ID</returns>
-    public string StartTrace(string operationName, string pageName)
-    {
-        var traceId = Guid.NewGuid().ToString("N")[..8];
-        var trace = new E2EPerformanceTrace
-        {
-            TraceId = traceId,
-            OperationName = operationName,
-            PageName = pageName,
-            StartTime = DateTime.UtcNow,
-            StartTimestamp = Stopwatch.GetTimestamp()
-        };
-        
-        _activeTraces[traceId] = trace;
-        
-        _logger.LogDebug("[E2E-Trace-{TraceId}] 开始追踪: {Operation} @ {Page}", 
-            traceId, operationName, pageName);
-        
-        return traceId;
-    }
-    
-    /// <summary>
     /// 记录 API 调用开始
     /// </summary>
     public void RecordApiCallStart(string traceId, string endpoint, string method)
@@ -99,20 +73,6 @@ public class EndToEndPerformanceService
         }
     }
     
-    /// <summary>
-    /// 记录数据接收完成（API 响应解析完成）
-    /// </summary>
-    public void RecordDataReceived(string traceId)
-    {
-        if (_activeTraces.TryGetValue(traceId, out var trace))
-        {
-            trace.DataReceivedTimestamp = Stopwatch.GetTimestamp();
-        }
-    }
-    
-    /// <summary>
-    /// 完成追踪（页面所有渲染结束）
-    /// </summary>
     public void EndTrace(string traceId)
     {
         if (!_activeTraces.TryRemove(traceId, out var trace))

@@ -3,7 +3,6 @@
 @inject AuthService AuthService
 @inject CapabilityService CapabilityService
 @inject GlobalStateService GlobalStateService
-@inject IHttpClientFactory HttpClientFactory
 @inject NavigationManager NavigationManager
 @inject UserTypeService UserTypeService
 @implements IDisposable
@@ -220,11 +219,6 @@
         await UserTypeService.InitializeAsync();
         _isProfessional = UserTypeService.IsProfessional;
         await InvokeAsync(StateHasChanged);
-    }
-
-    private void OnSceneChanged(object? sender, EventArgs e)
-    {
-        InvokeAsync(StateHasChanged);
     }
 
     private void OnLocationChanged(object? sender, Microsoft.AspNetCore.Components.Routing.LocationChangedEventArgs e)

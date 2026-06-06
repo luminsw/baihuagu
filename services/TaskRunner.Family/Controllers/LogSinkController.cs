@@ -1,5 +1,4 @@
 using Microsoft.AspNetCore.Mvc;
-using Microsoft.Extensions.Logging;
 using TaskRunner.Services;
 
 namespace TaskRunner.Controllers;
@@ -12,12 +11,10 @@ namespace TaskRunner.Controllers;
 public class LogSinkController : ControllerBase
 {
     private readonly LogSinkConfigService _configService;
-    private readonly ILogger<LogSinkController> _logger;
 
-    public LogSinkController(LogSinkConfigService configService, ILogger<LogSinkController> logger)
+    public LogSinkController(LogSinkConfigService configService)
     {
         _configService = configService;
-        _logger = logger;
     }
 
     /// <summary>获取当前 OpenObserve 配置</summary>

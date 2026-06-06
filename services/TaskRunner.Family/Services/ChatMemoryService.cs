@@ -17,7 +17,6 @@ public class ChatMemoryService
 {
     private readonly AiClientService _aiClientService;
     private readonly EmbeddingService _embeddingService;
-    private readonly SettingsService _settings;
     private readonly DefaultPromptProvider _scenePromptService;
     private readonly IDbContextFactory<AppDbContext> _dbFactory;
     private readonly ILogger<ChatMemoryService> _logger;
@@ -37,14 +36,12 @@ public class ChatMemoryService
     public ChatMemoryService(
         AiClientService aiClientService,
         EmbeddingService embeddingService,
-        SettingsService settings,
         DefaultPromptProvider scenePromptService,
         IDbContextFactory<AppDbContext> dbFactory,
         ILogger<ChatMemoryService> logger)
     {
         _aiClientService = aiClientService;
         _embeddingService = embeddingService;
-        _settings = settings;
         _scenePromptService = scenePromptService;
         _dbFactory = dbFactory;
         _logger = logger;

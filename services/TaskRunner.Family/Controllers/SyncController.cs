@@ -305,15 +305,6 @@ namespace TaskRunner.Controllers
             return Convert.ToBase64String(hashBytes);
         }
 
-        /// <summary>
-        /// 计算字符串哈希值（用于客户端计算哈希）
-        /// </summary>
-        private string CalculateStringHash(string content)
-        {
-            using var sha256 = System.Security.Cryptography.SHA256.Create();
-            var hashBytes = sha256.ComputeHash(System.Text.Encoding.UTF8.GetBytes(content));
-            return Convert.ToBase64String(hashBytes);
-        }
     }
 
     public class NoteMetadata

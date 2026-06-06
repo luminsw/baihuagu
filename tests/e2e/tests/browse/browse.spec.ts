@@ -1,6 +1,8 @@
 import { test, expect } from '@playwright/test';
 import { navigateTo, waitForBlazor } from '../helpers';
 
+const categoryName = process.env.CATEGORY_NAME || '笔记';
+
 test.describe('知识库浏览', () => {
   test.beforeEach(async ({ page }) => {
     await navigateTo(page, '/browse');
@@ -30,7 +32,7 @@ test.describe('知识库浏览', () => {
     await expect(page.locator('button').filter({ hasText: /返回知识库列表/ })).toBeVisible();
 
     // 面包屑应该显示知识库名称
-    await expect(page.locator('.breadcrumb')).toContainText('笔记');
+    await expect(page.locator('.breadcrumb')).toContainText(categoryName);
   });
 
   test('显示文件夹和笔记卡片', async ({ page }) => {

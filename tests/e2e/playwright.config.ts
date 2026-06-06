@@ -1,7 +1,14 @@
 import { defineConfig } from '@playwright/test';
+import * as path from 'path';
+
+const sharedE2EPath = path.resolve(__dirname, '../../../tests/shared-e2e');
+
+process.env.PLAYWRIGHT_BASE_URL = 'http://127.0.0.1:5177';
+process.env.API_PORT = '8788';
+process.env.CATEGORY_NAME = '笔记';
 
 export default defineConfig({
-  globalSetup: './global-setup.ts',
+  globalSetup: path.join(sharedE2EPath, 'global-setup.ts'),
   testDir: './tests',
   timeout: 60000,
   expect: { timeout: 15000 },
@@ -21,27 +28,29 @@ export default defineConfig({
     },
   },
   projects: [
-    // 导航系统：页面路由、导航栏、页面间跳转
+    // 导航系统：页面路由、导航栏、页面间跳转（本地）
     { name: 'navigation', testDir: './tests/navigation', testMatch: /.*\.spec\.ts/ },
-    // 搜索功能：搜索页UI、搜索输入、查AI已移除
-    { name: 'search', testDir: './tests/search', testMatch: /.*\.spec\.ts/ },
-    // 知识库管理：知识库配置、根路径、Tab切换
-    { name: 'vaults', testDir: './tests/vaults', testMatch: /.*\.spec\.ts/ },
-    // AI构建：从问题生成、从笔记拆分、知识库选择
-    { name: 'ai-build', testDir: './tests/ai-build', testMatch: /.*\.spec\.ts/ },
-    // 备份恢复：创建备份、恢复备份、跨平台选项
-    { name: 'backup', testDir: './tests/backup', testMatch: /.*\.spec\.ts/ },
-    // 冒烟测试：所有页面能打开、不白屏、不卡spinner
-    { name: 'smoke', testDir: './tests/smoke', testMatch: /.*\.spec\.ts/ },
-    // Family 模式：用户类型选择、菜单过滤
-    { name: 'family-mode', testDir: './tests/family-mode', testMatch: /.*\.spec\.ts/ },
-    // 知识库浏览：卡片式知识库列表、目录浏览、笔记预览
+    // 搜索功能：搜索页UI、搜索输入、查AI已移除（共享）
+    { name: 'search', testDir: path.join(sharedE2EPath, 'tests/search'), testMatch: /.*\.spec\.ts/ },
+    // 知识库管理：知识库配置、根路径、Tab切换（共享）
+    { name: 'vaults', testDir: path.join(sharedE2EPath, 'tests/vaults'), testMatch: /.*\.spec\.ts/ },
+    // AI构建：从问题生成、从笔记拆分、知识库选择（共享）
+    { name: 'ai-build', testDir: path.join(sharedE2EPath, 'tests/ai-build'), testMatch: /.*\.spec\.ts/ },
+    // 备份恢复：创建备份、恢复备份、跨平台选项（共享）
+    { name: 'backup', testDir: path.join(sharedE2EPath, 'tests/backup'), testMatch: /.*\.spec\.ts/ },
+    // 冒烟测试：所有页面能打开、不白屏、不卡spinner（共享）
+    { name: 'smoke', testDir: path.join(sharedE2EPath, 'tests/smoke'), testMatch: /.*\.spec\.ts/ },
+    // Family 模式：用户类型选择、菜单过滤（共享）
+    { name: 'family-mode', testDir: path.join(sharedE2EPath, 'tests/family-mode'), testMatch: /.*\.spec\.ts/ },
+    // 知识库浏览：卡片式知识库列表、目录浏览、笔记预览（本地）
     { name: 'browse', testDir: './tests/browse', testMatch: /.*\.spec\.ts/ },
-    // 任务管理：任务列表、状态显示、重试、清空
-    { name: 'tasks', testDir: './tests/tasks', testMatch: /.*\.spec\.ts/ },
-    // 设置页：AI 提供商、模型切换、根路径
-    { name: 'settings', testDir: './tests/settings', testMatch: /.*\.spec\.ts/ },
-    // 记忆卡片：Anki 卡片生成任务
-    { name: 'anki', testDir: './tests/anki', testMatch: /.*\.spec\.ts/ },
+    // 任务管理：任务列表、状态显示、重试、清空（共享）
+    { name: 'tasks', testDir: path.join(sharedE2EPath, 'tests/tasks'), testMatch: /.*\.spec\.ts/ },
+    // 设置页：AI 提供商、模型切换、根路径（共享）
+    { name: 'settings', testDir: path.join(sharedE2EPath, 'tests/settings'), testMatch: /.*\.spec\.ts/ },
+    // 记忆卡片：Anki 卡片生成任务（共享）
+    { name: 'anki', testDir: path.join(sharedE2EPath, 'tests/anki'), testMatch: /.*\.spec\.ts/ },
+    // 移动端管理：设备注册、发现（本地）
+    { name: 'devices', testDir: './tests/family-mode', testMatch: /devices\.spec\.ts/ },
   ],
 });

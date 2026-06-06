@@ -17,11 +17,6 @@ public class AuthorizedDevice
     public DateTime UpdatedAt { get; set; }
 
     /// <summary>
-    /// Token 过期时间（用于长期 Token 的过期检查）
-    /// </summary>
-    public DateTime? TokenExpiresAt { get; set; }
-
-    /// <summary>
     /// 同步次数统计
     /// </summary>
     public int SyncCount { get; set; }

@@ -1,6 +1,4 @@
 using Microsoft.Extensions.Hosting;
-using TaskRunner.Services;
-
 namespace TaskRunner.Services
 {
     /// <summary>
@@ -8,12 +6,10 @@ namespace TaskRunner.Services
     /// </summary>
     public class ObsidianWarmupHostedService : IHostedService
     {
-        private readonly SystemHealthService _healthService;
         private readonly ILogger<ObsidianWarmupHostedService> _logger;
 
-        public ObsidianWarmupHostedService(SystemHealthService healthService, ILogger<ObsidianWarmupHostedService> logger)
+        public ObsidianWarmupHostedService(ILogger<ObsidianWarmupHostedService> logger)
         {
-            _healthService = healthService;
             _logger = logger;
         }
 

@@ -242,7 +242,8 @@ namespace TaskRunner.Controllers
 
                 // 3. 确定保存路径：如果链接已包含分类则直接用，否则搜索知识库推断分类
                 var notePath = request.LinkPath;
-                if (!request.LinkPath.Contains('/') || !System.IO.Directory.Exists(System.IO.Path.Combine(notesPath, System.IO.Path.GetDirectoryName(request.LinkPath)!)))
+                var linkDir = System.IO.Path.GetDirectoryName(request.LinkPath) ?? throw new InvalidOperationException($"无法获取目录：{request.LinkPath}");
+                if (!request.LinkPath.Contains('/') || !System.IO.Directory.Exists(System.IO.Path.Combine(notesPath, linkDir)))
                 {
                     // 链接没有分类或分类目录不存在，尝试推断
                     var inferredCategory = InferCategoryFromReferences(linkTitle, notesPath, template);
@@ -252,7 +253,8 @@ namespace TaskRunner.Controllers
 
                 // 4. 保存笔记
                 var fullPath = System.IO.Path.Combine(notesPath, notePath + ".md");
-                System.IO.Directory.CreateDirectory(System.IO.Path.GetDirectoryName(fullPath)!);
+                var fullDir = System.IO.Path.GetDirectoryName(fullPath) ?? throw new InvalidOperationException($"无法获取目录：{fullPath}");
+                System.IO.Directory.CreateDirectory(fullDir);
                 await System.IO.File.WriteAllTextAsync(fullPath, content);
                 _logger.LogInformation("缺失笔记已生成并保存：{Path}", notePath);
 
@@ -638,31 +640,6 @@ namespace TaskRunner.Controllers
             }
 
             return prompt;
-        }
-
-        private List<ChatMessage> BuildMessagesWithHistory(List<ChatHistoryItem>? history, string providerId, string model, string? sessionId = null)
-        {
-            // 同步版本：仅做 Token 预算截断（摘要压缩和语义检索在异步版本中）
-            var messages = new List<ChatMessage>
-            {
-                new(ChatRole.System, GetSystemPrompt(providerId))
-            };
-
-            if (history != null)
-            {
-                // Token 预算截断
-                var trimmed = _chatMemoryService.TrimByTokenBudget(history, model);
-
-                foreach (var item in trimmed)
-                {
-                    var role = string.Equals(item.Role, "assistant", StringComparison.OrdinalIgnoreCase)
-                        ? ChatRole.Assistant
-                        : ChatRole.User;
-                    messages.Add(new ChatMessage(role, item.Content));
-                }
-            }
-
-            return messages;
         }
 
         /// <summary>

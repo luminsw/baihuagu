@@ -49,11 +49,6 @@ public class EmbeddingConfig
     /// </summary>
     public bool IsEnabled { get; set; } = true;
 
-    /// <summary>
-    /// 最后索引重建时间
-    /// </summary>
-    public DateTime? LastIndexBuildAt { get; set; }
-
     public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
     public DateTime UpdatedAt { get; set; } = DateTime.UtcNow;
 }
