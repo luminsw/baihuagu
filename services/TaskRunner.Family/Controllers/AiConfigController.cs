@@ -239,6 +239,40 @@ public class AiConfigController : ControllerBase
     }
 
     /// <summary>
+    /// 获取主 AI 提供商的 API Key（明文，用于二维码扫描）
+    /// </summary>
+    [HttpGet("main-apikey")]
+    public ActionResult GetMainApiKey()
+    {
+        try
+        {
+            var mainProvider = _aiConfigService.GetMainProvider();
+            if (mainProvider == null)
+            {
+                return NotFound(new { error = "未配置主 AI 提供商" });
+            }
+
+            var apiKey = _aiConfigService.GetApiKey(mainProvider.Id);
+            if (string.IsNullOrEmpty(apiKey))
+            {
+                return NotFound(new { error = "主 AI 提供商未设置 API Key" });
+            }
+
+            return Ok(new
+            {
+                providerId = mainProvider.Id,
+                providerName = mainProvider.Name,
+                apiKey = apiKey
+            });
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "获取主 AI API Key 失败");
+            return StatusCode(500, new { error = $"获取失败: {ex.Message}" });
+        }
+    }
+
+    /// <summary>
     /// 获取预设的知名 AI 提供商列表
     /// </summary>
     [HttpGet("presets")]
