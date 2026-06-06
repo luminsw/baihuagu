@@ -812,7 +812,18 @@ namespace TaskRunner.Controllers
             AiProviderConfig? provider, string model, string industry,
             ChatOptions options, CancellationToken ct)
         {
-            var prompt = $"你是一位专业的系统提示词工程师。请为\"{industry}\"行业生成一个高质量的系统提示词，用于指导 AI 生成该领域的专业笔记。提示词应明确、具体、专业，要求回答严谨、结构化、含实例。只返回提示词内容，不要加标题或说明。";
+            var prompt = $"""
+                你是一位专业的系统提示词工程师。你的任务是为"{industry}"行业生成一个系统提示词，该提示词将用于指导 AI 生成该领域的「原子笔记」。
+
+                原子笔记必须严格遵循以下原则：
+                1. 一个笔记 = 一个核心概念，聚焦单一主题，绝不展开多个主题
+                2. 内容高度结构化，拒绝冗长描述和背景铺垫
+                3. 每篇笔记必须包含：核心定义（1-3句话）、关键要点（3-5条）、关联概念（1-2个）、记忆锚点（口诀/歌诀/类比）、典型场景/案例
+                4. 使用 Markdown 格式输出
+                5. 语言专业、准确、客观，使用行业标准术语
+
+                请直接返回生成的系统提示词内容，不要有任何额外说明。
+                """;
             var messages = new List<ChatMessage>
             {
                 new(ChatRole.System, "你只输出提示词内容，不要任何额外内容。"),
@@ -878,7 +889,26 @@ namespace TaskRunner.Controllers
             AiProviderConfig? provider, string model, string title, string category, string vaultName,
             string systemPrompt, ChatOptions options, CancellationToken ct)
         {
-            var prompt = $"{systemPrompt}\n\n请为以下笔记撰写详细内容：\n知识库：{vaultName}\n分类：{category}\n标题：{title}\n\n要求：\n1. 内容专业、准确、有深度\n2. 使用 Markdown 格式，包含适当的标题层级、列表、实例\n3. 内容长度 500-1500 字\n4. 不要添加\"以下是...\"之类的开场白，直接输出内容";
+            var prompt = $"""
+                {systemPrompt}
+
+                请严格遵循「原子笔记」原则生成该笔记的 Markdown 内容：
+                知识库：{vaultName}
+                分类：{category}
+                标题：{title}
+
+                1. **聚焦单一主题**：只讨论"{title}"这一个核心概念，不展开关联概念
+                2. **高度结构化**：必须包含以下部分（按顺序）：
+                   - 核心定义（1-3句话精确定义）
+                   - 关键要点（3-5条最核心的知识点，用列表）
+                   - 关联概念（1-2个直接关联的其他概念，仅名称）
+                   - 记忆锚点（1个简短的口诀、歌诀或类比，帮助记忆）
+                   - 典型场景/案例（1个真实或典型的应用示例）
+                3. **无冗余**：不讨论历史沿革、文化背景、个人经验
+                4. **语言风格**：专业、清晰、客观、中立
+
+                请直接返回 Markdown 格式的笔记内容，不要有任何额外说明。
+                """;
 
             var messages = new List<ChatMessage>
             {
