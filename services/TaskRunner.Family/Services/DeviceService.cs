@@ -527,6 +527,46 @@ namespace TaskRunner.Services
             return device == null ? null : MapToDeviceInfo(device);
         }
 
+        public DeviceInfo? GetAuthorizedDeviceById(string deviceId)
+        {
+            using var dbContext = _dbContextFactory.CreateDbContext();
+            var device = dbContext.AuthorizedDevices
+                .FirstOrDefault(d => d.DeviceId == deviceId && d.Status == "Authorized");
+
+            return device == null ? null : MapToDeviceInfo(device);
+        }
+
+        /// <summary>
+        /// 更新旧设备的 DeviceId（兼容恢复场景）
+        /// </summary>
+        public bool UpdateDeviceId(string oldDeviceId, string newDeviceId, string? deviceName = null)
+        {
+            using var dbContext = _dbContextFactory.CreateDbContext();
+            AuthorizedDevice? device = null;
+
+            // 优先通过 deviceId 查找
+            if (!string.IsNullOrEmpty(oldDeviceId))
+            {
+                device = dbContext.AuthorizedDevices
+                    .FirstOrDefault(d => d.DeviceId == oldDeviceId && d.Status == "Authorized");
+            }
+
+            // 如果找不到且提供了 deviceName，通过 deviceName + 空 DeviceId 查找
+            if (device == null && !string.IsNullOrEmpty(deviceName))
+            {
+                device = dbContext.AuthorizedDevices
+                    .FirstOrDefault(d => d.DeviceName == deviceName &&
+                        (d.DeviceId == null || d.DeviceId == "") &&
+                        d.Status == "Authorized");
+            }
+
+            if (device == null) return false;
+            device.DeviceId = newDeviceId;
+            device.UpdatedAt = DateTime.UtcNow;
+            dbContext.SaveChanges();
+            return true;
+        }
+
         private static DeviceInfo MapToDeviceInfo(AuthorizedDevice device)
         {
             return new DeviceInfo

@@ -269,7 +269,9 @@ namespace TaskRunner.Controllers
 
                 // 检查设备是否已授权，已授权则不再创建待授权请求
                 var serverName = Environment.MachineName;
-                var authorizedDevice = _deviceService.GetAuthorizedDeviceByName(deviceName);
+
+                // 安全验证：优先通过 deviceId 查找授权设备，防止 deviceName 碰撞攻击
+                var authorizedDevice = _deviceService.GetAuthorizedDeviceById(request.DeviceId);
                 if (authorizedDevice != null)
                 {
                     return Ok(new
@@ -283,6 +285,40 @@ namespace TaskRunner.Controllers
                         authorized = true,
                         accessToken = authorizedDevice.AccessToken,
                         sharedSecret = _signatureService.GetSharedSecret()
+                    });
+                }
+
+                // 兼容旧设备：通过 deviceName 查找
+                var deviceByName = _deviceService.GetAuthorizedDeviceByName(deviceName);
+                if (deviceByName != null)
+                {
+                    // 旧数据兼容：如果数据库中 DeviceId 为空，允许恢复并更新 DeviceId
+                    if (string.IsNullOrEmpty(deviceByName.DeviceId))
+                    {
+                        _logger.LogInformation("Legacy device recovery: name={DeviceName} updating DeviceId from empty to {RequestId}",
+                            deviceName, request.DeviceId);
+                        _deviceService.UpdateDeviceId(deviceByName.DeviceId ?? "", request.DeviceId, deviceName);
+                        return Ok(new
+                        {
+                            message = "设备已授权（已更新设备标识）",
+                            deviceId = request.DeviceId,
+                            deviceName = deviceName,
+                            serverName = serverName,
+                            ipAddress = ipAddress,
+                            requestId = request.DeviceId,
+                            authorized = true,
+                            accessToken = deviceByName.AccessToken,
+                            sharedSecret = _signatureService.GetSharedSecret()
+                        });
+                    }
+
+                    // deviceName 匹配但 deviceId 不匹配：可能是同一型号的另一台设备，拒绝
+                    _logger.LogWarning("Device name collision detected: name={DeviceName} existingId={ExistingId} requestId={RequestId}",
+                        deviceName, deviceByName.DeviceId, request.DeviceId);
+                    return StatusCode(403, new
+                    {
+                        error = "Device name conflict",
+                        message = "该设备名称已被其他设备使用。请在设置中修改设备名称后重新配对。"
                     });
                 }
 
