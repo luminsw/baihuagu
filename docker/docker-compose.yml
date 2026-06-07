@@ -29,7 +29,7 @@ services:
       - ASPNETCORE_URLS=http://0.0.0.0:8788
       # OpenObserve 通过宿主机 localhost 访问
       - OpenObserve__WebUrl=http://127.0.0.1:5080/
-      - OpenObserve__Enabled=false
+      - OpenObserve__Enabled=true
       # 知识库根路径（与宿主机实际路径保持一致）
       - TASKRUNNER_VAULT_ROOT=${VAULTS_DIR:-/home/lumin/Vaults}
       # 固定加密密钥（可选）
@@ -72,7 +72,7 @@ services:
       # 通过宿主机 localhost 访问 TaskRunner（host 网络）
       - TaskRunnerApi__BaseUrl=http://127.0.0.1:8788/
       - OpenObserve__WebUrl=http://127.0.0.1:5080/
-      - OpenObserve__Enabled=false
+      - OpenObserve__Enabled=true
       - ADMIN_PASSWORD_HASH=${ADMIN_PASSWORD_HASH:-}
       - ADMIN_IP_WHITELIST=${ADMIN_IP_WHITELIST:-}
     depends_on:
