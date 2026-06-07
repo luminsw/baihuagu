@@ -312,13 +312,20 @@ namespace TaskRunner.Controllers
                         });
                     }
 
-                    // deviceName 匹配但 deviceId 不匹配：可能是同一型号的另一台设备，拒绝
-                    _logger.LogWarning("Device name collision detected: name={DeviceName} existingId={ExistingId} requestId={RequestId}",
+                    // deviceName 匹配但 deviceId 不匹配：可能是设备重置后 ANDROID_ID 变更
+                    // 创建新的待授权请求，让用户在 WebUI 中手动确认授权（而非直接拒绝）
+                    _logger.LogWarning("Device id mismatch: name={DeviceName} existingId={ExistingId} requestId={RequestId}, creating new pair request",
                         deviceName, deviceByName.DeviceId, request.DeviceId);
-                    return StatusCode(403, new
+                    var pairRequest2 = _deviceService.SubmitLanDiscoveryRequest(deviceName, ipAddress);
+                    return Ok(new
                     {
-                        error = "Device name conflict",
-                        message = "该设备名称已被其他设备使用。请在设置中修改设备名称后重新配对。"
+                        message = "设备标识已变更，请在 WebUI 中重新授权",
+                        deviceId = request.DeviceId,
+                        deviceName = deviceName,
+                        serverName = serverName,
+                        ipAddress = ipAddress,
+                        requestId = pairRequest2.RequestId,
+                        authorized = false
                     });
                 }
 
