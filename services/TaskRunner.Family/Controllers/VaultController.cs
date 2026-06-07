@@ -723,11 +723,8 @@ namespace TaskRunner.Controllers
         [HttpGet("cards")]
         public ActionResult<object> GetCards([FromQuery] string vaultId)
         {
-            if (!ValidateDeviceAuthorization())
-            {
-                return new UnauthorizedObjectResult(new { error = "设备未授权，请先完成配对" });
-            }
-
+            // 移动端 API 统一使用 HMAC 签名验证（在 Program.cs 中间件中完成）
+            // 不再额外要求 Bearer Token，与 GetManifest/GetFile 保持一致
             var targetVault = _settings.GetVaults().FirstOrDefault(v => v.Id == vaultId);
             if (targetVault == null || string.IsNullOrEmpty(targetVault.Path))
             {
