@@ -81,9 +81,8 @@ if (string.IsNullOrEmpty(Environment.GetEnvironmentVariable("TASKRUNNER_DATA_DIR
 }
 
 // Family 版不自动生成分享密钥：未配置时回退到 Bearer Token / IP 白名单验证
-// 仅在显式配置了 TASKRUNNER_MOBILE_AUTH_SECRET 或 MobileAuth:SharedSecret 时才启用 HMAC 签名
-var mobileAuthSecret = builder.Configuration["MobileAuth:SharedSecret"]
-    ?? Environment.GetEnvironmentVariable("TASKRUNNER_MOBILE_AUTH_SECRET");
+// 仅在显式配置了 MobileAuth:SharedSecret 时才启用 HMAC 签名
+var mobileAuthSecret = builder.Configuration["MobileAuth:SharedSecret"];
 if (!string.IsNullOrEmpty(mobileAuthSecret))
 {
     Console.WriteLine($"[Startup] MobileAuth shared secret configured (length={mobileAuthSecret.Length})");

@@ -17,10 +17,8 @@ public class RequestSignatureService
 
     public RequestSignatureService(IConfiguration configuration, ILogger<RequestSignatureService> logger)
     {
-        // 优先从环境变量读取，其次是配置文件
-        _sharedSecret = Environment.GetEnvironmentVariable("TASKRUNNER_MOBILE_AUTH_SECRET")
-            ?? configuration.GetValue<string>("MobileAuth:SharedSecret")
-            ?? string.Empty;
+        // 从配置系统读取（环境变量 MobileAuth__SharedSecret 或 appsettings）
+        _sharedSecret = configuration.GetValue<string>("MobileAuth:SharedSecret") ?? string.Empty;
         _logger = logger;
     }
 

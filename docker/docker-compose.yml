@@ -39,6 +39,8 @@ services:
       - YJ_ENCRYPTION_KEY=${YJ_ENCRYPTION_KEY:-}
       # 从 .env 文件注入敏感配置
       - ADMIN_PASSWORD_HASH=${ADMIN_PASSWORD_HASH:-}
+      # 移动端 HMAC 签名密钥（配对后自动生成，通常无需手动配置）
+      - MobileAuth__SharedSecret=${MOBILE_AUTH_SECRET:-}
     healthcheck:
       test: ["CMD", "curl", "-f", "http://127.0.0.1:8788/health"]
       interval: 30s
