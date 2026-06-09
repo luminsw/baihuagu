@@ -21,9 +21,9 @@ using OpenTelemetry.Logs;
 using OpenTelemetry.Exporter;
 using OpenTelemetry;
 using OpenTelemetry.Resources;
-using TaskRunner.Contracts.OpenTelemetry;
+using TaskRunner.OpenTelemetry;
 using TaskRunner.Contracts.Metrics;
-using TaskRunner.Contracts.Middleware;
+using TaskRunner.Middleware;
 
 
 var builder = WebApplication.CreateBuilder(args);
