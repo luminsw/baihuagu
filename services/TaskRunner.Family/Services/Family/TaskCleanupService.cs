@@ -1,3 +1,4 @@
+using TaskRunner.Core.Shared;
 namespace TaskRunner.Services
 {
     /// <summary>

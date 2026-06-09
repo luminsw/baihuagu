@@ -1,3 +1,4 @@
+using TaskRunner.Core.Shared;
 using System.Text;
 using System.Text.RegularExpressions;
 using System.Text.Json;
@@ -487,13 +488,13 @@ namespace TaskRunner.Services
                 if (savedNotes.Count == 0)
                 {
                     _logger.LogWarning("任务 {TaskId} 没有成功保存任何笔记", taskId);
-                    await _taskManager.UpdateStatus(taskId, TaskStatus.Failed, "没有成功保存任何笔记，请检查知识库路径配置");
+                    await _taskManager.UpdateStatus(taskId, RunnerTaskStatus.Failed, "没有成功保存任何笔记，请检查知识库路径配置");
                     return;
                 }
 
                 totalStopwatch.Stop();
 
-                await _taskManager.UpdateStatus(taskId, TaskStatus.Success, null, new
+                await _taskManager.UpdateStatus(taskId, RunnerTaskStatus.Success, null, new
                 {
                     count = savedNotes.Count,
                     notes = notesList,
@@ -506,7 +507,7 @@ namespace TaskRunner.Services
             catch (Exception ex)
             {
                 _logger.LogError(ex, "任务 {TaskId} 失败", taskId);
-                await _taskManager.UpdateStatus(taskId, TaskStatus.Failed, ex.Message);
+                await _taskManager.UpdateStatus(taskId, RunnerTaskStatus.Failed, ex.Message);
                 throw;
             }
         }
@@ -882,15 +883,15 @@ namespace TaskRunner.Services
                         {
                             try
                             {
-                                await _taskManager.UpdateStatus(taskId, TaskStatus.Running);
+                                await _taskManager.UpdateStatus(taskId, RunnerTaskStatus.Running);
                                 var result = await _cardGenerator.GenerateFromNote(note.Path, cardsPath: cardsRoot, notesBasePath: notesPath);
-                                await _taskManager.UpdateStatus(taskId, result.Success ? TaskStatus.Success : TaskStatus.Failed,
+                                await _taskManager.UpdateStatus(taskId, result.Success ? RunnerTaskStatus.Success : RunnerTaskStatus.Failed,
                                     data: new { message = result.Message, cardCount = result.CardCount });
                             }
                             catch (Exception ex)
                             {
                                 _logger.LogError(ex, "[Split] 卡片生成失败：{Path}", note.Path);
-                                await _taskManager.UpdateStatus(taskId, TaskStatus.Failed, error: ex.Message);
+                                await _taskManager.UpdateStatus(taskId, RunnerTaskStatus.Failed, error: ex.Message);
                             }
                         });
                     }

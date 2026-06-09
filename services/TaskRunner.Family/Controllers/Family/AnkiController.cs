@@ -1,3 +1,4 @@
+using TaskRunner.Core.Shared;
 using Microsoft.AspNetCore.Mvc;
 using System.Text.Json;
 using TaskRunner.Contracts.Anki;
@@ -580,13 +581,13 @@ namespace TaskRunner.Controllers
                     await _taskManager.UpdateProgress(taskId, 0, 100, $"开始为 {vault.Name} 生成记忆卡片...");
                     var result = await _cardGenerator.GenerateFromDirectory(notesPath, recursive: true, vaultId: vaultId);
                     await _taskManager.UpdateProgress(taskId, 100, 100, result.Message);
-                    await _taskManager.UpdateStatus(taskId, Services.TaskStatus.Success, data: new { totalCards = result.TotalCards, message = result.Message });
+                    await _taskManager.UpdateStatus(taskId, RunnerTaskStatus.Success, data: new { totalCards = result.TotalCards, message = result.Message });
                     _logger.LogInformation("[AnkiController] 任务 {TaskId} 完成：{Message}", taskId, result.Message);
                 }
                 catch (Exception ex)
                 {
                     _logger.LogError(ex, "[AnkiController] 任务 {TaskId} 生成卡片失败", taskId);
-                    await _taskManager.UpdateStatus(taskId, Services.TaskStatus.Failed, error: ex.Message);
+                    await _taskManager.UpdateStatus(taskId, RunnerTaskStatus.Failed, error: ex.Message);
                 }
             });
 

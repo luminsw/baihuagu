@@ -24,7 +24,7 @@ namespace TaskRunner.Services
         private readonly IMemoryCache _cache;
 
         // 内存中的部署任务状态
-        private static readonly ConcurrentDictionary<string, DeployTaskStatusDto> _tasks = new();
+        private static readonly ConcurrentDictionary<string, DeployRunnerTaskStatusDto> _tasks = new();
         private static readonly ConcurrentDictionary<string, CancellationTokenSource> _taskCancellations = new();
 
         // 缓存配置（首次访问时缓存，点击刷新或操作后失效才更新）
@@ -54,7 +54,7 @@ namespace TaskRunner.Services
         /// <summary>
         /// 获取任务状态
         /// </summary>
-        public DeployTaskStatusDto? GetTaskStatus(string taskId)
+        public DeployRunnerTaskStatusDto? GetRunnerTaskStatus(string taskId)
         {
             return _tasks.TryGetValue(taskId, out var status) ? status : null;
         }
@@ -119,7 +119,7 @@ namespace TaskRunner.Services
             var cts = new CancellationTokenSource();
             _taskCancellations[taskId] = cts;
 
-            var taskStatus = new DeployTaskStatusDto
+            var taskStatus = new DeployRunnerTaskStatusDto
             {
                 TaskId = taskId,
                 ModelId = model.Id,
@@ -181,7 +181,7 @@ namespace TaskRunner.Services
         /// <summary>
         /// 部署到 Ollama
         /// </summary>
-        private async Task DeployToOllamaAsync(DeployTaskStatusDto task, ModelEntry model, CancellationToken ct)
+        private async Task DeployToOllamaAsync(DeployRunnerTaskStatusDto task, ModelEntry model, CancellationToken ct)
         {
             task.Status = "running";
 
@@ -248,7 +248,7 @@ namespace TaskRunner.Services
         /// <summary>
         /// 部署到 LM Studio：使用 lms get 下载模型
         /// </summary>
-        private async Task DeployToLmStudioAsync(DeployTaskStatusDto task, ModelEntry model, CancellationToken ct)
+        private async Task DeployToLmStudioAsync(DeployRunnerTaskStatusDto task, ModelEntry model, CancellationToken ct)
         {
             task.Status = "running";
 
@@ -351,7 +351,7 @@ namespace TaskRunner.Services
             catch { return null; }
         }
 
-        private async Task RunOllamaPullAsync(DeployTaskStatusDto task, string modelName, CancellationToken ct)
+        private async Task RunOllamaPullAsync(DeployRunnerTaskStatusDto task, string modelName, CancellationToken ct)
         {
             var psi = new ProcessStartInfo
             {
@@ -410,7 +410,7 @@ namespace TaskRunner.Services
         /// <summary>
         /// 解析 ollama pull 的输出，提取进度信息
         /// </summary>
-        private void ParseOllamaPullOutput(DeployTaskStatusDto task, string line)
+        private void ParseOllamaPullOutput(DeployRunnerTaskStatusDto task, string line)
         {
             if (string.IsNullOrWhiteSpace(line)) return;
 
@@ -527,7 +527,7 @@ namespace TaskRunner.Services
             catch { return 0; }
         }
 
-        private async Task RunLmsGetAsync(DeployTaskStatusDto task, string searchName, CancellationToken ct)
+        private async Task RunLmsGetAsync(DeployRunnerTaskStatusDto task, string searchName, CancellationToken ct)
         {
             var psi = new ProcessStartInfo
             {
@@ -575,7 +575,7 @@ namespace TaskRunner.Services
             }
         }
 
-        private void ParseLmsGetOutput(DeployTaskStatusDto task, string line)
+        private void ParseLmsGetOutput(DeployRunnerTaskStatusDto task, string line)
         {
             if (string.IsNullOrWhiteSpace(line)) return;
 

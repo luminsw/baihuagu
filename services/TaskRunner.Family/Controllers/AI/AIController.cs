@@ -1,3 +1,4 @@
+using TaskRunner.Core.Shared;
 using TaskRunner.Services;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.AI;
@@ -22,7 +23,7 @@ namespace TaskRunner.Controllers
         private readonly Services.AiFunctionService _aiFunctionService;
         private readonly Services.ChatMemoryService _chatMemoryService;
         private readonly Services.AnkiCardGenerator _cardGenerator;
-        private readonly Services.TaskManager _taskManager;
+        private readonly TaskManager _taskManager;
         private readonly ILogger<AIController> _logger;
 
         public AIController(
@@ -34,7 +35,7 @@ namespace TaskRunner.Controllers
             Services.AiFunctionService aiFunctionService,
             Services.ChatMemoryService chatMemoryService,
             Services.AnkiCardGenerator cardGenerator,
-            Services.TaskManager taskManager,
+            TaskManager taskManager,
             ILogger<AIController> logger)
         {
             _settings = settings;
@@ -142,15 +143,15 @@ namespace TaskRunner.Controllers
                         {
                             try
                             {
-                                await _taskManager.UpdateStatus(taskId, Services.TaskStatus.Running);
+                                await _taskManager.UpdateStatus(taskId, RunnerTaskStatus.Running);
                                 var result = await _cardGenerator.GenerateFromNote(note.FilePath, cardsPath: cardsRoot, notesBasePath: notesRoot);
-                                await _taskManager.UpdateStatus(taskId, result.Success ? Services.TaskStatus.Success : Services.TaskStatus.Failed,
+                                await _taskManager.UpdateStatus(taskId, result.Success ? RunnerTaskStatus.Success : RunnerTaskStatus.Failed,
                                     data: new { message = result.Message, cardCount = result.CardCount });
                             }
                             catch (Exception ex)
                             {
                                 _logger.LogError(ex, "[AI Ask] 卡片生成失败");
-                                await _taskManager.UpdateStatus(taskId, Services.TaskStatus.Failed, error: ex.Message);
+                                await _taskManager.UpdateStatus(taskId, RunnerTaskStatus.Failed, error: ex.Message);
                             }
                         });
                         _logger.LogInformation("[AI Ask] 笔记已保存，已创建卡片生成任务 {TaskId}：{Path}", taskId, note.FilePath);
@@ -273,15 +274,15 @@ namespace TaskRunner.Controllers
                     {
                         try
                         {
-                            await _taskManager.UpdateStatus(taskId, Services.TaskStatus.Running);
+                            await _taskManager.UpdateStatus(taskId, RunnerTaskStatus.Running);
                             var result = await _cardGenerator.GenerateFromNote(notePath, cardsPath: cardsRoot, notesBasePath: notesPath);
-                            await _taskManager.UpdateStatus(taskId, result.Success ? Services.TaskStatus.Success : Services.TaskStatus.Failed,
+                            await _taskManager.UpdateStatus(taskId, result.Success ? RunnerTaskStatus.Success : RunnerTaskStatus.Failed,
                                 data: new { message = result.Message, cardCount = result.CardCount });
                         }
                         catch (Exception ex)
                         {
                             _logger.LogError(ex, "[GenerateMissingNote] 卡片生成失败");
-                            await _taskManager.UpdateStatus(taskId, Services.TaskStatus.Failed, error: ex.Message);
+                            await _taskManager.UpdateStatus(taskId, RunnerTaskStatus.Failed, error: ex.Message);
                         }
                     });
                     _logger.LogInformation("[GenerateMissingNote] 笔记已保存，已创建卡片生成任务 {TaskId}：{Path}", taskId, notePath);

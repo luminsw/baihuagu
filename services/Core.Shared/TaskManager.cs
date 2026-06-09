@@ -1,3 +1,5 @@
+using Microsoft.Extensions.Logging;
+using TaskRunner.Core.Shared;
 using System.Collections.Concurrent;
 using System.Text.Json;
 using Microsoft.AspNetCore.SignalR;
@@ -43,7 +45,7 @@ namespace TaskRunner.Services
             {
                 Id = taskId,
                 Type = type,
-                Status = TaskStatus.Pending,
+                Status = RunnerTaskStatus.Pending,
                 Parameters = parameters,
                 Progress = new TaskProgress { Current = 0, Total = 1, Message = "任务已创建" },
                 CreatedAt = DateTime.UtcNow,
@@ -174,7 +176,7 @@ namespace TaskRunner.Services
             try
             {
                 // 清理内存中已完成的任务
-                var completedStatuses = new[] { TaskStatus.Success, TaskStatus.Failed, TaskStatus.Timeout, TaskStatus.Cancelled };
+                var completedStatuses = new[] { RunnerTaskStatus.Success, RunnerTaskStatus.Failed, RunnerTaskStatus.Timeout, RunnerTaskStatus.Cancelled };
                 var completedTasks = _tasks.Values.Where(t => completedStatuses.Contains(t.Status)).ToList();
                 foreach (var task in completedTasks)
                 {
@@ -249,7 +251,7 @@ namespace TaskRunner.Services
             var task = GetTask(taskId);
             if (task == null) return false;
 
-            if (task.Status != TaskStatus.Running && task.Status != TaskStatus.Pending)
+            if (task.Status != RunnerTaskStatus.Running && task.Status != RunnerTaskStatus.Pending)
             {
                 return false;
             }
@@ -259,11 +261,11 @@ namespace TaskRunner.Services
                 try { cts.Cancel(); } catch { /* 已取消或已释放，无需处理 */ }
             }
 
-            await UpdateStatus(taskId, TaskStatus.Cancelled, "用户已取消");
+            await UpdateStatus(taskId, RunnerTaskStatus.Cancelled, "用户已取消");
             return true;
         }
 
-        public async Task UpdateStatus(string taskId, TaskStatus status, string? error = null, object? data = null)
+        public async Task UpdateStatus(string taskId, RunnerTaskStatus status, string? error = null, object? data = null)
         {
             using var dbContext = _dbContextFactory.CreateDbContext();
             if (_tasks.TryGetValue(taskId, out var task))
@@ -278,20 +280,20 @@ namespace TaskRunner.Services
                 {
                     task.Result = new TaskResult
                     {
-                        Success = status == TaskStatus.Success,
+                        Success = status == RunnerTaskStatus.Success,
                         Error = error,
                         Data = data
                     };
                 }
                 
-                if (status == TaskStatus.Success && task.Progress.Total > 0)
+                if (status == RunnerTaskStatus.Success && task.Progress.Total > 0)
                 {
                     task.Progress.Current = task.Progress.Total;
                     task.Progress.Percentage = 100.0;
                     task.Progress.Message = "任务完成";
                 }
                 
-                if (status == TaskStatus.Failed && !string.IsNullOrEmpty(task.Progress.Message))
+                if (status == RunnerTaskStatus.Failed && !string.IsNullOrEmpty(task.Progress.Message))
                 {
                     if (!task.Progress.Message.Contains("(失败)") && !task.Progress.Message.Contains("失败") && !task.Progress.Message.StartsWith("❌"))
                     {
@@ -310,9 +312,9 @@ namespace TaskRunner.Services
                         dbTask.Output = resultData;
                         dbTask.Progress = (int)task.Progress.Percentage;
                         dbTask.ProgressMessage = task.Progress.Message;
-                        if (status == TaskStatus.Running && !dbTask.StartedAt.HasValue)
+                        if (status == RunnerTaskStatus.Running && !dbTask.StartedAt.HasValue)
                             dbTask.StartedAt = DateTime.UtcNow;
-                        if (status is TaskStatus.Success or TaskStatus.Failed or TaskStatus.Timeout)
+                        if (status is RunnerTaskStatus.Success or RunnerTaskStatus.Failed or RunnerTaskStatus.Timeout)
                             dbTask.CompletedAt = DateTime.UtcNow;
                         dbContext.SaveChanges();
                     }
@@ -394,7 +396,7 @@ namespace TaskRunner.Services
             {
                 Id = entity.TaskId,
                 Type = entity.TaskType,
-                Status = Enum.Parse<TaskStatus>(entity.Status),
+                Status = Enum.Parse<RunnerTaskStatus>(entity.Status),
                 Parameters = parameters,
                 Progress = new TaskProgress
                 {
@@ -417,32 +419,6 @@ namespace TaskRunner.Services
         }
     }
 
-    public enum TaskStatus { Pending, Running, Success, Failed, Timeout, Cancelled }
 
-    public class TaskInfo
-    {
-        public string Id { get; set; } = string.Empty;
-        public string Type { get; set; } = string.Empty;
-        public TaskStatus Status { get; set; }
-        public TaskProgress Progress { get; set; } = new();
-        public TaskResult? Result { get; set; }
-        public Dictionary<string, string>? Parameters { get; set; }
-        public DateTime CreatedAt { get; set; }
-        public DateTime UpdatedAt { get; set; }
-    }
 
-    public class TaskProgress
-    {
-        public int Current { get; set; }
-        public int Total { get; set; }
-        public double Percentage { get; set; }
-        public string Message { get; set; } = "";
-    }
-
-    public class TaskResult
-    {
-        public bool Success { get; set; }
-        public string? Error { get; set; }
-        public object? Data { get; set; }
-    }
 }

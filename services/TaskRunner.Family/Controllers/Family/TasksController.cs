@@ -1,3 +1,4 @@
+using TaskRunner.Core.Shared;
 using TaskRunner.Services;
 using System.Text.Json;
 using Microsoft.AspNetCore.Mvc;
@@ -125,7 +126,7 @@ namespace TaskRunner.Controllers
                 return NotFound(new { error = "任务不存在" });
             }
 
-            if (task.Status != Services.TaskStatus.Running && task.Status != Services.TaskStatus.Pending)
+            if (task.Status != RunnerTaskStatus.Running && task.Status != RunnerTaskStatus.Pending)
             {
                 return BadRequest(new { error = "只能取消运行中或待执行的任务" });
             }
@@ -176,7 +177,7 @@ namespace TaskRunner.Controllers
             {
                 return NotFound(new { error = "任务不存在" });
             }
-            if (task.Status != Services.TaskStatus.Timeout && task.Status != Services.TaskStatus.Failed)
+            if (task.Status != RunnerTaskStatus.Timeout && task.Status != RunnerTaskStatus.Failed)
             {
                 return BadRequest(new { error = "只能重试失败或超时的任务" });
             }
@@ -255,7 +256,7 @@ namespace TaskRunner.Controllers
                 using var cts = _taskManager.CreateTaskCts(newTaskId, TimeSpan.FromMinutes(timeoutMinutes));
                 try
                 {
-                    await _taskManager.UpdateStatus(newTaskId, Services.TaskStatus.Running);
+                    await _taskManager.UpdateStatus(newTaskId, RunnerTaskStatus.Running);
                     await _taskManager.UpdateProgress(newTaskId, 1, 3, "准备调用 AI（重试）...");
 
                     var stopwatch = System.Diagnostics.Stopwatch.StartNew();
@@ -281,7 +282,7 @@ namespace TaskRunner.Controllers
                         var vaultPath = retryVault?.Path;
                         if (string.IsNullOrEmpty(vaultPath))
                         {
-                            await _taskManager.UpdateStatus(newTaskId, Services.TaskStatus.Failed, "必须指定有效的知识库");
+                            await _taskManager.UpdateStatus(newTaskId, RunnerTaskStatus.Failed, "必须指定有效的知识库");
                             return;
                         }
 
@@ -307,15 +308,15 @@ namespace TaskRunner.Controllers
                             {
                                 try
                                 {
-                                    await _taskManager.UpdateStatus(taskId, Services.TaskStatus.Running);
+                                    await _taskManager.UpdateStatus(taskId, RunnerTaskStatus.Running);
                                     var result = await _cardGenerator.GenerateFromNote(notePath, cardsPath: cardsRoot, notesBasePath: notesRoot);
-                                    await _taskManager.UpdateStatus(taskId, result.Success ? Services.TaskStatus.Success : Services.TaskStatus.Failed,
+                                    await _taskManager.UpdateStatus(taskId, result.Success ? RunnerTaskStatus.Success : RunnerTaskStatus.Failed,
                                         data: new { message = result.Message, cardCount = result.CardCount });
                                 }
                                 catch (Exception ex)
                                 {
                                     _logger.LogError(ex, "[Retry AI Task] 卡片生成失败");
-                                    await _taskManager.UpdateStatus(taskId, Services.TaskStatus.Failed, error: ex.Message);
+                                    await _taskManager.UpdateStatus(taskId, RunnerTaskStatus.Failed, error: ex.Message);
                                 }
                             });
                             _logger.LogInformation("[Retry AI Task] 笔记已保存，已创建卡片生成任务 {TaskId}：{Path}", taskId, notePath);
@@ -327,7 +328,7 @@ namespace TaskRunner.Controllers
                     }
 
                     await _taskManager.UpdateProgress(newTaskId, 3, 3, "任务完成");
-                    await _taskManager.UpdateStatus(newTaskId, Services.TaskStatus.Success, data: new
+                    await _taskManager.UpdateStatus(newTaskId, RunnerTaskStatus.Success, data: new
                     {
                         notes = new[] { new { title = title, path = notePath ?? "" } },
                         requests = new[]
@@ -350,14 +351,14 @@ namespace TaskRunner.Controllers
                 catch (OperationCanceledException)
                 {
                     var currentTask = _taskManager.GetTask(newTaskId);
-                    if (currentTask?.Status == Services.TaskStatus.Cancelled)
+                    if (currentTask?.Status == RunnerTaskStatus.Cancelled)
                     {
                         _logger.LogInformation("AI 重试任务被用户取消：{TaskId}", newTaskId);
                     }
                     else
                     {
                         _logger.LogWarning("AI 重试任务超时：{TaskId}", newTaskId);
-                        await _taskManager.UpdateStatus(newTaskId, Services.TaskStatus.Timeout,
+                        await _taskManager.UpdateStatus(newTaskId, RunnerTaskStatus.Timeout,
                             $"AI 调用超时（{timeoutMinutes} 分钟）| 模型: {modelName}");
                     }
                 }
@@ -365,13 +366,13 @@ namespace TaskRunner.Controllers
                 {
                     // OpenAI SDK 在解析阿里云内容审核响应时（choices为空）会崩溃
                     _logger.LogWarning(ex, "AI 重试任务触发内容审核：{TaskId}", newTaskId);
-                    await _taskManager.UpdateStatus(newTaskId, Services.TaskStatus.Failed,
+                    await _taskManager.UpdateStatus(newTaskId, RunnerTaskStatus.Failed,
                         "AI 内容审核未通过：输入内容可能包含敏感信息，请修改后重试。");
                 }
                 catch (Exception ex)
                 {
                     _logger.LogError(ex, "AI 重试任务失败：{TaskId}", newTaskId);
-                    await _taskManager.UpdateStatus(newTaskId, Services.TaskStatus.Failed, ex.Message);
+                    await _taskManager.UpdateStatus(newTaskId, RunnerTaskStatus.Failed, ex.Message);
                 }
                 finally
                 {
@@ -451,7 +452,7 @@ namespace TaskRunner.Controllers
                     using var cts = _taskManager.CreateTaskCts(taskId, TimeSpan.FromMinutes(_settings.AiRequestTimeoutMinutes));
                     try
                     {
-                        await _taskManager.UpdateStatus(taskId, Services.TaskStatus.Running);
+                        await _taskManager.UpdateStatus(taskId, RunnerTaskStatus.Running);
                         await _taskManager.UpdateProgress(taskId, 1, 3, "准备调用 AI...");
 
                         var stopwatch = System.Diagnostics.Stopwatch.StartNew();
@@ -483,7 +484,7 @@ namespace TaskRunner.Controllers
                             {
                                 _logger.LogError("AI 任务找不到知识库: VaultId={VaultId}, 可用知识库 IDs={AvailableVaultIds}",
                                     request.VaultId ?? "(null)", string.Join(", ", _settings.GetVaults().Select(v => v.Id)));
-                                await _taskManager.UpdateStatus(taskId, Services.TaskStatus.Failed, "必须指定有效的知识库");
+                                await _taskManager.UpdateStatus(taskId, RunnerTaskStatus.Failed, "必须指定有效的知识库");
                                 return;
                             }
 
@@ -509,15 +510,15 @@ namespace TaskRunner.Controllers
                                 {
                                     try
                                     {
-                                        await _taskManager.UpdateStatus(taskId, Services.TaskStatus.Running);
+                                        await _taskManager.UpdateStatus(taskId, RunnerTaskStatus.Running);
                                         var result = await _cardGenerator.GenerateFromNote(notePath, cardsPath: cardsRoot, notesBasePath: notesRoot);
-                                        await _taskManager.UpdateStatus(taskId, result.Success ? Services.TaskStatus.Success : Services.TaskStatus.Failed,
+                                        await _taskManager.UpdateStatus(taskId, result.Success ? RunnerTaskStatus.Success : RunnerTaskStatus.Failed,
                                             data: new { message = result.Message, cardCount = result.CardCount });
                                     }
                                     catch (Exception ex)
                                     {
                                         _logger.LogError(ex, "[AI Task] 卡片生成失败");
-                                        await _taskManager.UpdateStatus(taskId, Services.TaskStatus.Failed, error: ex.Message);
+                                        await _taskManager.UpdateStatus(taskId, RunnerTaskStatus.Failed, error: ex.Message);
                                     }
                                 });
                                 _logger.LogInformation("[AI Task] 笔记已保存，已创建卡片生成任务 {TaskId}：{Path}", taskId, notePath);
@@ -529,7 +530,7 @@ namespace TaskRunner.Controllers
                         }
 
                         await _taskManager.UpdateProgress(taskId, 3, 3, "任务完成");
-                        await _taskManager.UpdateStatus(taskId, Services.TaskStatus.Success, data: new
+                        await _taskManager.UpdateStatus(taskId, RunnerTaskStatus.Success, data: new
                         {
                             notes = new[] { new { title = title, path = notePath ?? "" } },
                             requests = new[]
@@ -551,7 +552,7 @@ namespace TaskRunner.Controllers
                     catch (OperationCanceledException)
                     {
                         var currentTask = _taskManager.GetTask(taskId);
-                        if (currentTask?.Status == Services.TaskStatus.Cancelled)
+                        if (currentTask?.Status == RunnerTaskStatus.Cancelled)
                         {
                             _logger.LogInformation("AI 查询任务被用户取消：{TaskId}", taskId);
                         }
@@ -559,7 +560,7 @@ namespace TaskRunner.Controllers
                         {
                             _logger.LogWarning("AI 查询任务超时：{TaskId}", taskId);
                             var timeoutMin = _settings.AiRequestTimeoutMinutes;
-                            await _taskManager.UpdateStatus(taskId, Services.TaskStatus.Timeout,
+                            await _taskManager.UpdateStatus(taskId, RunnerTaskStatus.Timeout,
                                 $"AI 调用超时（{timeoutMin} 分钟）| 模型: {modelName} | 提示词: {TruncateForError(request.Query, 100)}");
                         }
                     }
@@ -567,13 +568,13 @@ namespace TaskRunner.Controllers
                     {
                         // OpenAI SDK 在解析阿里云内容审核响应时（choices为空）会崩溃
                         _logger.LogWarning(ex, "AI 查询任务触发内容审核：{TaskId}", taskId);
-                        await _taskManager.UpdateStatus(taskId, Services.TaskStatus.Failed,
+                        await _taskManager.UpdateStatus(taskId, RunnerTaskStatus.Failed,
                             "AI 内容审核未通过：输入内容可能包含敏感信息，请修改后重试。");
                     }
                     catch (Exception ex)
                     {
                         _logger.LogError(ex, "AI 查询任务失败：{TaskId}", taskId);
-                        await _taskManager.UpdateStatus(taskId, Services.TaskStatus.Failed, ex.Message);
+                        await _taskManager.UpdateStatus(taskId, RunnerTaskStatus.Failed, ex.Message);
                     }
                     finally
                     {
@@ -651,7 +652,7 @@ namespace TaskRunner.Controllers
 
                     try
                     {
-                        await _taskManager.UpdateStatus(taskId, Services.TaskStatus.Running);
+                        await _taskManager.UpdateStatus(taskId, RunnerTaskStatus.Running);
 
                         var options = Services.AiClientService.BuildChatOptions(temperature: 0.7f, maxOutputTokens: 4000);
 
@@ -675,7 +676,7 @@ namespace TaskRunner.Controllers
 
                         if (outline.Count == 0)
                         {
-                            await _taskManager.UpdateStatus(taskId, Services.TaskStatus.Failed, "笔记大纲生成失败，返回空列表");
+                            await _taskManager.UpdateStatus(taskId, RunnerTaskStatus.Failed, "笔记大纲生成失败，返回空列表");
                             return;
                         }
 
@@ -730,7 +731,7 @@ namespace TaskRunner.Controllers
                         await _vaultNoteIndexer.IndexVaultAsync(vaultId, vaultPath, linkedCts.Token);
 
                         await _taskManager.UpdateProgress(taskId, totalSteps, totalSteps, "任务完成");
-                        await _taskManager.UpdateStatus(taskId, Services.TaskStatus.Success, data: new
+                        await _taskManager.UpdateStatus(taskId, RunnerTaskStatus.Success, data: new
                         {
                             vaultId = vaultId,
                             vaultName = vaultName,
@@ -748,7 +749,7 @@ namespace TaskRunner.Controllers
                     catch (OperationCanceledException)
                     {
                         var currentTask = _taskManager.GetTask(taskId);
-                        if (currentTask?.Status == Services.TaskStatus.Cancelled)
+                        if (currentTask?.Status == RunnerTaskStatus.Cancelled)
                         {
                             _logger.LogInformation("AI 知识库生成任务被用户取消：{TaskId}", taskId);
                         }
@@ -756,14 +757,14 @@ namespace TaskRunner.Controllers
                         {
                             _logger.LogWarning("AI 知识库生成任务超时：{TaskId}", taskId);
                             var timeoutMin = _settings.AiRequestTimeoutMinutes * 4;
-                            await _taskManager.UpdateStatus(taskId, Services.TaskStatus.Timeout,
+                            await _taskManager.UpdateStatus(taskId, RunnerTaskStatus.Timeout,
                                 $"AI 知识库生成超时（{timeoutMin} 分钟）| 模型: {modelName}");
                         }
                     }
                     catch (Exception ex)
                     {
                         _logger.LogError(ex, "AI 知识库生成任务失败：{TaskId}", taskId);
-                        await _taskManager.UpdateStatus(taskId, Services.TaskStatus.Failed, ex.Message);
+                        await _taskManager.UpdateStatus(taskId, RunnerTaskStatus.Failed, ex.Message);
                     }
                     finally
                     {

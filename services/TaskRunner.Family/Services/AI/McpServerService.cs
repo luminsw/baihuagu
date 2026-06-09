@@ -1,3 +1,4 @@
+using TaskRunner.Core.Shared;
 using System.Text.Json;
 using System.Text.Json.Nodes;
 using Microsoft.Extensions.AI;
@@ -732,7 +733,7 @@ public class McpServerService
         var limit = GetInt(args, "limit", 20);
         var status = GetString(args, "status");
 
-        List<global::TaskRunner.Services.TaskInfo> tasks;
+        List<TaskRunner.Core.Shared.TaskInfo> tasks;
         if (!string.IsNullOrWhiteSpace(status))
         {
             tasks = _taskManager.GetTasksByStatus(status, limit);

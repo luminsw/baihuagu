@@ -1,3 +1,4 @@
+using TaskRunner.Core.Shared;
 using System.Diagnostics;
 using System.Text.Json;
 using System.Text.Json.Nodes;
@@ -72,7 +73,7 @@ public class OpenClawTaskService : IOpenClawTaskService
                 ["openclawId"] = task.Id.ToString()
             });
             _openClawToTaskManagerMap[task.Id] = tmTaskId;
-            _ = _taskManager.UpdateStatus(tmTaskId, TaskRunner.Services.TaskStatus.Running);
+            _ = _taskManager.UpdateStatus(tmTaskId, TaskRunner.Core.Shared.RunnerTaskStatus.Running);
         }
 
         _ = RunOpenClawAsync(task.Id, prompt, tmTaskId);
@@ -213,7 +214,7 @@ public class OpenClawTaskService : IOpenClawTaskService
         // 同步更新 TaskManager 任务状态
         if (_openClawToTaskManagerMap.TryRemove(id, out var tmTaskId) && _taskManager != null)
         {
-            await _taskManager.UpdateStatus(tmTaskId, TaskRunner.Services.TaskStatus.Cancelled, "用户已取消");
+            await _taskManager.UpdateStatus(tmTaskId, TaskRunner.Core.Shared.RunnerTaskStatus.Cancelled, "用户已取消");
         }
 
         return true;
