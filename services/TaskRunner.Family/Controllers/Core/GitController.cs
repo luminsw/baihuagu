@@ -14,12 +14,12 @@ namespace TaskRunner.Controllers
     public class GitController : ControllerBase
     {
         private readonly ILogger<GitController> _logger;
-        private readonly SettingsService _settings;
+        private readonly VaultSettingsService _vaultSettings;
 
-        public GitController(ILogger<GitController> logger, SettingsService settings)
+        public GitController(ILogger<GitController> logger, VaultSettingsService vaultSettings)
         {
             _logger = logger;
-            _settings = settings;
+            _vaultSettings = vaultSettings;
         }
 
         /// <summary>
@@ -30,7 +30,7 @@ namespace TaskRunner.Controllers
         {
             try
             {
-                var vaultPath = _settings.GetVaults().FirstOrDefault(v => v.Id == vaultId)?.Path;
+                var vaultPath = _vaultSettings.GetVaults().FirstOrDefault(v => v.Id == vaultId)?.Path;
                 if (string.IsNullOrEmpty(vaultPath))
                 {
                     return Ok(new GitStatusResponse
@@ -150,7 +150,7 @@ namespace TaskRunner.Controllers
         {
             try
             {
-                var vaultPath = _settings.GetVaults().FirstOrDefault(v => v.Id == vaultId)?.Path;
+                var vaultPath = _vaultSettings.GetVaults().FirstOrDefault(v => v.Id == vaultId)?.Path;
                 if (string.IsNullOrEmpty(vaultPath))
                 {
                     return BadRequest(new GitResultResponse { Success = false, Message = "必须指定有效的知识库" });
@@ -203,7 +203,7 @@ namespace TaskRunner.Controllers
         {
             try
             {
-                var vaultPath = _settings.GetVaults().FirstOrDefault(v => v.Id == vaultId)?.Path;
+                var vaultPath = _vaultSettings.GetVaults().FirstOrDefault(v => v.Id == vaultId)?.Path;
                 if (string.IsNullOrEmpty(vaultPath))
                 {
                     return BadRequest(new GitResultResponse { Success = false, Message = "必须指定有效的知识库" });
@@ -250,7 +250,7 @@ namespace TaskRunner.Controllers
         {
             try
             {
-                var vaultPath = _settings.GetVaults().FirstOrDefault(v => v.Id == vaultId)?.Path;
+                var vaultPath = _vaultSettings.GetVaults().FirstOrDefault(v => v.Id == vaultId)?.Path;
                 if (string.IsNullOrEmpty(vaultPath))
                 {
                     return BadRequest(new GitResultResponse { Success = false, Message = "必须指定有效的知识库" });
@@ -286,7 +286,7 @@ namespace TaskRunner.Controllers
         {
             try
             {
-                var vaultPath = _settings.GetVaults().FirstOrDefault(v => v.Id == vaultId)?.Path;
+                var vaultPath = _vaultSettings.GetVaults().FirstOrDefault(v => v.Id == vaultId)?.Path;
                 if (string.IsNullOrEmpty(vaultPath))
                 {
                     return BadRequest(new { error = "必须指定有效的知识库" });
@@ -327,7 +327,7 @@ namespace TaskRunner.Controllers
         {
             try
             {
-                var vaultPath = _settings.GetVaults().FirstOrDefault(v => v.Id == vaultId)?.Path;
+                var vaultPath = _vaultSettings.GetVaults().FirstOrDefault(v => v.Id == vaultId)?.Path;
                 if (string.IsNullOrEmpty(vaultPath))
                 {
                     return BadRequest(new { error = "必须指定有效的知识库" });
@@ -372,7 +372,7 @@ namespace TaskRunner.Controllers
         {
             try
             {
-                var vaultPath = _settings.GetVaults().FirstOrDefault(v => v.Id == vaultId)?.Path;
+                var vaultPath = _vaultSettings.GetVaults().FirstOrDefault(v => v.Id == vaultId)?.Path;
                 if (string.IsNullOrEmpty(vaultPath))
                 {
                     return BadRequest(new GitResultResponse { Success = false, Message = "必须指定有效的知识库" });

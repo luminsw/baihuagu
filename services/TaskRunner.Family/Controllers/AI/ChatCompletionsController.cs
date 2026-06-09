@@ -14,7 +14,8 @@ namespace TaskRunner.Controllers
     [Route("api/chat/completions")]
     public class ChatCompletionsController : ControllerBase
     {
-        private readonly SettingsService _settings;
+        private readonly AiSettingsService _aiSettings;
+        private readonly VaultSettingsService _vaultSettings;
         private readonly AiClientService _aiClientService;
         private readonly RagService _ragService;
         private readonly McpServerService _mcpServerService;
@@ -23,7 +24,8 @@ namespace TaskRunner.Controllers
         private readonly ILogger<ChatCompletionsController> _logger;
 
         public ChatCompletionsController(
-            SettingsService settings,
+            AiSettingsService aiSettings,
+            VaultSettingsService vaultSettings,
             AiClientService aiClientService,
             RagService ragService,
             McpServerService mcpServerService,
@@ -31,7 +33,8 @@ namespace TaskRunner.Controllers
             DefaultPromptProvider scenePromptService,
             ILogger<ChatCompletionsController> logger)
         {
-            _settings = settings;
+            _aiSettings = aiSettings;
+            _vaultSettings = vaultSettings;
             _aiClientService = aiClientService;
             _ragService = ragService;
             _mcpServerService = mcpServerService;
@@ -53,8 +56,8 @@ namespace TaskRunner.Controllers
 
                 // 解析 model 参数，格式: "provider/model" 或直接使用默认 provider
                 var (providerId, modelId) = ParseModel(request.Model);
-                var provider = _settings.GetAiProvider(providerId)
-                    ?? _settings.GetMainAiProvider()
+                var provider = _aiSettings.GetAiProvider(providerId)
+                    ?? _aiSettings.GetMainAiProvider()
                     ?? throw new Exception("未配置 AI 提供商");
 
                 var model = string.IsNullOrWhiteSpace(modelId) ? GetDefaultModel(provider) : modelId;
@@ -138,7 +141,7 @@ namespace TaskRunner.Controllers
         [HttpGet("models")]
         public IActionResult ListModels()
         {
-            var models = _settings.GetAiProviders()
+            var models = _aiSettings.GetAiProviders()
                 .SelectMany(p => p.GetModelOptions().Select(m => new OpenAiModel
                 {
                     Id = $"{p.Id}/{m.Name}",
@@ -285,7 +288,7 @@ namespace TaskRunner.Controllers
         {
             if (messages.Any(m => m.Role == ChatRole.System)) return;
 
-            var activeVault = _settings.GetActiveVault();
+            var activeVault = _vaultSettings.GetActiveVault();
             var industry = activeVault?.Industry ?? "";
             var template = _scenePromptService.GetTemplateByName(industry);
             var systemPrompt = template.ChatSystemPrompt;

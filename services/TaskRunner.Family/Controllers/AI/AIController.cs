@@ -15,7 +15,8 @@ namespace TaskRunner.Controllers
     [RequestSizeLimit(10 * 1024 * 1024)] // 10MB 限制，防止 DoS
     public class AIController : ControllerBase
     {
-        private readonly Services.SettingsService _settings;
+        private readonly Services.AiSettingsService _aiSettings;
+        private readonly Services.VaultSettingsService _vaultSettings;
         private readonly Services.AiClientService _aiClientService;
         private readonly Services.LocalModelDeploymentService _localDeployment;
         private readonly Services.RagService _ragService;
@@ -27,7 +28,8 @@ namespace TaskRunner.Controllers
         private readonly ILogger<AIController> _logger;
 
         public AIController(
-            Services.SettingsService settings,
+            Services.AiSettingsService aiSettings,
+            Services.VaultSettingsService vaultSettings,
             Services.AiClientService aiClientService,
             Services.LocalModelDeploymentService localDeployment,
             Services.RagService ragService,
@@ -38,7 +40,8 @@ namespace TaskRunner.Controllers
             TaskManager taskManager,
             ILogger<AIController> logger)
         {
-            _settings = settings;
+            _aiSettings = aiSettings;
+            _vaultSettings = vaultSettings;
             _aiClientService = aiClientService;
             _localDeployment = localDeployment;
             _scenePromptService = scenePromptService;
@@ -56,7 +59,7 @@ namespace TaskRunner.Controllers
         [HttpGet("providers")]
         public ActionResult<List<AiProviderPublicDto>> GetProviders()
         {
-            var list = _settings.GetAiProviders()
+            var list = _aiSettings.GetAiProviders()
                 .Select(p => new AiProviderPublicDto
                 {
                     Id = p.Id,
@@ -117,7 +120,7 @@ namespace TaskRunner.Controllers
                 string? vaultPath = null;
                 if (!string.IsNullOrWhiteSpace(request.VaultId))
                 {
-                    vaultPath = _settings.GetVaults().FirstOrDefault(v => v.Id == request.VaultId)?.Path;
+                    vaultPath = _vaultSettings.GetVaults().FirstOrDefault(v => v.Id == request.VaultId)?.Path;
                 }
                 if (string.IsNullOrWhiteSpace(vaultPath) && !string.IsNullOrWhiteSpace(request.VaultPath))
                 {
@@ -132,7 +135,7 @@ namespace TaskRunner.Controllers
                     {
                         var notesRoot = System.IO.Path.Combine(vaultPath, "notes");
                         var cardsRoot = System.IO.Path.Combine(vaultPath, "cards");
-                        var vault = _settings.GetVaults().FirstOrDefault(v => v.Id == request.VaultId);
+                        var vault = _vaultSettings.GetVaults().FirstOrDefault(v => v.Id == request.VaultId);
                         var taskId = _taskManager.CreateTask("anki_card_generate", new Dictionary<string, string>
                         {
                             ["notePath"] = note.FilePath,
@@ -199,8 +202,8 @@ namespace TaskRunner.Controllers
 
                 // 解析知识库
                 var vault = !string.IsNullOrWhiteSpace(request.VaultId)
-                    ? _settings.GetVaults().FirstOrDefault(v => v.Id == request.VaultId)
-                    : _settings.GetActiveVault();
+                    ? _vaultSettings.GetVaults().FirstOrDefault(v => v.Id == request.VaultId)
+                    : _vaultSettings.GetActiveVault();
                 var vaultPath = vault?.Path;
                 if (string.IsNullOrEmpty(vaultPath))
                     return BadRequest(new { error = "未找到有效的知识库" });
@@ -263,7 +266,7 @@ namespace TaskRunner.Controllers
                 try
                 {
                     var cardsRoot = System.IO.Path.Combine(vaultPath, "cards");
-                    var vaultForCard = _settings.GetVaults().FirstOrDefault(v => v.Path == vaultPath);
+                    var vaultForCard = _vaultSettings.GetVaults().FirstOrDefault(v => v.Path == vaultPath);
                     var taskId = _taskManager.CreateTask("anki_card_generate", new Dictionary<string, string>
                     {
                         ["notePath"] = notePath,
@@ -444,7 +447,7 @@ namespace TaskRunner.Controllers
 
         private async Task<string> CallAiApiAsync(List<ChatMessage> messages, string model, string providerId = "", bool enableTools = false, CancellationToken ct = default)
         {
-            var providers = _settings.GetAiProviders();
+            var providers = _aiSettings.GetAiProviders();
             var provider = string.IsNullOrEmpty(providerId)
                 ? providers.FirstOrDefault(p => p.IsMain) ?? providers.FirstOrDefault()
                 : providers.FirstOrDefault(p => p.Id == providerId);
@@ -455,7 +458,7 @@ namespace TaskRunner.Controllers
             var apiEndpoint = provider.AiBaseUrl.TrimEnd('/') + "/chat/completions";
             _logger.LogInformation("调用 AI API: {Endpoint}, 提供商：{Provider}, 模型：{Model}, tools={Tools}", apiEndpoint, provider.Name, model, enableTools);
 
-            using var timeoutCts = new CancellationTokenSource(TimeSpan.FromMinutes(_settings.AiRequestTimeoutMinutes));
+            using var timeoutCts = new CancellationTokenSource(TimeSpan.FromMinutes(_aiSettings.AiRequestTimeoutMinutes));
             using var linkedCts = CancellationTokenSource.CreateLinkedTokenSource(ct, timeoutCts.Token);
 
             try
@@ -626,7 +629,7 @@ namespace TaskRunner.Controllers
 
         private string GetSystemPrompt(string providerId)
         {
-            var activeVault = _settings.GetActiveVault();
+            var activeVault = _vaultSettings.GetActiveVault();
             var industry = activeVault?.Industry ?? "";
             var template = _scenePromptService.GetTemplateByName(industry);
             var prompt = template.ChatSystemPrompt;
@@ -659,7 +662,7 @@ namespace TaskRunner.Controllers
         /// </summary>
         private (AiProviderConfig Provider, string Model) ResolveProviderAndModel(string? providerId, string? model)
         {
-            var providers = _settings.GetAiProviders();
+            var providers = _aiSettings.GetAiProviders();
             var provider = string.IsNullOrEmpty(providerId)
                 ? (string.IsNullOrEmpty(model)
                     ? providers.FirstOrDefault(p => p.IsMain) ?? providers.FirstOrDefault()
@@ -782,7 +785,7 @@ namespace TaskRunner.Controllers
                 // 发送元信息
                 await SendSse("meta", System.Text.Json.JsonSerializer.Serialize(new { provider = provider.Name, model }));
 
-                using var timeoutCts = new CancellationTokenSource(TimeSpan.FromMinutes(_settings.AiRequestTimeoutMinutes));
+                using var timeoutCts = new CancellationTokenSource(TimeSpan.FromMinutes(_aiSettings.AiRequestTimeoutMinutes));
                 using var linkedCts = CancellationTokenSource.CreateLinkedTokenSource(HttpContext.RequestAborted, timeoutCts.Token);
 
                 // 构建消息列表（使用三层记忆系统：Token预算 + 摘要压缩 + 语义检索）

@@ -29,7 +29,7 @@ namespace TaskRunner.Services
                 var procId = Environment.ProcessId;
                 _logger.LogDebug("CleanupService running in PID {Pid}", procId);
             }
-            catch { }
+            catch (Exception ex) { _logger.LogDebug(ex, "操作失败"); }
 
             while (!stoppingToken.IsCancellationRequested)
             {

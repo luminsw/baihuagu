@@ -7,7 +7,6 @@ using System.Text.Json.Serialization;
 using TaskRunner.Data;
 using TaskRunner.Services;
 using TaskRunner.Services.Strategies;
-using TaskRunner.Core.Shared.Security;
 using TaskRunner.Contracts.Vaults;
 
 namespace TaskRunner.Controllers
@@ -134,7 +133,7 @@ namespace TaskRunner.Controllers
     [Route("mg")]
     public class VaultController : ControllerBase
     {
-        private readonly Services.SettingsService _settings;
+        private readonly Services.VaultSettingsService _vaultSettings;
         private readonly DeviceService _deviceService;
         private readonly PairingService? _pairingService;
         private readonly ILogger<VaultController> _logger;
@@ -167,7 +166,7 @@ namespace TaskRunner.Controllers
                 return null;
             }
 
-            var targetVault = _settings.GetVaults().FirstOrDefault(v => v.Id == vaultId);
+            var targetVault = _vaultSettings.GetVaults().FirstOrDefault(v => v.Id == vaultId);
             if (targetVault != null && !string.IsNullOrEmpty(targetVault.Path))
             {
                 return targetVault.Path;
@@ -178,7 +177,7 @@ namespace TaskRunner.Controllers
         }
 
         public VaultController(
-            Services.SettingsService settings,
+            Services.VaultSettingsService vaultSettings,
             DeviceService deviceService,
             ILogger<VaultController> logger,
             ISyncAuthorizationStrategy syncAuthStrategy,
@@ -186,7 +185,7 @@ namespace TaskRunner.Controllers
             RequestSignatureService signatureService,
             PairingService? pairingService = null)
         {
-            _settings = settings;
+            _vaultSettings = vaultSettings;
             _deviceService = deviceService;
             _logger = logger;
             _syncAuthStrategy = syncAuthStrategy;
@@ -201,7 +200,7 @@ namespace TaskRunner.Controllers
         [HttpGet("vaults")]
         public ActionResult<IEnumerable<object>> GetVaults()
         {
-            var vaults = _settings.GetVaults();
+            var vaults = _vaultSettings.GetVaults();
 
             var result = vaults.Select(v => new
             {
@@ -269,7 +268,7 @@ namespace TaskRunner.Controllers
                 return authResult;
             }
 
-            var targetVault = _settings.GetVaults().FirstOrDefault(v => v.Id == vaultId);
+            var targetVault = _vaultSettings.GetVaults().FirstOrDefault(v => v.Id == vaultId);
             var baseVaultPath = targetVault?.Path;
             _logger.LogDebug("GetManifest called. VaultPath={VaultPath}, VaultId={VaultId}", baseVaultPath, vaultId);
 
@@ -568,7 +567,7 @@ namespace TaskRunner.Controllers
             return Ok(new VaultBrowseResponse
             {
                 VaultId = vaultId,
-                VaultName = _settings.GetVaults().FirstOrDefault(v => v.Id == vaultId)?.Name ?? "",
+                VaultName = _vaultSettings.GetVaults().FirstOrDefault(v => v.Id == vaultId)?.Name ?? "",
                 CurrentPath = path ?? "",
                 Items = items
             });
@@ -727,7 +726,7 @@ namespace TaskRunner.Controllers
         {
             // 移动端 API 统一使用 HMAC 签名验证（在 Program.cs 中间件中完成）
             // 不再额外要求 Bearer Token，与 GetManifest/GetFile 保持一致
-            var targetVault = _settings.GetVaults().FirstOrDefault(v => v.Id == vaultId);
+            var targetVault = _vaultSettings.GetVaults().FirstOrDefault(v => v.Id == vaultId);
             if (targetVault == null || string.IsNullOrEmpty(targetVault.Path))
             {
                 return NotFound(new { error = "知识库不存在" });
@@ -788,7 +787,7 @@ namespace TaskRunner.Controllers
         [HttpGet("note-count")]
         public ActionResult<int> GetNoteCount([FromQuery] string vaultId)
         {
-            var vault = _settings.GetVaults().FirstOrDefault(v => v.Id == vaultId);
+            var vault = _vaultSettings.GetVaults().FirstOrDefault(v => v.Id == vaultId);
             if (vault == null)
             {
                 return NotFound(new { error = "知识库不存在", vaultId });
@@ -825,7 +824,7 @@ namespace TaskRunner.Controllers
 
             try
             {
-                var vaultRoot = _settings.VaultRootPathPreference;
+                var vaultRoot = _vaultSettings.VaultRootPathPreference;
                 var mobileDir = Path.Combine(vaultRoot, "mobile");
                 var industry = string.IsNullOrWhiteSpace(request.Industry) ? "移动端生成" : request.Industry.Trim();
                 var safeVaultName = VaultNameResolver.ToSafeDirectoryName(request.VaultName.Trim());

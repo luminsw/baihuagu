@@ -78,11 +78,7 @@ namespace TaskRunner.Services
                     return match.Value;
 
                 var replaced = $"[[{targetPath}{headerPart}{aliasSuffix}]]";
-                try
-                {
-                    logger?.LogDebug("Rewriting wikilink: '{Raw}' -> '{Replaced}'", rawTarget, replaced);
-                }
-                catch { }
+                logger?.LogDebug("Rewriting wikilink: '{Raw}' -> '{Replaced}'", rawTarget, replaced);
 
                 return replaced;
             });

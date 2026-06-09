@@ -12,22 +12,22 @@ namespace TaskRunner.Controllers
     public class HealthController : ControllerBase
     {
         private readonly Services.SystemHealthService _healthService;
-        private readonly Services.SettingsService _settings;
+        private readonly Services.AiSettingsService _aiSettings;
         private readonly Services.LocalAiAutoStarter _localAiAutoStarter;
-        private readonly Services.IOpenClawTaskService _openClawTaskService;
+        private readonly Services.ILocalAiConfigService _localAiConfig;
         private readonly ILogger<HealthController> _logger;
 
         public HealthController(
             Services.SystemHealthService healthService,
-            Services.SettingsService settings,
+            Services.AiSettingsService aiSettings,
             Services.LocalAiAutoStarter localAiAutoStarter,
-            Services.IOpenClawTaskService openClawTaskService,
+            Services.ILocalAiConfigService localAiConfig,
             ILogger<HealthController> logger)
         {
             _healthService = healthService;
-            _settings = settings;
+            _aiSettings = aiSettings;
             _localAiAutoStarter = localAiAutoStarter;
-            _openClawTaskService = openClawTaskService;
+            _localAiConfig = localAiConfig;
             _logger = logger;
         }
 
@@ -180,7 +180,7 @@ namespace TaskRunner.Controllers
                     IsMacOS = isMac,
                     UserName = Environment.UserName,
                     HomeDir = Environment.GetFolderPath(Environment.SpecialFolder.UserProfile),
-                    AiRequestTimeoutMinutes = _settings.AiRequestTimeoutMinutes
+                    AiRequestTimeoutMinutes = _aiSettings.AiRequestTimeoutMinutes
                 });
             }
             catch (Exception ex)
@@ -223,7 +223,7 @@ namespace TaskRunner.Controllers
                             // 尝试启动 Ollama
                             try
                             {
-                                var config = await _openClawTaskService.GetLocalAiConfigAsync();
+                                var config = await _localAiConfig.GetLocalAiConfigAsync();
                                 var ollamaUrl = config.Ollama?.BaseUrl ?? "http://localhost:11434";
                                 var started = await _localAiAutoStarter.TryEnsureRunningAsync("ollama", ollamaUrl);
                                 fixes.Add(new HealthFixItemDto

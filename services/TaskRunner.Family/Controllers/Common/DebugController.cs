@@ -15,18 +15,15 @@ public class DebugController : ControllerBase
 {
     private readonly IDbContextFactory<AppDbContext> _dbContextFactory;
     private readonly Services.DeviceQuotaService _quotaService;
-    private readonly Services.SettingsService _settingsService;
     private readonly ILogger<DebugController> _logger;
 
     public DebugController(
         IDbContextFactory<AppDbContext> dbContextFactory,
         Services.DeviceQuotaService quotaService,
-        Services.SettingsService settingsService,
         ILogger<DebugController> logger)
     {
         _dbContextFactory = dbContextFactory;
         _quotaService = quotaService;
-        _settingsService = settingsService;
         _logger = logger;
     }
 

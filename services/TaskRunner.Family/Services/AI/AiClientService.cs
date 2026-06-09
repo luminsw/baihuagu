@@ -16,7 +16,7 @@ namespace TaskRunner.Services
     /// </summary>
     public class AiClientService
     {
-        private readonly SettingsService _settings;
+        private readonly AiSettingsService _aiSettings;
         private readonly LocalAiAutoStarter _autoStarter;
         private readonly IDbContextFactory<AIDbContext> _dbFactory;
         private readonly AiMetricsService _metrics;
@@ -25,7 +25,7 @@ namespace TaskRunner.Services
         private readonly ILogger<AiClientService> _logger;
 
         public AiClientService(
-            SettingsService settings,
+            AiSettingsService aiSettings,
             LocalAiAutoStarter autoStarter,
             IDbContextFactory<AIDbContext> dbFactory,
             AiMetricsService metrics,
@@ -33,7 +33,7 @@ namespace TaskRunner.Services
             AnthropicAiClient anthropicClient,
             ILogger<AiClientService> logger)
         {
-            _settings = settings;
+            _aiSettings = aiSettings;
             _autoStarter = autoStarter;
             _dbFactory = dbFactory;
             _metrics = metrics;
@@ -55,10 +55,10 @@ namespace TaskRunner.Services
         /// </summary>
         public IChatClient CreateChatClient(string providerId, string model, IList<AITool>? tools)
         {
-            var provider = _settings.GetAiProvider(providerId)
+            var provider = _aiSettings.GetAiProvider(providerId)
                 ?? throw new Exception($"未找到 AI 提供商：{providerId}");
 
-            var apiKey = _settings.GetAiApiKey(providerId);
+            var apiKey = _aiSettings.GetAiApiKey(providerId);
             if (string.IsNullOrWhiteSpace(apiKey))
                 _logger.LogWarning("提供商 {ProviderId} 未配置 API Key，将以无鉴权方式请求", providerId);
 
@@ -115,27 +115,27 @@ namespace TaskRunner.Services
         /// </summary>
         public IEmbeddingGenerator<string, Embedding<float>> CreateEmbeddingGenerator()
         {
-            var url = _settings.SemanticEmbeddingUrl;
-            var model = _settings.SemanticEmbeddingModel;
+            var url = _aiSettings.SemanticEmbeddingUrl;
+            var model = _aiSettings.SemanticEmbeddingModel;
 
             if (string.IsNullOrWhiteSpace(url) || string.IsNullOrWhiteSpace(model))
                 throw new Exception("未配置 Embedding URL 或模型");
 
             // Embedding 可能使用与 Chat 不同的提供商
             // 尝试从 AI 提供商中匹配 Embedding URL
-            var providers = _settings.GetAiProviders();
+            var providers = _aiSettings.GetAiProviders();
             var matchedProvider = providers.FirstOrDefault(p =>
                 p.AiBaseUrl.TrimEnd('/').Equals(url.TrimEnd('/'), StringComparison.OrdinalIgnoreCase));
 
             string apiKey;
             if (matchedProvider != null)
             {
-                apiKey = _settings.GetAiApiKey(matchedProvider.Id);
+                apiKey = _aiSettings.GetAiApiKey(matchedProvider.Id);
             }
             else
             {
                 // 使用主提供商的 API Key
-                apiKey = _settings.AiApiKey;
+                apiKey = _aiSettings.AiApiKey;
             }
 
             return CreateEmbeddingGenerator(url, model, apiKey);
@@ -209,7 +209,7 @@ namespace TaskRunner.Services
                 if (IsEmptyResponse(response) && !string.IsNullOrWhiteSpace(provider.AnthropicBaseUrl))
                 {
                     _logger.LogWarning("AI ({Provider}/{Model}) OpenAI 响应为空，尝试 Anthropic fallback", provider.Name, model);
-                    var apiKey = _settings.GetAiApiKey(provider.Id);
+                    var apiKey = _aiSettings.GetAiApiKey(provider.Id);
                     response = await _anthropicClient.GetChatResponseAsync(
                         provider.AnthropicBaseUrl, apiKey, model, messages, options, ct);
                     _logger.LogInformation("AI ({Provider}/{Model}) Anthropic fallback 成功，内容长度={Length}",

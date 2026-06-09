@@ -37,7 +37,7 @@ public class StudyRecordMigrationService : BackgroundService
     {
         using var scope = _serviceProvider.CreateScope();
         var dbFactory = scope.ServiceProvider.GetRequiredService<IDbContextFactory<FamilyDbContext>>();
-        var settings = scope.ServiceProvider.GetRequiredService<SettingsService>();
+        var vaultSettings = scope.ServiceProvider.GetRequiredService<VaultSettingsService>();
         var learnerService = scope.ServiceProvider.GetRequiredService<LearnerService>();
 
         using var db = await dbFactory.CreateDbContextAsync(cancellationToken);
@@ -58,7 +58,7 @@ public class StudyRecordMigrationService : BackgroundService
             return;
         }
 
-        var vaults = settings.GetVaults();
+        var vaults = vaultSettings.GetVaults();
         int totalMigrated = 0;
 
         foreach (var vault in vaults)

@@ -239,7 +239,7 @@ namespace TaskRunner.Services
                             killProc.Start();
                             killProc.WaitForExit(3000);
                         }
-                        catch { }
+                        catch (Exception ex) { _logger.LogDebug(ex, "操作失败"); }
                         _avahiChildPid = 0;
                     }
                     _avahiProcess?.Dispose();

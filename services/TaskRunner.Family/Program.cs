@@ -1,7 +1,6 @@
 using TaskRunner.Core.Shared;
 using TaskRunner.Core.Shared.Security;
 using TaskRunner.Services;
-using TaskRunner.Core.Shared.Security;
 using TaskRunner.Core.Shared.Notifications;
 using TaskRunner.Services.LocalAI;
 using TaskRunner.Core.Shared.Hubs;
@@ -170,8 +169,11 @@ builder.Services.AddDbContextFactory<TaskRunner.Data.AIDbContext>(options =>
 }, ServiceLifetime.Singleton);
 
 builder.Services.AddSingleton<TaskManager>();
-builder.Services.AddSingleton<SettingsService>();
+builder.Services.AddSingleton<AiSettingsService>();
+builder.Services.AddSingleton<LocalModelSettingsService>();
+builder.Services.AddSingleton<MigrationService>();
 builder.Services.AddSingleton<VaultSettingsService>();
+builder.Services.AddHostedService<StartupOrchestratorHostedService>();
 builder.Services.AddSingleton<DefaultPromptProvider>();
 builder.Services.AddSingleton<AiClientService>();
 builder.Services.AddSingleton<AnthropicAiClient>();
@@ -179,6 +181,8 @@ builder.Services.AddSingleton<AiFunctionService>();
 builder.Services.AddSingleton<LocalAiAutoStarter>();
 builder.Services.AddSingleton<ILocalModelInference, LlamaSharpInference>();
 builder.Services.AddSingleton<ILocalModelInference, OnnxRuntimeGenAIInference>();
+builder.Services.AddSingleton<NoteParser>();
+builder.Services.AddSingleton<CardRepository>();
 builder.Services.AddSingleton<AtomNoteSplitter>();
 builder.Services.AddSingleton<EmbeddingService>();
 builder.Services.AddSingleton<VaultNoteIndexer>();
@@ -222,6 +226,7 @@ builder.Services.AddDataProtection();
 builder.Services.AddSingleton<TaskRunner.Core.Shared.Security.ApiKeyProtectionService>();
 builder.Services.AddSingleton<TaskRunner.Core.Shared.Security.DataEncryptionService>();
 builder.Services.AddSingleton<TaskRunner.Services.AiConfigService>();
+builder.Services.AddSingleton<TaskRunner.Services.RestoreService>();
 builder.Services.AddSingleton<TaskRunner.Services.BackupService>();
 builder.Services.AddSingleton<TaskRunner.Services.NotesMdCliService>();
 
@@ -248,9 +253,16 @@ builder.Services.AddSingleton<HardwareInfoService>();
 builder.Services.AddSingleton<CapabilityService>();
 builder.Services.AddSingleton<OllamaLibraryClient>();
 builder.Services.AddSingleton<ModelRecommendationEngine>();
+builder.Services.AddSingleton<OllamaService>();
+builder.Services.AddSingleton<LmStudioDownloadService>();
+builder.Services.AddSingleton<LmStudioService>();
+builder.Services.AddSingleton<LlamaCppService>();
 builder.Services.AddSingleton<LocalModelDeploymentService>();
 builder.Services.AddSingleton<AiMetricsService>();
 builder.Services.AddSingleton<ModelBenchmarkService>();
+builder.Services.AddSingleton<OpenClawConfigService>();
+builder.Services.AddSingleton<ILocalAiConfigService, LocalAiConfigService>();
+builder.Services.AddSingleton<IOpenClawModelProfileService, OpenClawModelProfileService>();
 builder.Services.AddSingleton<IOpenClawTaskService, OpenClawTaskService>();
 builder.Services.AddSingleton<McpServerService>();
 
@@ -385,7 +397,7 @@ builder.Services.AddOpenObserveTelemetry(
 builder.Services.Configure<ForwardedHeadersOptions>(options =>
 {
     options.ForwardedHeaders = ForwardedHeaders.XForwardedFor | ForwardedHeaders.XForwardedProto;
-    options.KnownNetworks.Clear();
+    options.KnownIPNetworks.Clear();
     options.KnownProxies.Clear();
     // 显式添加受信任的代理：loopback（nginx 通常与后端在同一主机）
     options.KnownProxies.Add(IPAddress.Loopback);
@@ -394,7 +406,7 @@ builder.Services.Configure<ForwardedHeadersOptions>(options =>
 
 var app = builder.Build();
 
-var settingsService = app.Services.GetRequiredService<SettingsService>();
+// 启动编排由 StartupOrchestratorHostedService 在应用启动时自动执行
 
 // 中间件管道
 if (app.Environment.IsDevelopment())

@@ -7,15 +7,15 @@ namespace TaskRunner.Controllers
 {
     [ApiController]
     [Route("api/settings")]
-    public class SettingsController : ControllerBase
+    public class VaultSettingsController : ControllerBase
     {
-        private readonly SettingsService _settings;
+        private readonly VaultSettingsService _vaultSettings;
         private readonly WebUINotificationService _webUINotification;
-        private readonly ILogger<SettingsController> _logger;
+        private readonly ILogger<VaultSettingsController> _logger;
 
-        public SettingsController(SettingsService settings, WebUINotificationService webUINotification, ILogger<SettingsController> logger)
+        public VaultSettingsController(VaultSettingsService vaultSettings, WebUINotificationService webUINotification, ILogger<VaultSettingsController> logger)
         {
-            _settings = settings;
+            _vaultSettings = vaultSettings;
             _webUINotification = webUINotification;
             _logger = logger;
         }
@@ -23,7 +23,7 @@ namespace TaskRunner.Controllers
         [HttpGet("vault-root")]
         public ActionResult<VaultRootResponse> GetVaultRoot()
         {
-            return Ok(new VaultRootResponse { VaultPath = _settings.VaultPath });
+            return Ok(new VaultRootResponse { VaultPath = _vaultSettings.VaultPath });
         }
 
         [HttpPost("vault-root")]
@@ -37,7 +37,7 @@ namespace TaskRunner.Controllers
                 return BadRequest(new { error = "VaultPath 不能为空" });
 
             // 不做强校验：允许先配置，再由具体写入逻辑创建目录
-            _settings.SetVaultPath(next);
+            _vaultSettings.SetVaultPath(next);
 
             // 通知 WebUI 刷新全局状态
             _ = _webUINotification.NotifyVaultStatusChangedAsync();
@@ -57,7 +57,7 @@ namespace TaskRunner.Controllers
         {
             return Ok(new VaultRootPathPreferenceResponse
             {
-                VaultRootPath = _settings.VaultRootPathPreference
+                VaultRootPath = _vaultSettings.VaultRootPathPreference
             });
         }
 
@@ -68,7 +68,7 @@ namespace TaskRunner.Controllers
         [HttpPost("vaults/fix-paths")]
         public IActionResult FixVaultPaths()
         {
-            var vaults = _settings.GetVaults();
+            var vaults = _vaultSettings.GetVaults();
             var fixedPaths = new List<string>();
             var migratedPaths = new List<string>();
 
@@ -86,7 +86,7 @@ namespace TaskRunner.Controllers
                     var wslPath = "/mnt/" + drive + "/" + originalPath[3..].Replace('\\', '/');
                     if (Directory.Exists(wslPath))
                     {
-                        if (_settings.UpdateVaultPath(vault.Id, wslPath))
+                        if (_vaultSettings.UpdateVaultPath(vault.Id, wslPath))
                         {
                             migratedPaths.Add($"{vault.Name}: {originalPath} -> {wslPath}");
                             _logger.LogInformation("知识库路径跨平台迁移: {Name} {Original} -> {Wsl}", vault.Name, originalPath, wslPath);
@@ -132,14 +132,14 @@ namespace TaskRunner.Controllers
         [HttpPost("vaults/sync")]
         public IActionResult SyncVaults()
         {
-            var rootPath = _settings.VaultRootPathPreference;
+            var rootPath = _vaultSettings.VaultRootPathPreference;
             if (string.IsNullOrWhiteSpace(rootPath))
                 return BadRequest(new { error = "知识库根路径未设置" });
 
             if (!Directory.Exists(rootPath))
                 return BadRequest(new { error = $"根路径不存在: {rootPath}" });
 
-            var (added, removed) = _settings.SyncVaultsWithFilesystem(rootPath);
+            var (added, removed) = _vaultSettings.SyncVaultsWithFilesystem(rootPath);
             if (added > 0 || removed > 0)
             {
                 _ = _webUINotification.NotifyVaultStatusChangedAsync();
@@ -156,7 +156,7 @@ namespace TaskRunner.Controllers
         [HttpGet("vaults")]
         public ActionResult<VaultsResponse> GetVaults()
         {
-            var vaults = _settings.GetVaults();
+            var vaults = _vaultSettings.GetVaults();
 
             return Ok(new VaultsResponse
             {
@@ -189,7 +189,7 @@ namespace TaskRunner.Controllers
                 return BadRequest(new { error = "知识库路径不能为空" });
 
             var industry = string.IsNullOrWhiteSpace(request.Industry) ? "笔记" : request.Industry.Trim();
-            var vault = _settings.AddVault(request.Name.Trim(), request.Path.Trim(), industry);
+            var vault = _vaultSettings.AddVault(request.Name.Trim(), request.Path.Trim(), industry);
 
             // 如果路径不存在，自动创建目录
             if (!Directory.Exists(request.Path.Trim()))
@@ -235,7 +235,7 @@ namespace TaskRunner.Controllers
             // 更新名称
             if (!string.IsNullOrWhiteSpace(request.Name))
             {
-                var success = _settings.UpdateVaultName(vaultId, request.Name.Trim());
+                var success = _vaultSettings.UpdateVaultName(vaultId, request.Name.Trim());
                 if (!success)
                     return NotFound(new { error = "知识库不存在" });
                 _logger.LogInformation("更新知识库名称: {VaultId} -> {Name}", vaultId, request.Name);
@@ -244,7 +244,7 @@ namespace TaskRunner.Controllers
             // 更新付费状态
             if (request.IsPaid.HasValue)
             {
-                var success = _settings.UpdateVaultPaid(vaultId, request.IsPaid.Value);
+                var success = _vaultSettings.UpdateVaultPaid(vaultId, request.IsPaid.Value);
                 if (!success)
                     return NotFound(new { error = "知识库不存在" });
                 _logger.LogInformation("更新知识库付费状态: {VaultId} -> {IsPaid}", vaultId, request.IsPaid.Value);
@@ -253,7 +253,7 @@ namespace TaskRunner.Controllers
             // 更新标签
             if (request.Tags != null)
             {
-                var success = _settings.UpdateVaultTags(vaultId, request.Tags.Trim());
+                var success = _vaultSettings.UpdateVaultTags(vaultId, request.Tags.Trim());
                 if (!success)
                     return NotFound(new { error = "知识库不存在" });
                 _logger.LogInformation("更新知识库标签: {VaultId} -> {Tags}", vaultId, request.Tags);
@@ -262,7 +262,7 @@ namespace TaskRunner.Controllers
             // 更新行业
             if (!string.IsNullOrWhiteSpace(request.Industry))
             {
-                var success = _settings.UpdateVaultIndustry(vaultId, request.Industry.Trim());
+                var success = _vaultSettings.UpdateVaultIndustry(vaultId, request.Industry.Trim());
                 if (!success)
                     return NotFound(new { error = "知识库不存在" });
                 _logger.LogInformation("更新知识库行业: {VaultId} -> {Industry}", vaultId, request.Industry);
@@ -280,7 +280,7 @@ namespace TaskRunner.Controllers
             if (string.IsNullOrWhiteSpace(vaultId))
                 return BadRequest(new { error = "知识库 ID 不能为空" });
 
-            var success = _settings.RemoveVault(vaultId);
+            var success = _vaultSettings.RemoveVault(vaultId);
             if (!success)
                 return NotFound(new { error = "知识库不存在" });
 
@@ -297,7 +297,7 @@ namespace TaskRunner.Controllers
         [HttpGet("vaults/trash")]
         public ActionResult<VaultsResponse> GetTrashVaults()
         {
-            var vaults = _settings.GetTrashVaults();
+            var vaults = _vaultSettings.GetTrashVaults();
             return Ok(new VaultsResponse
             {
                 Vaults = vaults.Select(v => new VaultConfig
@@ -321,7 +321,7 @@ namespace TaskRunner.Controllers
             if (string.IsNullOrWhiteSpace(vaultId))
                 return BadRequest(new { error = "知识库 ID 不能为空" });
 
-            var success = _settings.RestoreVault(vaultId);
+            var success = _vaultSettings.RestoreVault(vaultId);
             if (!success)
                 return BadRequest(new { error = "恢复失败，知识库不存在或原始路径已被占用" });
 
@@ -336,7 +336,7 @@ namespace TaskRunner.Controllers
         [HttpPost("vaults/trash/empty")]
         public IActionResult EmptyTrash()
         {
-            _settings.EmptyTrash();
+            _vaultSettings.EmptyTrash();
             _ = _webUINotification.NotifyVaultStatusChangedAsync();
             _logger.LogInformation("回收站已清空");
             return Ok(new { success = true });

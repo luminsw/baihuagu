@@ -15,7 +15,7 @@ namespace TaskRunner.Controllers
         private readonly HardwareInfoService _hardwareInfoService;
         private readonly ModelRecommendationEngine _recommendationEngine;
         private readonly LocalModelDeploymentService _deploymentService;
-        private readonly SettingsService _settingsService;
+        private readonly LocalModelSettingsService _localModelSettings;
         private readonly OllamaLibraryClient? _ollamaLibrary;
         private readonly ILogger<LocalModelDeploymentController> _logger;
 
@@ -23,14 +23,14 @@ namespace TaskRunner.Controllers
             HardwareInfoService hardwareInfoService,
             ModelRecommendationEngine recommendationEngine,
             LocalModelDeploymentService deploymentService,
-            SettingsService settingsService,
+            LocalModelSettingsService localModelSettings,
             OllamaLibraryClient? ollamaLibrary,
             ILogger<LocalModelDeploymentController> logger)
         {
             _hardwareInfoService = hardwareInfoService;
             _recommendationEngine = recommendationEngine;
             _deploymentService = deploymentService;
-            _settingsService = settingsService;
+            _localModelSettings = localModelSettings;
             _ollamaLibrary = ollamaLibrary;
             _logger = logger;
         }
@@ -204,9 +204,9 @@ namespace TaskRunner.Controllers
         {
             var dto = new DownloadDirectoryConfigDto
             {
-                DownloadDirectory = _settingsService.LocalModelDownloadDirectory,
-                PreferredSource = _settingsService.PreferredDownloadSource,
-                UseChinaMirror = _settingsService.UseChinaMirror,
+                DownloadDirectory = _localModelSettings.LocalModelDownloadDirectory,
+                PreferredSource = _localModelSettings.PreferredDownloadSource,
+                UseChinaMirror = _localModelSettings.UseChinaMirror,
                 PlatformDefaultDirectory = GetPlatformDefaultDirectory(),
             };
             return Ok(dto);
@@ -222,15 +222,15 @@ namespace TaskRunner.Controllers
             {
                 if (!string.IsNullOrEmpty(config.DownloadDirectory))
                 {
-                    _settingsService.LocalModelDownloadDirectory = config.DownloadDirectory;
+                    _localModelSettings.LocalModelDownloadDirectory = config.DownloadDirectory;
                 }
 
                 if (!string.IsNullOrEmpty(config.PreferredSource))
                 {
-                    _settingsService.PreferredDownloadSource = config.PreferredSource;
+                    _localModelSettings.PreferredDownloadSource = config.PreferredSource;
                 }
 
-                _settingsService.UseChinaMirror = config.UseChinaMirror;
+                _localModelSettings.UseChinaMirror = config.UseChinaMirror;
 
                 return Ok(new { success = true, message = "配置已保存" });
             }

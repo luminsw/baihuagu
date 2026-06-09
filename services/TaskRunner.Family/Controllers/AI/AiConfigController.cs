@@ -16,20 +16,20 @@ namespace TaskRunner.Controllers;
 public class AiConfigController : ControllerBase
 {
     private readonly AiConfigService _aiConfigService;
-    private readonly SettingsService _settingsService;
+    private readonly AiSettingsService _aiSettings;
     private readonly WebUINotificationService _webUINotification;
     private readonly TaskRunner.Services.CapabilityService _capabilityService;
     private readonly ILogger<AiConfigController> _logger;
 
     public AiConfigController(
         AiConfigService aiConfigService,
-        SettingsService settingsService,
+        AiSettingsService aiSettings,
         WebUINotificationService webUINotification,
         TaskRunner.Services.CapabilityService capabilityService,
         ILogger<AiConfigController> logger)
     {
         _aiConfigService = aiConfigService;
-        _settingsService = settingsService;
+        _aiSettings = aiSettings;
         _webUINotification = webUINotification;
         _capabilityService = capabilityService;
         _logger = logger;
@@ -148,7 +148,7 @@ public class AiConfigController : ControllerBase
             _aiConfigService.SaveProvider(setting, request.ApiKey);
             
             // 清除缓存，确保新配置立即生效
-            _settingsService.ClearAiProvidersCache();
+            _aiSettings.ClearAiProvidersCache();
             
             // 通知 WebUI 刷新全局状态
             _ = _webUINotification.NotifyAIStatusChangedAsync();
@@ -222,7 +222,7 @@ public class AiConfigController : ControllerBase
             if (_aiConfigService.DeleteProvider(providerId))
             {
                 // 清除缓存，确保配置变更立即生效
-                _settingsService.ClearAiProvidersCache();
+                _aiSettings.ClearAiProvidersCache();
 
                 // 通知 WebUI 刷新全局状态
                 _ = _webUINotification.NotifyAIStatusChangedAsync();

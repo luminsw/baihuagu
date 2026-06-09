@@ -152,9 +152,9 @@ namespace TaskRunner.Services
         {
             var info = new HardwareInfoDto
             {
-                OsPlatform = GetOsName(),
+                OsPlatform = HardwareInfoHelper.GetOsName(),
                 OsVersion = RuntimeInformation.OSDescription,
-                IsWsl = DetectWsl(),
+                IsWsl = HardwareInfoHelper.DetectWsl(),
                 Cpu = GetCpuInfo(),
                 Memory = GetMemoryInfo(),
                 Gpus = GetGpuInfo(),
@@ -279,31 +279,31 @@ namespace TaskRunner.Services
 
         private void EnrichCpuInfoWindows(CpuInfoDto cpu)
         {
-            var output = RunCommand("wmic", "cpu get Name,NumberOfCores,NumberOfLogicalProcessors /value", 5000);
+            var output = HardwareInfoHelper.RunCommand("wmic", "cpu get Name,NumberOfCores,NumberOfLogicalProcessors /value", 5000);
             if (string.IsNullOrEmpty(output)) return;
 
-            cpu.Name = ExtractWmicValue(output, "Name") ?? cpu.Name;
-            if (int.TryParse(ExtractWmicValue(output, "NumberOfCores"), out var cores))
+            cpu.Name = HardwareInfoHelper.ExtractWmicValue(output, "Name") ?? cpu.Name;
+            if (int.TryParse(HardwareInfoHelper.ExtractWmicValue(output, "NumberOfCores"), out var cores))
                 cpu.CoreCount = cores;
-            if (int.TryParse(ExtractWmicValue(output, "NumberOfLogicalProcessors"), out var logical))
+            if (int.TryParse(HardwareInfoHelper.ExtractWmicValue(output, "NumberOfLogicalProcessors"), out var logical))
                 cpu.LogicalProcessorCount = logical;
         }
 
         private void EnrichCpuInfoLinux(CpuInfoDto cpu)
         {
             // 优先 lscpu，更可靠。使用 LC_ALL=C 确保输出为英文，不受系统语言影响
-            var lscpu = RunCommand("lscpu", "", 5000, new Dictionary<string, string> { ["LC_ALL"] = "C" });
+            var lscpu = HardwareInfoHelper.RunCommand("lscpu", "", 5000, new Dictionary<string, string> { ["LC_ALL"] = "C" });
             if (!string.IsNullOrEmpty(lscpu))
             {
-                cpu.Name = ExtractLineValue(lscpu, "Model name:") ?? cpu.Name;
-                if (int.TryParse(ExtractLineValue(lscpu, "Core(s) per socket:"), out var coresPerSocket))
+                cpu.Name = HardwareInfoHelper.ExtractLineValue(lscpu, "Model name:") ?? cpu.Name;
+                if (int.TryParse(HardwareInfoHelper.ExtractLineValue(lscpu, "Core(s) per socket:"), out var coresPerSocket))
                 {
-                    if (int.TryParse(ExtractLineValue(lscpu, "Socket(s):"), out var sockets))
+                    if (int.TryParse(HardwareInfoHelper.ExtractLineValue(lscpu, "Socket(s):"), out var sockets))
                         cpu.CoreCount = coresPerSocket * sockets;
                 }
-                if (int.TryParse(ExtractLineValue(lscpu, "CPU(s):"), out var cpus))
+                if (int.TryParse(HardwareInfoHelper.ExtractLineValue(lscpu, "CPU(s):"), out var cpus))
                     cpu.LogicalProcessorCount = cpus;
-                cpu.MaxFrequencyMHz = ExtractLineValue(lscpu, "CPU max MHz:") ?? ExtractLineValue(lscpu, "CPU MHz:");
+                cpu.MaxFrequencyMHz = HardwareInfoHelper.ExtractLineValue(lscpu, "CPU max MHz:") ?? HardwareInfoHelper.ExtractLineValue(lscpu, "CPU MHz:");
                 return;
             }
 
@@ -311,7 +311,7 @@ namespace TaskRunner.Services
             try
             {
                 var cpuinfo = File.ReadAllText("/proc/cpuinfo");
-                var modelName = ExtractRegex(cpuinfo, @"model name\s*:\s*(.+)", RegexOptions.Multiline);
+                var modelName = HardwareInfoHelper.ExtractRegex(cpuinfo, @"model name\s*:\s*(.+)", RegexOptions.Multiline);
                 if (!string.IsNullOrEmpty(modelName))
                     cpu.Name = modelName;
 
@@ -319,7 +319,7 @@ namespace TaskRunner.Services
                     .Select(m => m.Groups[1].Value)
                     .Distinct()
                     .Count();
-                var coresPerCpu = ExtractRegex(cpuinfo, @"cpu cores\s*:\s*(\d+)", RegexOptions.Multiline);
+                var coresPerCpu = HardwareInfoHelper.ExtractRegex(cpuinfo, @"cpu cores\s*:\s*(\d+)", RegexOptions.Multiline);
                 if (int.TryParse(coresPerCpu, out var cpc) && physicalIds > 0)
                     cpu.CoreCount = cpc * physicalIds;
                 else
@@ -333,10 +333,10 @@ namespace TaskRunner.Services
 
         private void EnrichCpuInfoMac(CpuInfoDto cpu)
         {
-            cpu.Name = RunCommand("sysctl", "-n machdep.cpu.brand_string", 5000)?.Trim() ?? cpu.Name;
-            if (int.TryParse(RunCommand("sysctl", "-n hw.physicalcpu", 5000)?.Trim(), out var phys))
+            cpu.Name = HardwareInfoHelper.RunCommand("sysctl", "-n machdep.cpu.brand_string", 5000)?.Trim() ?? cpu.Name;
+            if (int.TryParse(HardwareInfoHelper.RunCommand("sysctl", "-n hw.physicalcpu", 5000)?.Trim(), out var phys))
                 cpu.CoreCount = phys;
-            if (int.TryParse(RunCommand("sysctl", "-n hw.logicalcpu", 5000)?.Trim(), out var log))
+            if (int.TryParse(HardwareInfoHelper.RunCommand("sysctl", "-n hw.logicalcpu", 5000)?.Trim(), out var log))
                 cpu.LogicalProcessorCount = log;
         }
 
@@ -365,13 +365,13 @@ namespace TaskRunner.Services
 
         private void EnrichMemoryWindows(MemoryInfoDto mem)
         {
-            var output = RunCommand("wmic", "computersystem get TotalPhysicalMemory /value", 5000);
-            if (long.TryParse(ExtractWmicValue(output, "TotalPhysicalMemory"), out var total))
+            var output = HardwareInfoHelper.RunCommand("wmic", "computersystem get TotalPhysicalMemory /value", 5000);
+            if (long.TryParse(HardwareInfoHelper.ExtractWmicValue(output ?? "", "TotalPhysicalMemory"), out var total))
                 mem.TotalBytes = total;
 
             // Available memory via WMI
-            var osOutput = RunCommand("wmic", "os get FreePhysicalMemory /value", 5000);
-            if (long.TryParse(ExtractWmicValue(osOutput, "FreePhysicalMemory"), out var freeKb))
+            var osOutput = HardwareInfoHelper.RunCommand("wmic", "os get FreePhysicalMemory /value", 5000);
+            if (long.TryParse(HardwareInfoHelper.ExtractWmicValue(osOutput ?? "", "FreePhysicalMemory"), out var freeKb))
                 mem.AvailableBytes = freeKb * 1024;
         }
 
@@ -380,15 +380,15 @@ namespace TaskRunner.Services
             try
             {
                 var meminfo = File.ReadAllText("/proc/meminfo");
-                mem.TotalBytes = ParseMeminfoKB(meminfo, "MemTotal") * 1024;
-                mem.AvailableBytes = ParseMeminfoKB(meminfo, "MemAvailable") * 1024;
+                mem.TotalBytes = HardwareInfoHelper.ParseMeminfoKB(meminfo, "MemTotal") * 1024;
+                mem.AvailableBytes = HardwareInfoHelper.ParseMeminfoKB(meminfo, "MemAvailable") * 1024;
 
                 // 如果 MemAvailable 不存在（旧内核），用 MemFree + Buffers + Cached
                 if (mem.AvailableBytes == 0)
                 {
-                    var free = ParseMeminfoKB(meminfo, "MemFree");
-                    var buffers = ParseMeminfoKB(meminfo, "Buffers");
-                    var cached = ParseMeminfoKB(meminfo, "Cached");
+                    var free = HardwareInfoHelper.ParseMeminfoKB(meminfo, "MemFree");
+                    var buffers = HardwareInfoHelper.ParseMeminfoKB(meminfo, "Buffers");
+                    var cached = HardwareInfoHelper.ParseMeminfoKB(meminfo, "Cached");
                     mem.AvailableBytes = (free + buffers + cached) * 1024;
                 }
             }
@@ -400,19 +400,19 @@ namespace TaskRunner.Services
 
         private void EnrichMemoryMac(MemoryInfoDto mem)
         {
-            if (long.TryParse(RunCommand("sysctl", "-n hw.memsize", 5000)?.Trim(), out var total))
+            if (long.TryParse(HardwareInfoHelper.RunCommand("sysctl", "-n hw.memsize", 5000)?.Trim(), out var total))
                 mem.TotalBytes = total;
 
             // vm_statistics64 for available memory
-            var vmStats = RunCommand("vm_stat", "", 5000);
+            var vmStats = HardwareInfoHelper.RunCommand("vm_stat", "", 5000);
             if (!string.IsNullOrEmpty(vmStats))
             {
                 var pageSize = 4096L; // default
-                if (long.TryParse(RunCommand("sysctl", "-n vm.pagesize", 5000)?.Trim(), out var ps))
+                if (long.TryParse(HardwareInfoHelper.RunCommand("sysctl", "-n vm.pagesize", 5000)?.Trim(), out var ps))
                     pageSize = ps;
 
-                var freePages = ParseVmStat(vmStats, "Pages free");
-                var inactivePages = ParseVmStat(vmStats, "Pages inactive");
+                var freePages = HardwareInfoHelper.ParseVmStat(vmStats, "Pages free");
+                var inactivePages = HardwareInfoHelper.ParseVmStat(vmStats, "Pages inactive");
                 mem.AvailableBytes = (freePages + inactivePages) * pageSize;
             }
         }
@@ -450,29 +450,29 @@ namespace TaskRunner.Services
                 return nvidiaGpus;
 
             // 回退到 WMI
-            var output = RunCommand("wmic", "path win32_VideoController get Name,AdapterRAM /value", 5000);
+            var output = HardwareInfoHelper.RunCommand("wmic", "path win32_VideoController get Name,AdapterRAM /value", 5000);
             if (string.IsNullOrEmpty(output)) return list;
 
             var entries = output.Split(new[] { "\n\n", "\r\n\r\n" }, StringSplitOptions.RemoveEmptyEntries);
             foreach (var entry in entries)
             {
-                var name = ExtractWmicValue(entry, "Name");
+                var name = HardwareInfoHelper.ExtractWmicValue(entry, "Name");
                 if (string.IsNullOrEmpty(name)) continue;
 
                 var gpu = new GpuInfoDto
                 {
                     Name = name,
-                    Vendor = InferVendor(name),
+                    Vendor = HardwareInfoHelper.InferVendor(name),
                 };
 
-                if (long.TryParse(ExtractWmicValue(entry, "AdapterRAM"), out var ram))
+                if (long.TryParse(HardwareInfoHelper.ExtractWmicValue(entry, "AdapterRAM"), out var ram))
                 {
                     // WMI 有时返回 0xFFFFFFFF 表示大于 4GB
                     if (ram > 0 && ram < 0xFFFFFFFF)
                         gpu.VramBytes = ram;
                 }
 
-                gpu.IsIntegrated = IsIntegratedGpu(name);
+                gpu.IsIntegrated = HardwareInfoHelper.IsIntegratedGpu(name);
                 list.Add(gpu);
             }
 
@@ -490,7 +490,7 @@ namespace TaskRunner.Services
             // 非 NVIDIA GPU 通过 lspci 检测
             if (list.Count == 0)
             {
-                var lspci = RunCommand("lspci", "", 5000);
+                var lspci = HardwareInfoHelper.RunCommand("lspci", "", 5000);
                 if (!string.IsNullOrEmpty(lspci))
                 {
                     var vgaLines = lspci.Split('\n')
@@ -500,27 +500,27 @@ namespace TaskRunner.Services
 
                     foreach (var line in vgaLines)
                     {
-                        var name = ExtractLspciDeviceName(line);
+                        var name = HardwareInfoHelper.ExtractLspciDeviceName(line);
                         if (string.IsNullOrEmpty(name)) continue;
 
                         var gpu = new GpuInfoDto
                         {
                             Name = name,
-                            Vendor = InferVendor(name),
-                            IsIntegrated = IsIntegratedGpu(name),
+                            Vendor = HardwareInfoHelper.InferVendor(name),
+                            IsIntegrated = HardwareInfoHelper.IsIntegratedGpu(name),
                         };
 
                         // 尝试从 lspci -v -s {bus} 获取内存信息
                         var bus = line.Split(' ')[0];
                         if (!string.IsNullOrEmpty(bus))
                         {
-                            var detail = RunCommand("lspci", $"-v -s {bus}", 5000);
+                            var detail = HardwareInfoHelper.RunCommand("lspci", $"-v -s {bus}", 5000);
                             if (!string.IsNullOrEmpty(detail))
                             {
                                 var prefetch = Regex.Match(detail, @"prefetchable\)\s*\[size=(\d+)([KMGT])\]");
                                 if (prefetch.Success)
                                 {
-                                    gpu.VramBytes = ParseSizeWithUnit(
+                                    gpu.VramBytes = HardwareInfoHelper.ParseSizeWithUnit(
                                         prefetch.Groups[1].Value,
                                         prefetch.Groups[2].Value);
                                 }
@@ -538,7 +538,7 @@ namespace TaskRunner.Services
         private List<GpuInfoDto> GetGpuInfoMac()
         {
             var list = new List<GpuInfoDto>();
-            var output = RunCommand("system_profiler", "SPDisplaysDataType", 8000);
+            var output = HardwareInfoHelper.RunCommand("system_profiler", "SPDisplaysDataType", 8000);
             if (string.IsNullOrEmpty(output)) return list;
 
             // Apple Silicon: 统一内存，显存 = 系统内存
@@ -553,21 +553,21 @@ namespace TaskRunner.Services
                 var gpu = new GpuInfoDto
                 {
                     Name = name,
-                    Vendor = isAppleSilicon ? "Apple" : InferVendor(name),
+                    Vendor = isAppleSilicon ? "Apple" : HardwareInfoHelper.InferVendor(name),
                     IsAppleSilicon = isAppleSilicon && name.StartsWith("Apple M", StringComparison.OrdinalIgnoreCase),
                 };
 
                 if (i < vramMatches.Count)
                 {
                     var vramStr = vramMatches[i].Groups[1].Value.Trim();
-                    gpu.VramBytes = ParseMacMemoryString(vramStr);
+                    gpu.VramBytes = HardwareInfoHelper.ParseMacMemoryString(vramStr);
                 }
 
                 // Apple Silicon 统一内存：显存等于系统内存的一部分（通常动态分配）
                 if (gpu.IsAppleSilicon && !gpu.VramBytes.HasValue)
                 {
                     // 使用系统总内存作为上限标记
-                    if (long.TryParse(RunCommand("sysctl", "-n hw.memsize", 5000)?.Trim(), out var totalMem))
+                    if (long.TryParse(HardwareInfoHelper.RunCommand("sysctl", "-n hw.memsize", 5000)?.Trim(), out var totalMem))
                     {
                         gpu.VramBytes = totalMem; // 统一内存架构
                     }
@@ -583,7 +583,7 @@ namespace TaskRunner.Services
         {
             var list = new List<GpuInfoDto>();
             // 扩展查询字段：名称、显存总量、驱动版本、最大图形时钟、PCIe 链路代数
-            var output = RunCommand("nvidia-smi",
+            var output = HardwareInfoHelper.RunCommand("nvidia-smi",
                 "--query-gpu=name,memory.total,driver_version,clocks.max.graphics,pcie.link.gen.max --format=csv,noheader", 5000);
             if (string.IsNullOrEmpty(output)) return list;
 
@@ -598,7 +598,7 @@ namespace TaskRunner.Services
                     Vendor = "NVIDIA",
                 };
 
-                gpu.VramBytes = ParseNvidiaMemory(parts[1]);
+                gpu.VramBytes = HardwareInfoHelper.ParseNvidiaMemory(parts[1]);
                 if (parts.Length >= 3)
                     gpu.DriverVersion = parts[2];
                 if (parts.Length >= 4 && double.TryParse(parts[3].Replace(" MHz", "").Trim(), out var clock))
@@ -655,7 +655,7 @@ namespace TaskRunner.Services
             {
                 if (RuntimeInformation.IsOSPlatform(OSPlatform.Linux))
                 {
-                    var output = RunCommand("dmidecode", "-t memory", 8000);
+                    var output = HardwareInfoHelper.RunCommand("dmidecode", "-t memory", 8000);
                     if (!string.IsNullOrEmpty(output))
                     {
                         var speeds = new List<double>();
@@ -694,7 +694,7 @@ namespace TaskRunner.Services
                 }
                 else if (RuntimeInformation.IsOSPlatform(OSPlatform.Windows))
                 {
-                    var output = RunCommand("wmic", "memorychip get Speed /value", 5000);
+                    var output = HardwareInfoHelper.RunCommand("wmic", "memorychip get Speed /value", 5000);
                     if (!string.IsNullOrEmpty(output))
                     {
                         var speeds = new List<double>();
@@ -838,201 +838,6 @@ namespace TaskRunner.Services
                 _logger.LogDebug(ex, "获取磁盘空间失败");
             }
             return (0, 0);
-        }
-
-        #endregion
-
-        #region Helpers
-
-        private static string GetOsName()
-        {
-            if (RuntimeInformation.IsOSPlatform(OSPlatform.Windows)) return "Windows";
-            if (RuntimeInformation.IsOSPlatform(OSPlatform.Linux)) return "Linux";
-            if (RuntimeInformation.IsOSPlatform(OSPlatform.OSX)) return "macOS";
-            return "Unknown";
-        }
-
-        private static bool DetectWsl()
-        {
-            if (!RuntimeInformation.IsOSPlatform(OSPlatform.Linux))
-                return false;
-            try
-            {
-                var release = File.ReadAllText("/proc/sys/kernel/osrelease");
-                return release.Contains("WSL", StringComparison.OrdinalIgnoreCase) ||
-                       release.Contains("microsoft", StringComparison.OrdinalIgnoreCase);
-            }
-            catch { return false; }
-        }
-
-        private string? RunCommand(string fileName, string arguments, int timeoutMs, Dictionary<string, string>? env = null)
-        {
-            try
-            {
-                var psi = new ProcessStartInfo
-                {
-                    FileName = fileName,
-                    Arguments = arguments,
-                    RedirectStandardOutput = true,
-                    RedirectStandardError = true,
-                    UseShellExecute = false,
-                    CreateNoWindow = true,
-                };
-
-                if (env != null)
-                {
-                    foreach (var kv in env)
-                    {
-                        psi.EnvironmentVariables[kv.Key] = kv.Value;
-                    }
-                }
-
-                using var process = Process.Start(psi);
-                if (process == null) return null;
-
-                if (!process.WaitForExit(timeoutMs))
-                {
-                    try { process.Kill(entireProcessTree: true); } catch { }
-                    return null;
-                }
-
-                return process.StandardOutput.ReadToEnd();
-            }
-            catch (Exception ex)
-            {
-                _logger.LogDebug(ex, "命令执行失败: {Cmd} {Args}", fileName, arguments);
-                return null;
-            }
-        }
-
-        private static string? ExtractWmicValue(string output, string key)
-        {
-            var match = Regex.Match(output, $"{key}=\\s*(.+?)(?:\\r?\\n|$)", RegexOptions.IgnoreCase);
-            return match.Success ? match.Groups[1].Value.Trim() : null;
-        }
-
-        private static string? ExtractLineValue(string text, string prefix)
-        {
-            var lines = text.Split('\n');
-            foreach (var line in lines)
-            {
-                var trimmed = line.Trim();
-                if (trimmed.StartsWith(prefix, StringComparison.OrdinalIgnoreCase))
-                    return trimmed.Substring(prefix.Length).Trim();
-            }
-            return null;
-        }
-
-        private static string? ExtractRegex(string text, string pattern, RegexOptions options = RegexOptions.None)
-        {
-            var match = Regex.Match(text, pattern, options);
-            return match.Success ? match.Groups[1].Value.Trim() : null;
-        }
-
-        /// <summary>
-        /// 从 lspci 输出行中提取干净的设备名称
-        /// lspci 格式: "bus:dev.func Class: Vendor Device (rev xx)"
-        /// </summary>
-        private static string ExtractLspciDeviceName(string line)
-        {
-            if (string.IsNullOrWhiteSpace(line))
-                return "";
-
-            // 去掉前导的 bus ID（第一个空格之前的部分）
-            var afterBus = line;
-            var firstSpace = line.IndexOf(' ');
-            if (firstSpace >= 0)
-                afterBus = line.Substring(firstSpace + 1).TrimStart();
-
-            // 去掉 Class 名称（第一个冒号之前的部分）
-            var firstColon = afterBus.IndexOf(':');
-            if (firstColon >= 0)
-                afterBus = afterBus.Substring(firstColon + 1).TrimStart();
-
-            // 去掉 (rev xx) 后缀
-            var revIdx = afterBus.IndexOf("(rev ", StringComparison.OrdinalIgnoreCase);
-            if (revIdx >= 0)
-                afterBus = afterBus.Substring(0, revIdx).Trim();
-
-            return afterBus;
-        }
-
-        private static long ParseMeminfoKB(string text, string key)
-        {
-            var pattern = $"{key}\\s*:\\s*(\\d+)\\s*kB";
-            var match = Regex.Match(text, pattern, RegexOptions.IgnoreCase | RegexOptions.Multiline);
-            return match.Success && long.TryParse(match.Groups[1].Value, out var val) ? val : 0;
-        }
-
-        private static long ParseVmStat(string text, string key)
-        {
-            var pattern = $"{key}\\s*:\\s*(\\d+)";
-            var match = Regex.Match(text, pattern, RegexOptions.IgnoreCase | RegexOptions.Multiline);
-            return match.Success && long.TryParse(match.Groups[1].Value, out var val) ? val : 0;
-        }
-
-        private static long? ParseNvidiaMemory(string text)
-        {
-            // "11264 MiB" or "11.2 GB"
-            var match = Regex.Match(text, @"([\d.]+)\s*(MiB|MB|GiB|GB)");
-            if (!match.Success) return null;
-
-            var val = double.Parse(match.Groups[1].Value);
-            var unit = match.Groups[2].Value.ToUpperInvariant();
-            return unit.StartsWith("GI") || unit.StartsWith("GB")
-                ? (long)(val * 1024 * 1024 * 1024)
-                : (long)(val * 1024 * 1024);
-        }
-
-        private static long? ParseMacMemoryString(string text)
-        {
-            var match = Regex.Match(text, @"([\d.]+)\s*(MB|GB|TB)");
-            if (!match.Success) return null;
-
-            var val = double.Parse(match.Groups[1].Value);
-            var unit = match.Groups[2].Value.ToUpperInvariant();
-            return unit switch
-            {
-                "MB" => (long)(val * 1024 * 1024),
-                "GB" => (long)(val * 1024 * 1024 * 1024),
-                "TB" => (long)(val * 1024L * 1024 * 1024 * 1024),
-                _ => null
-            };
-        }
-
-        private static long ParseSizeWithUnit(string value, string unit)
-        {
-            if (!double.TryParse(value, out var val)) return 0;
-            return unit.ToUpperInvariant() switch
-            {
-                "K" => (long)(val * 1024),
-                "M" => (long)(val * 1024 * 1024),
-                "G" => (long)(val * 1024 * 1024 * 1024),
-                "T" => (long)(val * 1024L * 1024 * 1024 * 1024),
-                _ => 0
-            };
-        }
-
-        private static string InferVendor(string name)
-        {
-            var lower = name.ToLowerInvariant();
-            if (lower.Contains("nvidia") || lower.Contains("geforce") || lower.Contains("rtx") || lower.Contains("quadro"))
-                return "NVIDIA";
-            if (lower.Contains("amd") || lower.Contains("radeon") || lower.Contains("firepro"))
-                return "AMD";
-            if (lower.Contains("intel") || lower.Contains("arc") || lower.Contains("iris") || lower.Contains("hd graphics") || lower.Contains("uhd"))
-                return "Intel";
-            if (lower.Contains("apple"))
-                return "Apple";
-            return "Unknown";
-        }
-
-        private static bool IsIntegratedGpu(string name)
-        {
-            var lower = name.ToLowerInvariant();
-            return lower.Contains("intel") &&
-                   (lower.Contains("hd graphics") || lower.Contains("uhd") || lower.Contains("iris") || lower.Contains("intel graphics")) ||
-                   lower.Contains("integrated");
         }
 
         #endregion

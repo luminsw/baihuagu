@@ -7,18 +7,18 @@ namespace TaskRunner.Controllers
     [Route("api/[controller]")]
     public class SearchController : ControllerBase
     {
-        private readonly Services.SettingsService _settings;
+        private readonly Services.VaultSettingsService _vaultSettings;
         private readonly Services.EmbeddingService _embeddingService;
         private readonly Services.VaultNoteIndexer _vaultNoteIndexer;
         private readonly ILogger<SearchController> _logger;
 
         public SearchController(
-            Services.SettingsService settings,
+            Services.VaultSettingsService vaultSettings,
             Services.EmbeddingService embeddingService,
             Services.VaultNoteIndexer vaultNoteIndexer,
             ILogger<SearchController> logger)
         {
-            _settings = settings;
+            _vaultSettings = vaultSettings;
             _embeddingService = embeddingService;
             _vaultNoteIndexer = vaultNoteIndexer;
             _logger = logger;
@@ -47,7 +47,7 @@ namespace TaskRunner.Controllers
                 });
             }
 
-            var vaultPath = _settings.GetVaults().FirstOrDefault(v => v.Id == vaultId)?.Path;
+            var vaultPath = _vaultSettings.GetVaults().FirstOrDefault(v => v.Id == vaultId)?.Path;
             if (string.IsNullOrEmpty(vaultPath) || !System.IO.Directory.Exists(vaultPath))
             {
                 _logger.LogWarning("知识库路径无效：VaultId={VaultId}, Path={Path}", vaultId, vaultPath);
@@ -384,7 +384,7 @@ namespace TaskRunner.Controllers
         {
             try
             {
-                var vaultPath = _settings.GetVaults().FirstOrDefault(v => v.Id == request.VaultId)?.Path;
+                var vaultPath = _vaultSettings.GetVaults().FirstOrDefault(v => v.Id == request.VaultId)?.Path;
                 if (string.IsNullOrEmpty(vaultPath) || !Directory.Exists(vaultPath))
                 {
                     return BadRequest(new { error = "知识库路径无效" });

@@ -16,20 +16,20 @@ namespace TaskRunner.Controllers;
 public class OnboardingController : ControllerBase
 {
     private readonly FamilyDbContext _dbContext;
-    private readonly SettingsService _settingsService;
+    private readonly VaultSettingsService _vaultSettings;
     private readonly DeviceService _deviceService;
     private readonly AiConfigService _aiConfigService;
     private readonly ILogger<OnboardingController> _logger;
 
     public OnboardingController(
         FamilyDbContext dbContext,
-        SettingsService settingsService,
+        VaultSettingsService vaultSettings,
         DeviceService deviceService,
         AiConfigService aiConfigService,
         ILogger<OnboardingController> logger)
     {
         _dbContext = dbContext;
-        _settingsService = settingsService;
+        _vaultSettings = vaultSettings;
         _deviceService = deviceService;
         _aiConfigService = aiConfigService;
         _logger = logger;
@@ -86,7 +86,7 @@ public class OnboardingController : ControllerBase
 
         var progresses = await _dbContext.InitTaskProgresses.ToListAsync();
         var hasAuthorizedDevices = _deviceService.GetAuthorizedDevices().Any();
-        var vaults = _settingsService.GetVaults();
+        var vaults = _vaultSettings.GetVaults();
         var hasComputerVault = vaults.Any(v => v.Name.Contains("计算机") || v.Name.Contains("电脑") || v.Name.Contains("技术"));
         var hasTcmVault = vaults.Any(v => v.Name.Contains("中医") || v.Name.Contains("脾胃") || v.Name.Contains("中药"));
 
@@ -222,7 +222,7 @@ public class OnboardingController : ControllerBase
             }
 
             // 使用 VaultRootPathPreference 作为父目录，如果没有则使用默认路径
-            var rootPath = _settingsService.VaultRootPathPreference;
+            var rootPath = _vaultSettings.VaultRootPathPreference;
             if (string.IsNullOrWhiteSpace(rootPath))
             {
                 rootPath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "data", "vaults");
@@ -232,7 +232,7 @@ public class OnboardingController : ControllerBase
             var vaultPath = Path.Combine(rootPath, "local", industry, vaultName);
             Directory.CreateDirectory(vaultPath);
 
-            var vault = _settingsService.AddVault(vaultName, vaultPath, industry);
+            var vault = _vaultSettings.AddVault(vaultName, vaultPath, industry);
 
             var createdNotes = new List<string>();
 

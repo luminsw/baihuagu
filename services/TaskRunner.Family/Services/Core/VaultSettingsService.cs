@@ -311,6 +311,39 @@ public class VaultSettingsService
         }
     }
 
+    public string VaultPath
+    {
+        get
+        {
+            var active = GetActiveVault();
+            if (active != null && !string.IsNullOrEmpty(active.Path))
+                return active.Path;
+            return Environment.GetEnvironmentVariable("TASK_RUNNER_VAULT_ROOT") ?? "";
+        }
+    }
+
+    public string NotesPath
+    {
+        get
+        {
+            var active = GetActiveVault();
+            if (active != null && !string.IsNullOrEmpty(active.Path))
+                return Path.Combine(active.Path, "notes");
+            return "";
+        }
+    }
+
+    public string CardsPath
+    {
+        get
+        {
+            var active = GetActiveVault();
+            if (active != null && !string.IsNullOrEmpty(active.Path))
+                return Path.Combine(active.Path, "cards");
+            return "";
+        }
+    }
+
     public (int added, int removed) SyncVaultsWithFilesystem(string rootPath)
     {
         int added = 0, removed = 0;

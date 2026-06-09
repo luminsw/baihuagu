@@ -8,16 +8,16 @@ namespace TaskRunner.Controllers
     [Route("api/[controller]")]
     public class SyncController : ControllerBase
     {
-        private readonly SettingsService _settings;
+        private readonly VaultSettingsService _vaultSettings;
         private readonly TaskManager _taskManager;
         private readonly ILogger<SyncController> _logger;
 
         public SyncController(
-            SettingsService settings,
+            VaultSettingsService vaultSettings,
             TaskManager taskManager,
             ILogger<SyncController> logger)
         {
-            _settings = settings;
+            _vaultSettings = vaultSettings;
             _taskManager = taskManager;
             _logger = logger;
         }
@@ -233,7 +233,7 @@ namespace TaskRunner.Controllers
         {
             if (string.IsNullOrEmpty(vaultId))
                 return null;
-            return _settings.GetVaults().FirstOrDefault(v => v.Id == vaultId)?.Path;
+            return _vaultSettings.GetVaults().FirstOrDefault(v => v.Id == vaultId)?.Path;
         }
 
         private ConflictResolution UpdateNoteInternal(string vaultPath, NoteUpdateRequest request)

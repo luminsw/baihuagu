@@ -1,5 +1,6 @@
 using System.Text;
 using System.Text.Json;
+using TaskRunner.Helpers;
 using AnkiGen.Core;
 
 namespace TaskRunner.Services
@@ -9,12 +10,12 @@ namespace TaskRunner.Services
     /// </summary>
     public class AnkiCardGenerator
     {
-        private readonly SettingsService _settings;
+        private readonly VaultSettingsService _vaultSettings;
         private readonly ILogger<AnkiCardGenerator> _logger;
 
-        public AnkiCardGenerator(SettingsService settings, ILogger<AnkiCardGenerator> logger)
+        public AnkiCardGenerator(VaultSettingsService vaultSettings, ILogger<AnkiCardGenerator> logger)
         {
-            _settings = settings;
+            _vaultSettings = vaultSettings;
             _logger = logger;
         }
 
@@ -23,7 +24,7 @@ namespace TaskRunner.Services
         /// </summary>
         public async Task<GenerateResult> GenerateFromNote(string notePath, string? cardsPath = null, string? notesBasePath = null)
         {
-            var basePath = notesBasePath ?? _settings.NotesPath;
+            var basePath = notesBasePath ?? _vaultSettings.NotesPath;
             if (string.IsNullOrEmpty(basePath))
             {
                 return new GenerateResult { Success = false, Message = "笔记目录未配置" };
@@ -82,7 +83,7 @@ namespace TaskRunner.Services
             string? cardsPath = null;
             if (!string.IsNullOrEmpty(vaultId))
             {
-                var vault = _settings.GetVaults().FirstOrDefault(v => v.Id == vaultId);
+                var vault = _vaultSettings.GetVaults().FirstOrDefault(v => v.Id == vaultId);
                 if (vault != null)
                 {
                     cardsPath = Path.Combine(vault.Path, "cards");
@@ -274,7 +275,7 @@ namespace TaskRunner.Services
         /// </summary>
         private async Task SaveAsJson(string notePath, AnkiDeck deck, string? cardsPath = null)
         {
-            var targetCardsPath = cardsPath ?? _settings.CardsPath;
+            var targetCardsPath = cardsPath ?? _vaultSettings.CardsPath;
             if (string.IsNullOrEmpty(targetCardsPath)) return;
 
             Directory.CreateDirectory(targetCardsPath);
@@ -288,11 +289,7 @@ namespace TaskRunner.Services
             var fileName = notePath.Replace("/", "_") + ".json";
             var fullPath = Path.Combine(targetCardsPath, fileName);
 
-            var json = JsonSerializer.Serialize(deckData, new JsonSerializerOptions
-            {
-                WriteIndented = true,
-                Encoder = System.Text.Encodings.Web.JavaScriptEncoder.Create(System.Text.Unicode.UnicodeRanges.All)
-            });
+            var json = JsonSerializer.Serialize(deckData, JsonHelper.IndentedUnicode);
 
             await File.WriteAllTextAsync(fullPath, json);
             _logger.LogInformation("保存 {Count} 张卡片到：{Path}", deck.Notes.Count, fullPath);
@@ -336,7 +333,7 @@ namespace TaskRunner.Services
         /// </summary>
         public async Task<string?> ExportToCsv(string? cardsPath = null)
         {
-            cardsPath ??= _settings.CardsPath;
+            cardsPath ??= _vaultSettings.CardsPath;
             if (string.IsNullOrEmpty(cardsPath) || !Directory.Exists(cardsPath))
             {
                 return null;
@@ -365,7 +362,7 @@ namespace TaskRunner.Services
                         sb.AppendLine($"{front},{back},{tags},{deck}");
                     }
                 }
-                catch { }
+                catch (Exception ex) { _logger.LogDebug(ex, "操作失败"); }
             }
 
             return sb.ToString();
@@ -386,8 +383,8 @@ namespace TaskRunner.Services
         public int GetTotalCardCount(string? vaultId = null)
         {
             var cardsPath = string.IsNullOrEmpty(vaultId)
-                ? _settings.CardsPath
-                : System.IO.Path.Combine(_settings.GetVaults().FirstOrDefault(v => v.Id == vaultId)?.Path ?? "", "cards");
+                ? _vaultSettings.CardsPath
+                : System.IO.Path.Combine(_vaultSettings.GetVaults().FirstOrDefault(v => v.Id == vaultId)?.Path ?? "", "cards");
 
             if (!Directory.Exists(cardsPath)) return 0;
 
@@ -400,7 +397,7 @@ namespace TaskRunner.Services
                     var deckData = JsonSerializer.Deserialize<JsonDeckData>(json);
                     count += deckData?.Cards?.Count ?? 0;
                 }
-                catch { }
+                catch (Exception ex) { _logger.LogDebug(ex, "文件系统操作失败"); }
             }
             return count;
         }

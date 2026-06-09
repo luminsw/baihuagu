@@ -1,5 +1,6 @@
 using System.Security.Cryptography;
 using System.Text.Json;
+using TaskRunner.Helpers;
 using Microsoft.EntityFrameworkCore;
 using TaskRunner.Data;
 using TaskRunner.Data.Entities;
@@ -12,21 +13,21 @@ namespace TaskRunner.Services;
 /// </summary>
 public class DailyCardService
 {
-    private readonly SettingsService _settings;
     private readonly IDbContextFactory<FamilyDbContext> _dbFactory;
     private readonly LearnerService _learnerService;
+    private readonly CardRepository _cardRepo;
     private readonly ILogger<DailyCardService> _logger;
     private static readonly System.Collections.Concurrent.ConcurrentDictionary<string, object> _fileLocks = new();
 
     public DailyCardService(
-        SettingsService settings,
         IDbContextFactory<FamilyDbContext> dbFactory,
         LearnerService learnerService,
+        CardRepository cardRepo,
         ILogger<DailyCardService> logger)
     {
-        _settings = settings;
         _dbFactory = dbFactory;
         _learnerService = learnerService;
+        _cardRepo = cardRepo;
         _logger = logger;
     }
 
@@ -40,13 +41,13 @@ public class DailyCardService
     /// </summary>
     public async Task<DailyCardResult> GetTodayCardAsync(string vaultId, int? seed = null)
     {
-        var cardsPath = ResolveCardsPath(vaultId);
+        var cardsPath = _cardRepo.ResolveCardsPath(vaultId);
         if (string.IsNullOrEmpty(cardsPath) || !Directory.Exists(cardsPath))
         {
             return new DailyCardResult { HasCard = false, Message = "暂无卡片，请先生成卡片" };
         }
 
-        var allCards = LoadAllCards(cardsPath);
+        var allCards = _cardRepo.LoadAllCards(cardsPath);
         if (allCards.Count == 0)
         {
             return new DailyCardResult { HasCard = false, Message = "暂无卡片，请先生成卡片" };
@@ -57,7 +58,7 @@ public class DailyCardService
         var rng = seed.HasValue ? new Random(seed.Value) : new Random();
 
         // 1. 优先：今日到期的复习卡片（且今天还没学过）
-        var dueCards = await GetDueReviewsAsync(vaultId, today);
+        var dueCards = await _cardRepo.GetDueReviewsAsync(vaultId, today);
         var dueUnstudied = dueCards.Where(c => !todayStudied.Contains(c.Id)).ToList();
         if (dueUnstudied.Count > 0)
         {
@@ -74,7 +75,7 @@ public class DailyCardService
         }
 
         // 2. 其次：新卡片（从未学过的）
-        var studiedIds = await GetAllStudiedIdsAsync(vaultId);
+        var studiedIds = await _cardRepo.GetAllStudiedIdsAsync(vaultId);
         var newCards = allCards.Where(c => !studiedIds.Contains(c.Id) && !todayStudied.Contains(c.Id)).ToList();
         if (newCards.Count > 0)
         {
@@ -119,7 +120,7 @@ public class DailyCardService
     {
         try
         {
-            var studyDir = GetStudyDir(vaultId);
+            var studyDir = _cardRepo.GetStudyDir(vaultId);
             if (string.IsNullOrEmpty(studyDir)) return false;
 
             var today = DateTime.Today.ToString("yyyy-MM-dd");
@@ -212,11 +213,11 @@ public class DailyCardService
             var todayCount = db.StudyActivities
                 .Count(a => a.VaultId == vaultId && a.ActivityType == "study" && a.CreatedAt.Date == today);
 
-            var cardsPath = ResolveCardsPath(vaultId);
+            var cardsPath = _cardRepo.ResolveCardsPath(vaultId);
             var totalCards = 0;
             if (!string.IsNullOrEmpty(cardsPath) && Directory.Exists(cardsPath))
             {
-                totalCards = LoadAllCards(cardsPath).Count;
+                totalCards = _cardRepo.LoadAllCards(cardsPath).Count;
             }
 
             var streak = CalculateStreakFromDb(vaultId);
@@ -238,18 +239,18 @@ public class DailyCardService
 
     private DailyProgress GetTodayProgressFromFiles(string vaultId)
     {
-        var studyDir = GetStudyDir(vaultId);
+        var studyDir = _cardRepo.GetStudyDir(vaultId);
         if (string.IsNullOrEmpty(studyDir)) return new DailyProgress();
 
         var today = DateTime.Today.ToString("yyyy-MM-dd");
         var dailyFile = Path.Combine(studyDir, $"daily-{today}.json");
         var daily = ReadDailyRecord(dailyFile);
 
-        var cardsPath = ResolveCardsPath(vaultId);
+        var cardsPath = _cardRepo.ResolveCardsPath(vaultId);
         var totalCards = 0;
         if (!string.IsNullOrEmpty(cardsPath) && Directory.Exists(cardsPath))
         {
-            totalCards = LoadAllCards(cardsPath).Count;
+            totalCards = _cardRepo.LoadAllCards(cardsPath).Count;
         }
 
         var streak = CalculateStreakFromFiles(vaultId);
@@ -270,7 +271,7 @@ public class DailyCardService
     {
         try
         {
-            var cardsPath = ResolveCardsPath(vaultId);
+            var cardsPath = _cardRepo.ResolveCardsPath(vaultId);
             if (string.IsNullOrEmpty(cardsPath)) return false;
 
             Directory.CreateDirectory(cardsPath);
@@ -285,9 +286,20 @@ public class DailyCardService
             if (File.Exists(customFile))
             {
                 var json = File.ReadAllText(customFile);
-                deck = JsonSerializer.Deserialize<JsonDeckData>(json) ?? deck;
+                var deserialized = JsonSerializer.Deserialize<JsonDeckData>(json);
+                if (deserialized != null)
+                {
+                    deck = deserialized;
+                }
             }
 
+            deck ??= new JsonDeckData
+            {
+                Name = request.Deck ?? "家长出题",
+                Cards = new List<JsonCard>()
+            };
+
+            deck.Cards ??= new List<JsonCard>();
             deck.Cards.Add(new JsonCard
             {
                 Front = request.Front,
@@ -295,11 +307,7 @@ public class DailyCardService
                 Tags = request.Tags ?? new List<string>()
             });
 
-            var output = JsonSerializer.Serialize(deck, new JsonSerializerOptions
-            {
-                WriteIndented = true,
-                Encoder = System.Text.Encodings.Web.JavaScriptEncoder.Create(System.Text.Unicode.UnicodeRanges.All)
-            });
+            var output = JsonSerializer.Serialize(deck, JsonHelper.IndentedUnicode);
             File.WriteAllText(customFile, output);
 
             return true;
@@ -319,11 +327,11 @@ public class DailyCardService
         var result = new List<StudiedCard>();
         try
         {
-            var studyDir = GetStudyDir(vaultId);
+            var studyDir = _cardRepo.GetStudyDir(vaultId);
             if (string.IsNullOrEmpty(studyDir)) return result;
 
-            var cardsPath = ResolveCardsPath(vaultId);
-            var allCards = cardsPath != null && Directory.Exists(cardsPath) ? LoadAllCards(cardsPath) : new List<CardItem>();
+            var cardsPath = _cardRepo.ResolveCardsPath(vaultId);
+            var allCards = cardsPath != null && Directory.Exists(cardsPath) ? _cardRepo.LoadAllCards(cardsPath) : new List<CardItem>();
             var cardDict = allCards.ToDictionary(c => c.Id, c => c);
 
             for (int i = 0; i < days; i++)
@@ -354,48 +362,8 @@ public class DailyCardService
         return result;
     }
 
-    // ---- 私有方法 ----
-
-    private List<CardItem> LoadAllCards(string cardsPath)
-    {
-        var cards = new List<CardItem>();
-        var files = Directory.GetFiles(cardsPath, "*.json");
-
-        foreach (var file in files)
-        {
-            try
-            {
-                var json = File.ReadAllText(file);
-                var deck = JsonSerializer.Deserialize<JsonDeckData>(json);
-                if (deck?.Cards == null) continue;
-
-                var source = Path.GetFileNameWithoutExtension(file);
-                foreach (var c in deck.Cards)
-                {
-                    var id = ComputeCardId(c.Front, c.Back);
-                    cards.Add(new CardItem
-                    {
-                        Id = id,
-                        Front = c.Front,
-                        Back = c.Back,
-                        Tags = c.Tags,
-                        Deck = deck.Name ?? source,
-                        Source = source
-                    });
-                }
-            }
-            catch (Exception ex)
-            {
-                _logger.LogDebug(ex, "解析卡片文件失败：{File}", file);
-            }
-        }
-
-        return cards;
-    }
-
     private HashSet<string> GetTodayStudiedIds(string vaultId)
     {
-        // 优先从 SQLite 读取
         try
         {
             using var db = _dbFactory.CreateDbContext();
@@ -411,10 +379,9 @@ public class DailyCardService
             _logger.LogDebug(ex, "从 SQLite 获取今日已学失败，回退文件系统");
         }
 
-        // 回退文件系统
         try
         {
-            var studyDir = GetStudyDir(vaultId);
+            var studyDir = _cardRepo.GetStudyDir(vaultId);
             if (string.IsNullOrEmpty(studyDir)) return new HashSet<string>();
 
             var today = DateTime.Today.ToString("yyyy-MM-dd");
@@ -463,7 +430,7 @@ public class DailyCardService
 
     private int CalculateStreakFromFiles(string vaultId)
     {
-        var studyDir = GetStudyDir(vaultId);
+        var studyDir = _cardRepo.GetStudyDir(vaultId);
         if (string.IsNullOrEmpty(studyDir) || !Directory.Exists(studyDir)) return 0;
 
         int streak = 0;
@@ -499,90 +466,8 @@ public class DailyCardService
 
     private void WriteDailyRecord(string file, DailyRecord record)
     {
-        var json = JsonSerializer.Serialize(record, new JsonSerializerOptions
-        {
-            WriteIndented = true,
-            Encoder = System.Text.Encodings.Web.JavaScriptEncoder.Create(System.Text.Unicode.UnicodeRanges.All)
-        });
+        var json = JsonSerializer.Serialize(record, JsonHelper.IndentedUnicode);
         File.WriteAllText(file, json);
-    }
-
-    private string? ResolveCardsPath(string vaultId)
-    {
-        if (string.IsNullOrWhiteSpace(vaultId)) return null;
-        var vaultPath = _settings.GetVaults().FirstOrDefault(v => v.Id == vaultId)?.Path;
-        if (string.IsNullOrEmpty(vaultPath)) return null;
-        return Path.Combine(vaultPath, "cards");
-    }
-
-    private string? GetStudyDir(string vaultId)
-    {
-        var cardsPath = ResolveCardsPath(vaultId);
-        if (string.IsNullOrEmpty(cardsPath)) return null;
-        var dir = Path.Combine(cardsPath, ".study");
-        Directory.CreateDirectory(dir);
-        return dir;
-    }
-
-    private static string ComputeCardId(string front, string back)
-    {
-        var input = (front ?? "") + "\n" + (back ?? "");
-        var hash = SHA256.HashData(System.Text.Encoding.UTF8.GetBytes(input));
-        return Convert.ToHexString(hash)[..16];
-    }
-
-    /// <summary>
-    /// 获取今日到期的复习卡片
-    /// </summary>
-    private async Task<List<CardItem>> GetDueReviewsAsync(string vaultId, DateTime today)
-    {
-        try
-        {
-            var learner = await _learnerService.GetDefaultAsync();
-            var learnerId = learner?.Id ?? 0;
-            if (learnerId == 0) return new List<CardItem>();
-
-            using var db = await _dbFactory.CreateDbContextAsync();
-            var dueIds = await db.CardReviewStates
-                .Where(r => r.LearnerId == learnerId && r.VaultId == vaultId && r.NextReviewDate <= today)
-                .Select(r => r.CardId)
-                .ToListAsync();
-
-            if (dueIds.Count == 0) return new List<CardItem>();
-
-            var cardsPath = ResolveCardsPath(vaultId);
-            if (string.IsNullOrEmpty(cardsPath)) return new List<CardItem>();
-
-            var allCards = LoadAllCards(cardsPath);
-            return allCards.Where(c => dueIds.Contains(c.Id)).ToList();
-        }
-        catch (Exception ex)
-        {
-            _logger.LogDebug(ex, "获取到期复习卡片失败");
-            return new List<CardItem>();
-        }
-    }
-
-    /// <summary>
-    /// 获取所有已学过的卡片 ID
-    /// </summary>
-    private async Task<HashSet<string>> GetAllStudiedIdsAsync(string vaultId)
-    {
-        try
-        {
-            using var db = await _dbFactory.CreateDbContextAsync();
-            var ids = await db.StudyActivities
-                .Where(a => a.VaultId == vaultId && a.ActivityType == "study" && a.CardId != null)
-                .Select(a => a.CardId!)
-                .Distinct()
-                .ToListAsync();
-            return new HashSet<string>(ids);
-        }
-        catch (Exception ex)
-        {
-            _logger.LogDebug(ex, "获取已学卡片 ID 失败");
-            return new HashSet<string>();
-        }
     }
 
     /// <summary>
@@ -649,54 +534,4 @@ public class DailyCardService
     }
 }
 
-// ---- DTOs ----
 
-public class DailyCardResult
-{
-    public bool HasCard { get; set; }
-    public string Message { get; set; } = "";
-    public CardItem? Card { get; set; }
-    public DailyProgress? TodayProgress { get; set; }
-    public int Remaining { get; set; }
-    /// <summary>是否为复习卡片（已到期的旧卡片）</summary>
-    public bool IsReview { get; set; }
-}
-
-public class CardItem
-{
-    public string Id { get; set; } = "";
-    public string Deck { get; set; } = "";
-    public string Front { get; set; } = "";
-    public string Back { get; set; } = "";
-    public List<string> Tags { get; set; } = new();
-    public string Source { get; set; } = "";
-}
-
-public class DailyProgress
-{
-    public int Completed { get; set; }
-    public int Target { get; set; } = 5;
-    public int TotalCards { get; set; }
-    public int Streak { get; set; }
-}
-
-public class CustomCardRequest
-{
-    public string Front { get; set; } = "";
-    public string Back { get; set; } = "";
-    public string? Deck { get; set; }
-    public List<string>? Tags { get; set; }
-}
-
-public class StudiedCard
-{
-    public CardItem Card { get; set; } = new();
-    public string Result { get; set; } = "";
-    public string Date { get; set; } = "";
-}
-
-public class DailyRecord
-{
-    public int Completed { get; set; }
-    public Dictionary<string, string> Answers { get; set; } = new();
-}

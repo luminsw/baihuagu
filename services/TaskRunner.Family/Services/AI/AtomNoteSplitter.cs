@@ -3,6 +3,7 @@ using System.Text;
 using System.Text.RegularExpressions;
 using System.Text.Json;
 using System.Security.Cryptography;
+using TaskRunner.Helpers;
 using System.Collections.Generic;
 using Microsoft.Extensions.AI;
 using TaskRunner.Models;
@@ -18,27 +19,33 @@ namespace TaskRunner.Services
         private const int MaxSupplementHistoryEntries = 1000;
         private readonly AiClientService _aiClientService;
         private readonly TaskManager _taskManager;
-        private readonly SettingsService _settings;
+        private readonly AiSettingsService _aiSettings;
+        private readonly VaultSettingsService _vaultSettings;
         private readonly LocalAiAutoStarter _localAiAutoStarter;
         private readonly DefaultPromptProvider _scenePromptService;
         private readonly AnkiCardGenerator _cardGenerator;
+        private readonly NoteParser _noteParser;
         private readonly ILogger<AtomNoteSplitter> _logger;
 
         public AtomNoteSplitter(
             AiClientService aiClientService,
             TaskManager taskManager,
-            SettingsService settings,
+            AiSettingsService aiSettings,
+            VaultSettingsService vaultSettings,
             LocalAiAutoStarter localAiAutoStarter,
             DefaultPromptProvider scenePromptService,
             AnkiCardGenerator cardGenerator,
+            NoteParser noteParser,
             ILogger<AtomNoteSplitter> logger)
         {
             _aiClientService = aiClientService;
             _taskManager = taskManager;
-            _settings = settings;
+            _aiSettings = aiSettings;
+            _vaultSettings = vaultSettings;
             _localAiAutoStarter = localAiAutoStarter;
             _scenePromptService = scenePromptService;
             _cardGenerator = cardGenerator;
+            _noteParser = noteParser;
             _logger = logger;
         }
 
@@ -72,21 +79,14 @@ namespace TaskRunner.Services
                 || ex.InnerException is System.Net.Sockets.SocketException;
         }
 
-        private static Dictionary<string, string> BuildTitleToPathMap(List<Note> notes, Dictionary<Note, string> notePathMap)
-        {
-            return notes
-                .GroupBy(n => n.Title, StringComparer.OrdinalIgnoreCase)
-                .Where(g => g.Count() == 1)
-                .ToDictionary(g => g.Key, g => notePathMap[g.Single()], StringComparer.OrdinalIgnoreCase);
-        }
 
         private async Task<string> SendRequestWithRetryAsync(string providerId, string model, string userPrompt, bool isSupplement, CancellationToken cancellationToken, TaskRunner.Contracts.Scene.AppScene? scene = null)
         {
             _logger.LogDebug("发送 AI 请求到 provider {ProviderId} model {Model} (补充={IsSupplement})", providerId, model, isSupplement);
 
-            var maxAttempts = _settings.AiRequestMaxAttempts;
-            var initialBackoff = _settings.AiRequestInitialBackoffMs;
-            var maxBackoff = _settings.AiRequestMaxBackoffMs;
+            var maxAttempts = _aiSettings.AiRequestMaxAttempts;
+            var initialBackoff = _aiSettings.AiRequestInitialBackoffMs;
+            var maxBackoff = _aiSettings.AiRequestMaxBackoffMs;
             var rand = new Random();
             for (int attempt = 1; attempt <= maxAttempts; attempt++)
             {
@@ -94,7 +94,7 @@ namespace TaskRunner.Services
                 try
                 {
                     using var cts = CancellationTokenSource.CreateLinkedTokenSource(CancellationToken.None, cancellationToken);
-                    cts.CancelAfter(TimeSpan.FromMinutes(_settings.AiRequestTimeoutMinutes));
+                    cts.CancelAfter(TimeSpan.FromMinutes(_aiSettings.AiRequestTimeoutMinutes));
 
                     var chatClient = _aiClientService.CreateChatClient(providerId, model);
                     var messages = new List<ChatMessage>
@@ -116,7 +116,7 @@ namespace TaskRunner.Services
                     {
                         try
                         {
-                            var provider = _settings.GetAiProviders().FirstOrDefault(p => p.Id == providerId);
+                            var provider = _aiSettings.GetAiProviders().FirstOrDefault(p => p.Id == providerId);
                             if (provider != null)
                             {
                                 await _localAiAutoStarter.TryEnsureRunningAsync(provider.Id, provider.AiBaseUrl);
@@ -200,7 +200,7 @@ namespace TaskRunner.Services
                     _logger.LogInformation("调用 {Provider} 模型 {Index}/{Total}: {Model} (模式：{Mode})",
                         provider.Id, i + 1, steps.Count, model, isSplitStep ? "拆分" : "补充");
 
-                    if (string.IsNullOrEmpty(_settings.GetApiKeyForProvider(provider.Id)))
+                    if (string.IsNullOrEmpty(_aiSettings.GetApiKeyForProvider(provider.Id)))
                         _logger.LogWarning(
                             "提供方 {ProviderId} 未配置 API Key",
                             provider.Id);
@@ -213,7 +213,7 @@ namespace TaskRunner.Services
                         {
                             result = await CallAiApiAsync(title, originalContent, model, provider.Id, isSupplement: false, cancellationToken: cancellationToken, scene: scene);
 
-                            var firstRoundNotes = ParseResult(result);
+                            var firstRoundNotes = _noteParser.ParseResult(result);
                             allNotes.AddRange(firstRoundNotes);
 
                             _logger.LogInformation("首轮拆分得到 {Count} 条笔记", firstRoundNotes.Count);
@@ -222,7 +222,7 @@ namespace TaskRunner.Services
                         {
                             result = await CallAiApiAsync(title, originalContent, model, provider.Id, isSupplement: true, existingNotes: allNotes, cancellationToken: cancellationToken, scene: scene);
 
-                            var supplementNotes = ParseResult(result);
+                            var supplementNotes = _noteParser.ParseResult(result);
 
                             var existingPaths = allNotes.Select(n => n.Path).ToHashSet();
                             foreach (var note in supplementNotes)
@@ -293,10 +293,10 @@ namespace TaskRunner.Services
                 var existingNormalizedPaths = notePathMap.Values.ToHashSet(StringComparer.OrdinalIgnoreCase);
                 
                 // 构建 title->path 映射
-                var titleToPath = BuildTitleToPathMap(allNotes, notePathMap);
+                var titleToPath = WikiLinkResolver.BuildTitleToPathMap(allNotes, notePathMap);
 
                 // 在保存前，检查是否有 AI 引用但未生成/本地不存在的 wikilink 目标，若有则循环向 AI 请求补全，直到补齐或达到上限
-                var notesPath = string.IsNullOrEmpty(vaultPath) ? _settings.NotesPath : Path.Combine(vaultPath, "notes");
+                var notesPath = string.IsNullOrEmpty(vaultPath) ? _vaultSettings.NotesPath : Path.Combine(vaultPath, "notes");
 
                 // 限制补充轮次上限，防止 AI 每轮返回新笔记但持续引入新 wikilink 导致无限循环
                 const int maxSupplementRounds = 5;
@@ -306,15 +306,15 @@ namespace TaskRunner.Services
                     round++;
 
                     // 重新构建 title->path 映射（基于当前已知笔记）
-                    titleToPath = BuildTitleToPathMap(allNotes, notePathMap);
+                    titleToPath = WikiLinkResolver.BuildTitleToPathMap(allNotes, notePathMap);
 
                     // 找到所有被引用的链接目标（解析 [[...]]），并映射为相对路径（若能解析）
-                    var referenced = ExtractWikiLinkTargets(allNotes);
+                    var referenced = WikiLinkResolver.ExtractWikiLinkTargets(allNotes);
                     var resolvedReferencedPaths = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
                     var unresolvedRaw = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
                     foreach (var rawLink in referenced)
                     {
-                        var resolved = ResolveLinkToPath(rawLink, titleToPath);
+                        var resolved = WikiLinkResolver.ResolveLinkToPath(rawLink, titleToPath);
                         if (!string.IsNullOrEmpty(resolved)) resolvedReferencedPaths.Add(NormalizeRelPath(resolved));
                         else unresolvedRaw.Add(rawLink);
                     }
@@ -388,7 +388,7 @@ namespace TaskRunner.Services
                         {
                             var supplementResult = await CallAiApiAsync(title, originalContent, suppModel, suppProvider.Id, isSupplement: true, existingNotes: allNotes, missingTargets: needToFill, cancellationToken: cancellationToken, scene: scene);
                             suppStopwatch.Stop();
-                            newNotes = ParseResult(supplementResult);
+                            newNotes = _noteParser.ParseResult(supplementResult);
                             requestRecords.Add(new
                             {
                                 providerId = suppProvider.Id,
@@ -524,7 +524,7 @@ namespace TaskRunner.Services
 
             if (rawIds.Count == 0)
             {
-                var main = _settings.GetMainAiProvider();
+                var main = _aiSettings.GetMainAiProvider();
                 return main != null ? new List<AiProviderConfig> { main } : new List<AiProviderConfig>();
             }
 
@@ -534,7 +534,7 @@ namespace TaskRunner.Services
             {
                 if (!seen.Add(id))
                     continue;
-                var p = _settings.GetAiProvider(id);
+                var p = _aiSettings.GetAiProvider(id);
                 if (p != null)
                     ordered.Add(p);
                 else
@@ -640,208 +640,14 @@ namespace TaskRunner.Services
             }
         }
 
-        private List<Note> ParseResult(string aiContent)
-        {
-            try
-            {
-                var normalized = ExtractJsonPayload(aiContent);
-                // 使用大小写不敏感的配置（AI 返回小写字段名）
-                var options = new JsonSerializerOptions
-                {
-                    PropertyNameCaseInsensitive = true
-                };
-                _logger.LogDebug("准备解析 JSON 片段，长度：{Len}", normalized.Length);
-                var notes = JsonSerializer.Deserialize<List<Note>>(normalized, options) ?? new List<Note>();
-                _logger.LogInformation("解析到 {Count} 条笔记", notes.Count);
-                foreach (var note in notes)
-                {
-                    _logger.LogDebug("解析笔记：Path={Path}, Title={Title}", note.Path, note.Title);
-                }
-                return notes;
-            }
-            catch (Exception ex)
-            {
-                _logger.LogError(ex, "解析 AI 返回失败：{Content}", aiContent.Substring(0, Math.Min(500, aiContent.Length)));
-                throw new Exception($"JSON 解析失败：{ex.Message}");
-            }
-        }
-
-        // 提取所有 [[...]] 形式的 wikilink 内容（不包含 [[ ]]）
-        private static List<string> ExtractWikiLinkTargets(List<Note> notes)
-        {
-            var pattern = new Regex(@"\[\[([^\]|#]+)", RegexOptions.Compiled);
-            var set = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
-            foreach (var n in notes)
-            {
-                if (string.IsNullOrEmpty(n.Content)) continue;
-                foreach (Match m in pattern.Matches(n.Content))
-                {
-                    var v = m.Groups[1].Value.Trim();
-                    if (!string.IsNullOrEmpty(v)) set.Add(v);
-                }
-            }
-            return set.ToList();
-        }
-
-        // 将一个原始 wikilink 目标解析为路径（若已包含 '/ ' 则直接返回），或尝试用 titleToPath 映射
-        private static string? ResolveLinkToPath(string rawLink, Dictionary<string, string> titleToPath)
-        {
-            if (string.IsNullOrWhiteSpace(rawLink)) return null;
-            var s = rawLink.Trim();
-            if (s.Contains('/')) return s; // 已包含分类
-            if (titleToPath != null && titleToPath.TryGetValue(s, out var p)) return p;
-            return null;
-        }
-
-        private string ExtractJsonPayload(string text)
-        {
-            var raw = (text ?? string.Empty).Trim();
-            if (string.IsNullOrEmpty(raw))
-            {
-                throw new Exception("AI 返回内容为空");
-            }
-
-            // 兼容 ```json ... ``` / ``` ... ```
-            if (raw.StartsWith("```", StringComparison.Ordinal))
-            {
-                var lines = raw.Split('\n').ToList();
-                if (lines.Count > 0 && lines[0].StartsWith("```", StringComparison.Ordinal))
-                {
-                    lines.RemoveAt(0);
-                }
-                if (lines.Count > 0 && lines[^1].Trim().StartsWith("```", StringComparison.Ordinal))
-                {
-                    lines.RemoveAt(lines.Count - 1);
-                }
-                raw = string.Join('\n', lines).Trim();
-            }
-
-            // 若有多余说明文字，提取首个 JSON 数组片段
-            var start = raw.IndexOf('[');
-            if (start < 0)
-            {
-                throw new Exception("未找到 JSON 数组起始符 '['");
-            }
-
-            int depth = 0;
-            int end = -1;
-            for (int i = start; i < raw.Length; i++)
-            {
-                var ch = raw[i];
-                if (ch == '[') depth++;
-                else if (ch == ']')
-                {
-                    depth--;
-                    if (depth == 0)
-                    {
-                        end = i;
-                        break;
-                    }
-                }
-            }
-
-            if (end < 0)
-            {
-                throw new Exception("JSON 数组结束符 ']' 不完整");
-            }
-
-            var jsonPayload = raw.Substring(start, end - start + 1).Trim();
-            
-            // 修复 AI 返回的 JSON 中未转义的换行符和制表符
-            // 这些字符在 JSON 字符串中必须转义为 \n 和 \t
-            jsonPayload = FixUnescapedCharsInJson(jsonPayload);
-            
-            return jsonPayload;
-        }
-
-        /// <summary>
-        /// 修复 JSON 字符串中未正确转义的控制字符
-        /// AI 有时会在 content 字段中直接输出换行符而不是 \n，导致 JSON 解析失败
-        /// </summary>
-        private string FixUnescapedCharsInJson(string json)
-        {
-            if (string.IsNullOrEmpty(json)) return json;
-            
-            var result = new StringBuilder();
-            bool inString = false;
-            bool escapeNext = false;
-            
-            foreach (char c in json)
-            {
-                if (escapeNext)
-                {
-                    // 当前字符是被转义的，直接添加
-                    result.Append(c);
-                    escapeNext = false;
-                    continue;
-                }
-                
-                if (c == '\\')
-                {
-                    result.Append(c);
-                    escapeNext = true;
-                    continue;
-                }
-                
-                if (c == '"' && !escapeNext)
-                {
-                    inString = !inString;
-                    result.Append(c);
-                    continue;
-                }
-                
-                if (inString)
-                {
-                    // 在字符串内部，需要转义控制字符
-                    switch (c)
-                    {
-                        case '\n': // 0x0A
-                            result.Append("\\n");
-                            break;
-                        case '\r': // 0x0D
-                            result.Append("\\r");
-                            break;
-                        case '\t': // 0x09
-                            result.Append("\\t");
-                            break;
-                        case '\b': // 0x08
-                            result.Append("\\b");
-                            break;
-                        case '\f': // 0x0C
-                            result.Append("\\f");
-                            break;
-                        default:
-                            if (c < 0x20)
-                            {
-                                // 其他控制字符使用 Unicode 转义
-                                result.Append($"\\u{(int)c:X4}");
-                            }
-                            else
-                            {
-                                result.Append(c);
-                            }
-                            break;
-                    }
-                }
-                else
-                {
-                    // 在字符串外部，直接添加
-                    result.Append(c);
-                }
-            }
-            
-            return result.ToString();
-        }
-
         private async Task<List<Note>> SaveNotes(List<Note> notes, string? overrideNotesPath = null)
         {
             var savedNotes = new List<Note>();
-            var notesPath = overrideNotesPath ?? _settings.NotesPath;  // 使用 notes 子目录
+            var notesPath = overrideNotesPath ?? _vaultSettings.NotesPath;
             if (string.IsNullOrEmpty(notesPath)) return savedNotes;
 
             Directory.CreateDirectory(notesPath);
 
-            // 首先创建所有必要的目录结构
             var directoriesToCreate = new HashSet<string>();
             foreach (var note in notes)
             {
@@ -849,16 +655,15 @@ namespace TaskRunner.Services
                 var directory = Path.GetDirectoryName(fullPath) ?? throw new InvalidOperationException($"无法获取目录：{fullPath}");
                 directoriesToCreate.Add(directory);
             }
-            
+
             foreach (var directory in directoriesToCreate)
             {
                 Directory.CreateDirectory(directory);
             }
 
-            // 并行写入文件
             var options = new ParallelOptions { MaxDegreeOfParallelism = 4 };
             var savedNotesSync = new System.Collections.Concurrent.ConcurrentBag<Note>();
-            
+
             await Parallel.ForEachAsync(notes, options, async (note, ct) =>
             {
                 try
@@ -868,12 +673,11 @@ namespace TaskRunner.Services
                     savedNotesSync.Add(note);
                     _logger.LogInformation("保存笔记：{Path}", note.Path);
 
-                    // 自动为该笔记生成 Anki 记忆卡片
                     try
                     {
                         var vaultPath = Path.GetDirectoryName(notesPath);
                         var cardsRoot = string.IsNullOrEmpty(vaultPath) ? "" : System.IO.Path.Combine(vaultPath, "cards");
-                        var vaultId = _settings.GetVaults().FirstOrDefault(v => v.Path == vaultPath)?.Id ?? "";
+                        var vaultId = _vaultSettings.GetVaults().FirstOrDefault(v => v.Path == vaultPath)?.Id ?? "";
                         var taskId = _taskManager.CreateTask("anki_card_generate", new Dictionary<string, string>
                         {
                             ["notePath"] = note.Path,
@@ -905,7 +709,7 @@ namespace TaskRunner.Services
                     _logger.LogError(ex, "保存笔记失败：{Path}", note.Path);
                 }
             });
-            
+
             savedNotes.AddRange(savedNotesSync);
             return savedNotes;
         }
@@ -913,14 +717,6 @@ namespace TaskRunner.Services
         private string GetSystemPrompt(TaskRunner.Contracts.Scene.AppScene? scene = null)
         {
             return _scenePromptService.GetTemplate(scene).SplitSystemPrompt;
-        }
-
-        public class Note
-        {
-            public string Path { get; set; } = string.Empty;
-            public string Title { get; set; } = string.Empty;
-            public string Summary { get; set; } = string.Empty;
-            public string Content { get; set; } = string.Empty;
         }
     }
 }

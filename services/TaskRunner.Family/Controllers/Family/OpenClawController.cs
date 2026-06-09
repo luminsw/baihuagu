@@ -9,10 +9,14 @@ namespace TaskRunner.Controllers;
 public class OpenClawController : ControllerBase
 {
     private readonly IOpenClawTaskService _taskService;
+    private readonly ILocalAiConfigService _localAiConfig;
+    private readonly IOpenClawModelProfileService _modelProfile;
 
-    public OpenClawController(IOpenClawTaskService taskService)
+    public OpenClawController(IOpenClawTaskService taskService, ILocalAiConfigService localAiConfig, IOpenClawModelProfileService modelProfile)
     {
         _taskService = taskService;
+        _localAiConfig = localAiConfig;
+        _modelProfile = modelProfile;
     }
 
     [HttpPost("tasks")]
@@ -81,14 +85,14 @@ public class OpenClawController : ControllerBase
     [HttpGet("local-ai-config")]
     public async Task<ActionResult<OpenClawLocalAiConfigDto>> GetLocalAiConfig()
     {
-        var config = await _taskService.GetLocalAiConfigAsync();
+        var config = await _localAiConfig.GetLocalAiConfigAsync();
         return Ok(config);
     }
 
     [HttpPost("local-ai-config")]
     public async Task<IActionResult> SaveLocalAiConfig([FromBody] SaveOpenClawLocalAiConfigRequest request)
     {
-        var success = await _taskService.SaveLocalAiConfigAsync(request);
+        var success = await _localAiConfig.SaveLocalAiConfigAsync(request);
         if (!success)
         {
             return BadRequest(new { error = "保存配置失败" });
@@ -103,7 +107,7 @@ public class OpenClawController : ControllerBase
         {
             return BadRequest(new { error = "provider 参数不能为空" });
         }
-        var models = await _taskService.ScanLocalModelsAsync(provider);
+        var models = await _localAiConfig.ScanLocalModelsAsync(provider);
         return Ok(models);
     }
 
@@ -114,21 +118,21 @@ public class OpenClawController : ControllerBase
         {
             return BadRequest(new { error = "provider 不能为空" });
         }
-        var result = await _taskService.DetectAndStartLocalAiAsync(request.Provider);
+        var result = await _localAiConfig.DetectAndStartLocalAiAsync(request.Provider);
         return Ok(result);
     }
 
     [HttpGet("default-model")]
     public async Task<ActionResult<OpenClawDefaultModelDto>> GetDefaultModel()
     {
-        var result = await _taskService.GetDefaultModelAsync();
+        var result = await _modelProfile.GetDefaultModelAsync();
         return Ok(result);
     }
 
     [HttpPost("default-model")]
     public async Task<IActionResult> SetDefaultModel([FromBody] SetOpenClawDefaultModelRequest request)
     {
-        var success = await _taskService.SetDefaultModelAsync(request.Model);
+        var success = await _modelProfile.SetDefaultModelAsync(request.Model);
         if (!success)
         {
             return BadRequest(new { error = "设置默认模型失败" });
@@ -143,7 +147,7 @@ public class OpenClawController : ControllerBase
         {
             return BadRequest(new { error = "provider 不能为空" });
         }
-        var success = await _taskService.SyncLocalModelsToOpenClawAsync(request.Provider);
+        var success = await _localAiConfig.SyncLocalModelsToOpenClawAsync(request.Provider);
         if (!success)
         {
             return BadRequest(new { error = $"同步 {request.Provider} 模型到 OpenClaw 失败" });
@@ -154,7 +158,7 @@ public class OpenClawController : ControllerBase
     [HttpGet("model-profiles")]
     public async Task<ActionResult<ModelProfileListDto>> GetModelProfiles()
     {
-        var result = await _taskService.GetModelProfilesAsync();
+        var result = await _modelProfile.GetModelProfilesAsync();
         return Ok(result);
     }
 
@@ -165,7 +169,7 @@ public class OpenClawController : ControllerBase
         {
             return BadRequest(new { error = "profile 不能为空" });
         }
-        var success = await _taskService.SetModelProfileAsync(request.Profile);
+        var success = await _modelProfile.SetModelProfileAsync(request.Profile);
         if (!success)
         {
             return BadRequest(new { error = $"设置模型配置 {request.Profile} 失败" });

@@ -59,10 +59,10 @@ namespace TaskRunner.Services
         private async Task RunIndexCheckAsync(CancellationToken stoppingToken)
         {
             using var scope = _serviceProvider.CreateScope();
-            var settings = scope.ServiceProvider.GetRequiredService<SettingsService>();
+            var vaultSettings = scope.ServiceProvider.GetRequiredService<VaultSettingsService>();
             var indexer = scope.ServiceProvider.GetRequiredService<VaultNoteIndexer>();
 
-            var vaults = settings.GetVaults();
+            var vaults = vaultSettings.GetVaults();
             if (vaults.Count == 0)
             {
                 _logger.LogDebug("没有配置知识库，跳过索引检查");

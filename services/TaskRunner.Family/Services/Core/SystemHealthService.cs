@@ -15,20 +15,20 @@ namespace TaskRunner.Services
         private readonly ILogger<SystemHealthService> _logger;
         private readonly IHttpClientFactory _httpClientFactory;
         private readonly AiConfigService _aiConfigService;
-        private readonly SettingsService _settingsService;
+        private readonly VaultSettingsService _vaultSettings;
         private readonly AiMetricsService _metrics;
 
         public SystemHealthService(
             IHttpClientFactory httpClientFactory,
             ILogger<SystemHealthService> logger,
             AiConfigService aiConfigService,
-            SettingsService settingsService,
+            VaultSettingsService vaultSettings,
             AiMetricsService metrics)
         {
             _httpClientFactory = httpClientFactory;
             _logger = logger;
             _aiConfigService = aiConfigService;
-            _settingsService = settingsService;
+            _vaultSettings = vaultSettings;
             _metrics = metrics;
         }
 
@@ -47,14 +47,14 @@ namespace TaskRunner.Services
 
             var wallClock = Stopwatch.StartNew();
             var results = await Task.WhenAll(
-                WithCheckDurationAsync(() => CheckGitAsync(cancellationToken)),
-                WithCheckDurationAsync(() => CheckObsidianAsync(cancellationToken)),
-                WithCheckDurationAsync(() => CheckOllamaAsync(cancellationToken)),
-                WithCheckDurationAsync(() => CheckPythonAsync(cancellationToken)),
-                WithCheckDurationAsync(() => CheckNodeAsync(cancellationToken)),
-                WithCheckDurationAsync(() => CheckPipAsync(cancellationToken)),
-                WithCheckDurationAsync(() => CheckApiKeyAsync(cancellationToken)),
-                WithCheckDurationAsync(() => CheckVaultPathAsync(cancellationToken)));
+                HealthCheckHelper.WithCheckDurationAsync(() => CheckGitAsync(cancellationToken)),
+                HealthCheckHelper.WithCheckDurationAsync(() => CheckObsidianAsync(cancellationToken)),
+                HealthCheckHelper.WithCheckDurationAsync(() => CheckOllamaAsync(cancellationToken)),
+                HealthCheckHelper.WithCheckDurationAsync(() => CheckPythonAsync(cancellationToken)),
+                HealthCheckHelper.WithCheckDurationAsync(() => CheckNodeAsync(cancellationToken)),
+                HealthCheckHelper.WithCheckDurationAsync(() => CheckPipAsync(cancellationToken)),
+                HealthCheckHelper.WithCheckDurationAsync(() => CheckApiKeyAsync(cancellationToken)),
+                HealthCheckHelper.WithCheckDurationAsync(() => CheckVaultPathAsync(cancellationToken)));
             wallClock.Stop();
             report.TotalWallClockMs = wallClock.ElapsedMilliseconds;
 
@@ -86,30 +86,9 @@ namespace TaskRunner.Services
             return report;
         }
 
-        private static async Task<ComponentStatus> WithCheckDurationAsync(Func<Task<ComponentStatus>> check)
-        {
-            var sw = Stopwatch.StartNew();
-            var result = await check().ConfigureAwait(false);
-            sw.Stop();
-            result.CheckDurationMs = sw.ElapsedMilliseconds;
-            return result;
-        }
-
-        private static void TryKill(Process? process)
-        {
-            if (process is null || process.HasExited) return;
-            try
-            {
-                process.Kill(entireProcessTree: true);
-            }
-            catch
-            {
-                /* ignore */
-            }
-        }
 
         /// <summary>在 timeoutMs 内等待退出；若外层 cancellationToken 取消则向上抛出。</summary>
-        private static async Task<(bool exitedOk, int exitCode, string stdout)> WaitForProcessAsync(
+        private async Task<(bool exitedOk, int exitCode, string stdout)> WaitForProcessAsync(
             Process process,
             int timeoutMs,
             CancellationToken cancellationToken)
@@ -125,7 +104,7 @@ namespace TaskRunner.Services
             }
             catch (OperationCanceledException)
             {
-                TryKill(process);
+                HealthCheckHelper.TryKill(process);
                 cancellationToken.ThrowIfCancellationRequested();
                 return (false, -1, "");
             }
@@ -159,7 +138,7 @@ namespace TaskRunner.Services
                 {
                     Name = "Git",
                     Status = "healthy",
-                    Version = ExtractVersion(output),
+                    Version = HealthCheckHelper.ExtractVersion(output),
                     Message = "Git 已安装"
                 };
             }
@@ -462,7 +441,7 @@ namespace TaskRunner.Services
                         {
                             Name = "Python",
                             Status = "healthy",
-                            Version = ExtractVersion(output),
+                            Version = HealthCheckHelper.ExtractVersion(output),
                             Message = $"Python 已安装 ({cmd})"
                         };
                     }
@@ -521,7 +500,7 @@ namespace TaskRunner.Services
                 {
                     Name = "Node.js",
                     Status = "healthy",
-                    Version = ExtractVersion(output),
+                    Version = HealthCheckHelper.ExtractVersion(output),
                     Message = "Node.js 已安装"
                 };
             }
@@ -572,7 +551,7 @@ namespace TaskRunner.Services
                         {
                             Name = "PIP",
                             Status = "healthy",
-                            Version = ExtractVersion(output),
+                            Version = HealthCheckHelper.ExtractVersion(output),
                             Message = $"PIP 已安装 ({cmd})"
                         };
                     }
@@ -594,23 +573,6 @@ namespace TaskRunner.Services
                 Status = "warning",
                 Message = "PIP 未安装（可选，用于 Python 包管理）"
             };
-        }
-
-        private static bool IsLocalAiProvider(TaskRunner.Models.AiProviderConfig provider)
-        {
-            if (string.IsNullOrWhiteSpace(provider?.AiBaseUrl))
-                return false;
-            var url = provider.AiBaseUrl.ToLowerInvariant();
-            return url.Contains("localhost") || url.Contains("127.0.0.1") || url.Contains("0.0.0.0");
-        }
-
-        private string? ExtractVersion(string output)
-        {
-            if (string.IsNullOrWhiteSpace(output))
-                return null;
-
-            var match = System.Text.RegularExpressions.Regex.Match(output, @"[vV]?(\d+\.\d+\.\d+)");
-            return match.Success ? match.Value : output.Trim();
         }
 
         /// <summary>
@@ -635,7 +597,7 @@ namespace TaskRunner.Services
 
                 var mainProvider = providers.FirstOrDefault(p => p.IsMain) ?? providers.First();
                 var apiKey = _aiConfigService.GetApiKey(mainProvider.Id);
-                var isLocalProvider = IsLocalAiProvider(mainProvider);
+                var isLocalProvider = HealthCheckHelper.IsLocalAiProvider(mainProvider);
 
                 if (string.IsNullOrEmpty(apiKey))
                 {
@@ -709,7 +671,7 @@ namespace TaskRunner.Services
             {
                 cancellationToken.ThrowIfCancellationRequested();
 
-                var vaultPath = _settingsService.VaultPath;
+                var vaultPath = _vaultSettings.VaultPath;
                 
                 if (string.IsNullOrWhiteSpace(vaultPath))
                 {

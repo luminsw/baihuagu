@@ -15,7 +15,7 @@ namespace TaskRunner.Services;
 public class ModelBenchmarkService
 {
     private readonly AiClientService _aiClient;
-    private readonly SettingsService _settings;
+    private readonly AiSettingsService _aiSettings;
     private readonly LocalModelDeploymentService _localDeployment;
     private readonly IDbContextFactory<AIDbContext> _dbFactory;
         private readonly AiMetricsService _metrics;
@@ -26,14 +26,14 @@ public class ModelBenchmarkService
 
     public ModelBenchmarkService(
         AiClientService aiClient,
-        SettingsService settings,
+        AiSettingsService aiSettings,
         LocalModelDeploymentService localDeployment,
         IDbContextFactory<AIDbContext> dbFactory,
             AiMetricsService metrics,
         ILogger<ModelBenchmarkService> logger)
     {
         _aiClient = aiClient;
-        _settings = settings;
+        _aiSettings = aiSettings;
         _localDeployment = localDeployment;
         _dbFactory = dbFactory;
             _metrics = metrics;
@@ -91,7 +91,7 @@ public class ModelBenchmarkService
 
         try
         {
-            var provider = _settings.GetAiProvider(model.ProviderId)
+            var provider = _aiSettings.GetAiProvider(model.ProviderId)
                 ?? throw new Exception($"未找到 AI 提供商：{model.ProviderId}");
 
             var allPrompts = BenchmarkPrompts.GetPromptsByCategory(model.Category);
@@ -139,7 +139,7 @@ public class ModelBenchmarkService
             // 取消后卸载本地模型释放资源
             try
             {
-                var provider = _settings.GetAiProvider(model.ProviderId);
+                var provider = _aiSettings.GetAiProvider(model.ProviderId);
                 if (provider != null && CanUnloadLocally(provider))
                 {
                     _logger.LogInformation("Benchmark 取消后卸载本地模型: {Provider} {Model}", provider.Id, model.ModelId);

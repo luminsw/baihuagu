@@ -110,7 +110,7 @@ public class ChatMemoryService
     public List<ChatHistoryItem> TrimByTokenBudget(List<ChatHistoryItem> history, string model, int reserveForOutput = 2000, int reserveForSystem = 1000)
     {
         if (history == null || history.Count == 0)
-            return history;
+            return history ?? new List<ChatHistoryItem>();
 
         var budget = GetContextWindowTokens(model) - reserveForOutput - reserveForSystem;
         if (budget < 1000) budget = 1000; // 最低保底
@@ -529,31 +529,4 @@ public class ChatMemoryService
 
         return messages;
     }
-}
-
-/// <summary>
-/// 记忆上下文：摘要 + 最近完整对话
-/// </summary>
-public class MemoryContext
-{
-    /// <summary>
-    /// 早期对话的压缩摘要
-    /// </summary>
-    public string? Summary { get; set; }
-
-    /// <summary>
-    /// 最近的完整对话历史（已按 Token 预算截断）
-    /// </summary>
-    public List<ChatHistoryItem> RecentHistory { get; set; } = new();
-}
-
-/// <summary>
-/// 语义检索到的记忆条目
-/// </summary>
-public class RetrievedMemory
-{
-    public string UserContent { get; set; } = "";
-    public string AssistantContent { get; set; } = "";
-    public double Similarity { get; set; }
-    public int Round { get; set; }
 }

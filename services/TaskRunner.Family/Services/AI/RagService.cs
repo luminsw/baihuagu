@@ -10,18 +10,18 @@ public class RagService
 {
     private readonly VaultNoteIndexer _vaultNoteIndexer;
     private readonly EmbeddingService _embeddingService;
-    private readonly SettingsService _settings;
+    private readonly VaultSettingsService _vaultSettings;
     private readonly ILogger<RagService> _logger;
 
     public RagService(
         VaultNoteIndexer vaultNoteIndexer,
         EmbeddingService embeddingService,
-        SettingsService settings,
+        VaultSettingsService vaultSettings,
         ILogger<RagService> logger)
     {
         _vaultNoteIndexer = vaultNoteIndexer;
         _embeddingService = embeddingService;
-        _settings = settings;
+        _vaultSettings = vaultSettings;
         _logger = logger;
     }
 
@@ -77,7 +77,7 @@ public class RagService
     {
         try
         {
-            var activeVault = _settings.GetActiveVault();
+            var activeVault = _vaultSettings.GetActiveVault();
             if (activeVault == null) return null;
 
             _logger.LogInformation("RAG 检索: vault={VaultId}, query={Query}", activeVault.Id, query);

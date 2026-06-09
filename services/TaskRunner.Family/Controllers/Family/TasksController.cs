@@ -1,6 +1,7 @@
 using TaskRunner.Core.Shared;
 using TaskRunner.Services;
 using System.Text.Json;
+using TaskRunner.Helpers;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.AI;
 using TaskRunner.Models;
@@ -16,7 +17,8 @@ namespace TaskRunner.Controllers
     public class TasksController : ControllerBase
     {
         private readonly Services.TaskManager _taskManager;
-        private readonly Services.SettingsService _settings;
+        private readonly Services.AiSettingsService _aiSettings;
+        private readonly Services.VaultSettingsService _vaultSettings;
         private readonly Services.AtomNoteSplitter _atomNoteSplitter;
         private readonly Services.AiClientService _aiClientService;
         private readonly Services.LocalAiAutoStarter _localAiAutoStarter;
@@ -30,7 +32,8 @@ namespace TaskRunner.Controllers
 
         public TasksController(
             Services.TaskManager taskManager,
-            Services.SettingsService settings,
+            Services.AiSettingsService aiSettings,
+            Services.VaultSettingsService vaultSettings,
             Services.AtomNoteSplitter atomNoteSplitter,
             Services.AiClientService aiClientService,
             Services.LocalAiAutoStarter localAiAutoStarter,
@@ -43,7 +46,8 @@ namespace TaskRunner.Controllers
             IHostApplicationLifetime appLifetime)
         {
             _taskManager = taskManager;
-            _settings = settings;
+            _aiSettings = aiSettings;
+            _vaultSettings = vaultSettings;
             _atomNoteSplitter = atomNoteSplitter;
             _aiClientService = aiClientService;
             _localAiAutoStarter = localAiAutoStarter;
@@ -58,7 +62,7 @@ namespace TaskRunner.Controllers
 
         private AiProviderConfig? ResolveProvider(string modelName)
         {
-            var providers = _settings.GetAiProviders();
+            var providers = _aiSettings.GetAiProviders();
             if (string.IsNullOrWhiteSpace(modelName))
                 return providers.FirstOrDefault(p => p.IsMain) ?? providers.FirstOrDefault();
 
@@ -83,7 +87,7 @@ namespace TaskRunner.Controllers
         {
             for (int i = 0; i <= retryCount; i++)
             {
-                var vault = _settings.GetVaults().FirstOrDefault(v => v.Id == vaultId);
+                var vault = _vaultSettings.GetVaults().FirstOrDefault(v => v.Id == vaultId);
                 if (vault != null) return vault;
                 if (i < retryCount)
                 {
@@ -148,7 +152,7 @@ namespace TaskRunner.Controllers
             var model = task.Parameters?.GetValueOrDefault("model");
             if (!string.IsNullOrEmpty(providerId) && !string.IsNullOrEmpty(model))
             {
-                var provider = _settings.GetAiProviders().FirstOrDefault(p => p.Id.Equals(providerId, StringComparison.OrdinalIgnoreCase));
+                var provider = _aiSettings.GetAiProviders().FirstOrDefault(p => p.Id.Equals(providerId, StringComparison.OrdinalIgnoreCase));
                 if (IsLocalProvider(provider))
                 {
                     _ = Task.Run(async () =>
@@ -192,7 +196,7 @@ namespace TaskRunner.Controllers
             var model = retryRequest?.Model ?? task.Parameters?.GetValueOrDefault("model") ?? "";
             var vaultId = task.Parameters?.GetValueOrDefault("vaultId") ?? "";
             var industry = task.Parameters?.GetValueOrDefault("industry") ?? "";
-            var timeoutMinutes = retryRequest?.TimeoutMinutes > 0 ? retryRequest.TimeoutMinutes : _settings.AiRequestTimeoutMinutes;
+            var timeoutMinutes = retryRequest?.TimeoutMinutes > 0 ? retryRequest.TimeoutMinutes : _aiSettings.AiRequestTimeoutMinutes;
 
             _logger.LogInformation("[RetryDebug] taskId={TaskId}, rawModel={RawModel}, industry={Industry}, vaultId={VaultId}, retryRequest.Model={RetryModel}, timeout={Timeout}",
                 taskId, model, industry, vaultId, retryRequest?.Model, timeoutMinutes);
@@ -209,14 +213,14 @@ namespace TaskRunner.Controllers
             }
             else
             {
-                modelName = _settings.AiModel;
+                modelName = _aiSettings.AiModel;
             }
-            _logger.LogInformation("[RetryDebug] resolved modelName={ModelName}, settings.AiModel={SettingsModel}", modelName, _settings.AiModel);
+            _logger.LogInformation("[RetryDebug] resolved modelName={ModelName}, settings.AiModel={SettingsModel}", modelName, _aiSettings.AiModel);
 
             var retryProvider = ResolveProvider(modelName);
             _logger.LogInformation("[RetryDebug] resolved provider={ProviderId}", retryProvider?.Id ?? "(null)");
             var retryVault = !string.IsNullOrWhiteSpace(vaultId)
-                ? _settings.GetVaults().FirstOrDefault(v => v.Id == vaultId)
+                ? _vaultSettings.GetVaults().FirstOrDefault(v => v.Id == vaultId)
                 : null;
             var retryVaultName = retryVault?.Name ?? "";
             
@@ -406,7 +410,7 @@ namespace TaskRunner.Controllers
                 }
                 else
                 {
-                    modelName = _settings.AiModel;
+                    modelName = _aiSettings.AiModel;
                 }
 
                 var provider = ResolveProvider(modelName);
@@ -414,7 +418,7 @@ namespace TaskRunner.Controllers
                     request.Query, request.VaultId ?? "(null)", request.SaveToVault, request.AutoSplit);
 
                 var vault = !string.IsNullOrWhiteSpace(request.VaultId)
-                    ? _settings.GetVaults().FirstOrDefault(v => v.Id == request.VaultId)
+                    ? _vaultSettings.GetVaults().FirstOrDefault(v => v.Id == request.VaultId)
                     : null;
                 var vaultName = vault?.Name ?? "";
                 
@@ -449,7 +453,7 @@ namespace TaskRunner.Controllers
 
                 _ = Task.Run(async () =>
                 {
-                    using var cts = _taskManager.CreateTaskCts(taskId, TimeSpan.FromMinutes(_settings.AiRequestTimeoutMinutes));
+                    using var cts = _taskManager.CreateTaskCts(taskId, TimeSpan.FromMinutes(_aiSettings.AiRequestTimeoutMinutes));
                     try
                     {
                         await _taskManager.UpdateStatus(taskId, RunnerTaskStatus.Running);
@@ -483,7 +487,7 @@ namespace TaskRunner.Controllers
                             if (string.IsNullOrEmpty(vaultPath))
                             {
                                 _logger.LogError("AI 任务找不到知识库: VaultId={VaultId}, 可用知识库 IDs={AvailableVaultIds}",
-                                    request.VaultId ?? "(null)", string.Join(", ", _settings.GetVaults().Select(v => v.Id)));
+                                    request.VaultId ?? "(null)", string.Join(", ", _vaultSettings.GetVaults().Select(v => v.Id)));
                                 await _taskManager.UpdateStatus(taskId, RunnerTaskStatus.Failed, "必须指定有效的知识库");
                                 return;
                             }
@@ -559,7 +563,7 @@ namespace TaskRunner.Controllers
                         else
                         {
                             _logger.LogWarning("AI 查询任务超时：{TaskId}", taskId);
-                            var timeoutMin = _settings.AiRequestTimeoutMinutes;
+                            var timeoutMin = _aiSettings.AiRequestTimeoutMinutes;
                             await _taskManager.UpdateStatus(taskId, RunnerTaskStatus.Timeout,
                                 $"AI 调用超时（{timeoutMin} 分钟）| 模型: {modelName} | 提示词: {TruncateForError(request.Query, 100)}");
                         }
@@ -621,10 +625,15 @@ namespace TaskRunner.Controllers
                 }
                 else
                 {
-                    modelName = _settings.AiModel;
+                    modelName = _aiSettings.AiModel;
                 }
 
                 var provider = ResolveProvider(modelName);
+                if (provider == null)
+                {
+                    return BadRequest(new { error = "未找到可用的 AI 提供商，请检查模型配置" });
+                }
+
                 _logger.LogInformation("创建 AI 知识库生成任务: Industry={Industry}, Keyword={Keyword}, Model={Model}, NoteCount={NoteCount}",
                     request.Industry, request.Keyword, modelName, noteCount);
 
@@ -633,18 +642,15 @@ namespace TaskRunner.Controllers
                     ["industry"] = request.Industry,
                     ["keyword"] = request.Keyword,
                     ["model"] = modelName,
-                    ["noteCount"] = noteCount.ToString()
+                    ["noteCount"] = noteCount.ToString(),
+                    ["providerId"] = provider.Id,
                 };
-                if (provider != null)
-                {
-                    parameters["providerId"] = provider.Id;
-                }
 
                 var taskId = _taskManager.CreateTask("ai_vault_generation", parameters);
 
                 _ = Task.Run(async () =>
                 {
-                    using var cts = _taskManager.CreateTaskCts(taskId, TimeSpan.FromMinutes(_settings.AiRequestTimeoutMinutes * 4));
+                    using var cts = _taskManager.CreateTaskCts(taskId, TimeSpan.FromMinutes(_aiSettings.AiRequestTimeoutMinutes * 4));
                     using var linkedCts = CancellationTokenSource.CreateLinkedTokenSource(_appLifetime.ApplicationStopping, cts.Token);
 
                     var totalSteps = 4 + noteCount;
@@ -683,7 +689,7 @@ namespace TaskRunner.Controllers
                         // Step 4: 创建知识库
                         currentStep++;
                         await _taskManager.UpdateProgress(taskId, currentStep, totalSteps, $"创建知识库: {vaultName}...");
-                        var vault = _settings.AddVault(vaultName, "", request.Industry);
+                        var vault = _vaultSettings.AddVault(vaultName, "", request.Industry);
                         var vaultId = vault.Id;
                         var vaultPath = vault.Path;
                         _logger.LogInformation("[AiVaultGeneration] 任务 {TaskId} 创建知识库: {VaultId}", taskId, vaultId);
@@ -756,7 +762,7 @@ namespace TaskRunner.Controllers
                         else
                         {
                             _logger.LogWarning("AI 知识库生成任务超时：{TaskId}", taskId);
-                            var timeoutMin = _settings.AiRequestTimeoutMinutes * 4;
+                            var timeoutMin = _aiSettings.AiRequestTimeoutMinutes * 4;
                             await _taskManager.UpdateStatus(taskId, RunnerTaskStatus.Timeout,
                                 $"AI 知识库生成超时（{timeoutMin} 分钟）| 模型: {modelName}");
                         }
@@ -791,7 +797,7 @@ namespace TaskRunner.Controllers
         }
 
         private async Task<string> GenerateVaultNameAsync(
-            AiProviderConfig? provider, string model, string industry, string keyword,
+            AiProviderConfig provider, string model, string industry, string keyword,
             ChatOptions options, CancellationToken ct)
         {
             var prompt = $"你是知识库命名专家。请为\"{industry}\"领域的\"{keyword}\"生成一个简短、准确、有吸引力的中文知识库名称（2-8个字）。只返回名称本身，不要有任何解释、标点或书名号。";
@@ -810,7 +816,7 @@ namespace TaskRunner.Controllers
         }
 
         private async Task<string> GenerateSystemPromptAsync(
-            AiProviderConfig? provider, string model, string industry,
+            AiProviderConfig provider, string model, string industry,
             ChatOptions options, CancellationToken ct)
         {
             var prompt = $"""
@@ -838,7 +844,7 @@ namespace TaskRunner.Controllers
         }
 
         private async Task<List<NoteOutlineItem>> GenerateNoteListAsync(
-            AiProviderConfig? provider, string model, string vaultName, string industry, string keyword,
+            AiProviderConfig provider, string model, string vaultName, string industry, string keyword,
             string systemPrompt, int noteCount, ChatOptions options, CancellationToken ct)
         {
             var prompt = $"{systemPrompt}\n\n请为知识库\"{vaultName}\"（{industry}-{keyword}）生成 {noteCount} 条笔记的大纲。每条笔记包含：title（标题，简洁专业）、category（分类，2-4字）。\n\n要求：\n1. 覆盖{keyword}的核心知识点，由浅入深\n2. 标题要具体，避免过于笼统\n3. 分类要合理，同一知识库内分类不宜超过5个\n4. 必须严格返回 JSON 数组格式，不要加 markdown 代码块标记\n\n格式示例：\n[{{\"title\": \"示例标题\", \"category\": \"示例分类\"}}]";
@@ -859,7 +865,7 @@ namespace TaskRunner.Controllers
 
             try
             {
-                var outline = JsonSerializer.Deserialize<List<NoteOutlineItem>>(jsonStr, new JsonSerializerOptions { PropertyNameCaseInsensitive = true });
+                var outline = JsonSerializer.Deserialize<List<NoteOutlineItem>>(jsonStr, JsonHelper.CaseInsensitive);
                 if (outline == null || outline.Count == 0) throw new Exception("解析为空");
                 return outline.Take(noteCount).ToList();
             }
@@ -887,7 +893,7 @@ namespace TaskRunner.Controllers
         }
 
         private async Task<string> GenerateNoteContentAsync(
-            AiProviderConfig? provider, string model, string title, string category, string vaultName,
+            AiProviderConfig provider, string model, string title, string category, string vaultName,
             string systemPrompt, ChatOptions options, CancellationToken ct)
         {
             var prompt = $"""
@@ -939,7 +945,7 @@ namespace TaskRunner.Controllers
             // 其次从知识库的 Industry 字段推导
             if (target == null && !string.IsNullOrWhiteSpace(vaultId))
             {
-                var vault = _settings.GetVaults().FirstOrDefault(v => v.Id == vaultId);
+                var vault = _vaultSettings.GetVaults().FirstOrDefault(v => v.Id == vaultId);
                 target = vault?.Industry;
                 _logger.LogInformation("[SceneDebug] looked up vault: name={VaultName}, industry={VaultIndustry}", vault?.Name, vault?.Industry);
             }
@@ -963,7 +969,7 @@ namespace TaskRunner.Controllers
 
         private async Task<AiCallResult> CallAiApiAsync(string query, string model, CancellationToken cancellationToken, string? customSystemPrompt = null, AppScene? scene = null, string? industry = null)
         {
-            var providers = _settings.GetAiProviders();
+            var providers = _aiSettings.GetAiProviders();
 
             // 根据模型名称找到对应的 provider（优先匹配模型名，否则回退到主 provider）
             var provider = providers.FirstOrDefault(p =>

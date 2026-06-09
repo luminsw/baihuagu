@@ -17,14 +17,14 @@ namespace TaskRunner.Controllers
     {
         private readonly DeviceService _deviceService;
         private readonly IHubContext<DeviceHub> _hubContext;
-        private readonly Services.SettingsService _settings;
+        private readonly Services.VaultSettingsService _vaultSettings;
         private readonly ILogger<DevicesController> _logger;
 
-        public DevicesController(DeviceService deviceService, IHubContext<DeviceHub> hubContext, Services.SettingsService settings, ILogger<DevicesController> logger)
+        public DevicesController(DeviceService deviceService, IHubContext<DeviceHub> hubContext, Services.VaultSettingsService vaultSettings, ILogger<DevicesController> logger)
         {
             _deviceService = deviceService;
             _hubContext = hubContext;
-            _settings = settings;
+            _vaultSettings = vaultSettings;
             _logger = logger;
         }
 
@@ -190,7 +190,7 @@ namespace TaskRunner.Controllers
             try
             {
                 // 获取知识库名称
-                var vaultName = _settings.GetVaults().FirstOrDefault(v => v.Id == request.VaultId)?.Name ?? request.VaultId ?? "";
+                var vaultName = _vaultSettings.GetVaults().FirstOrDefault(v => v.Id == request.VaultId)?.Name ?? request.VaultId ?? "";
 
                 // 将推送请求存入队列（供移动端轮询获取）
                 var pushRequest = _deviceService.AddPushRequest(request.DeviceId, device.DeviceName, request.VaultId, vaultName, request.Action);

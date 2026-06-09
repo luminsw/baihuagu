@@ -9,20 +9,20 @@ namespace TaskRunner.Services;
 /// </summary>
 public class AiFunctionService
 {
-    private readonly SettingsService _settings;
+    private readonly VaultSettingsService _vaultSettings;
     private readonly VaultNoteIndexer _vaultNoteIndexer;
     private readonly SystemHealthService _healthService;
     private readonly AnkiCardGenerator _cardGenerator;
     private readonly ILogger<AiFunctionService> _logger;
 
     public AiFunctionService(
-        SettingsService settings,
+        VaultSettingsService vaultSettings,
         VaultNoteIndexer vaultNoteIndexer,
         SystemHealthService healthService,
         AnkiCardGenerator cardGenerator,
         ILogger<AiFunctionService> logger)
     {
-        _settings = settings;
+        _vaultSettings = vaultSettings;
         _vaultNoteIndexer = vaultNoteIndexer;
         _healthService = healthService;
         _cardGenerator = cardGenerator;
@@ -53,7 +53,7 @@ public class AiFunctionService
     {
         try
         {
-            var activeVault = _settings.GetActiveVault();
+            var activeVault = _vaultSettings.GetActiveVault();
             if (activeVault == null)
                 return "当前未配置知识库，无法搜索。";
 
@@ -91,7 +91,7 @@ public class AiFunctionService
     [Description("列出当前已配置的所有知识库名称和路径。当用户询问有哪些知识库、知识库配置情况时使用。")]
     private Task<string> ListVaultsAsync()
     {
-        var vaults = _settings.GetVaults();
+        var vaults = _vaultSettings.GetVaults();
         if (vaults.Count == 0)
             return Task.FromResult("当前未配置任何知识库。");
 
@@ -109,7 +109,7 @@ public class AiFunctionService
     {
         try
         {
-            var activeVault = _settings.GetActiveVault();
+            var activeVault = _vaultSettings.GetActiveVault();
             if (activeVault == null)
                 return "当前未配置知识库，无法保存笔记。请先配置知识库。";
 

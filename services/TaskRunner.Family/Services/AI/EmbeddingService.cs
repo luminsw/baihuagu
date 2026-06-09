@@ -14,7 +14,8 @@ namespace TaskRunner.Services
     public class EmbeddingService
     {
         private readonly AiClientService _aiClientService;
-        private readonly SettingsService _settings;
+        private readonly AiSettingsService _aiSettings;
+        private readonly VaultSettingsService _vaultSettings;
         private readonly IDbContextFactory<AIDbContext> _dbFactory;
         private readonly TaskRunner.Core.Shared.Security.ApiKeyProtectionService _protectionService;
         private readonly ILogger<EmbeddingService> _logger;
@@ -23,13 +24,15 @@ namespace TaskRunner.Services
 
         public EmbeddingService(
             AiClientService aiClientService,
-            SettingsService settings,
+            AiSettingsService aiSettings,
+            VaultSettingsService vaultSettings,
             IDbContextFactory<AIDbContext> dbFactory,
             TaskRunner.Core.Shared.Security.ApiKeyProtectionService protectionService,
             ILogger<EmbeddingService> logger)
         {
             _aiClientService = aiClientService;
-            _settings = settings;
+            _aiSettings = aiSettings;
+            _vaultSettings = vaultSettings;
             _dbFactory = dbFactory;
             _protectionService = protectionService;
             _logger = logger;
@@ -42,7 +45,7 @@ namespace TaskRunner.Services
         {
             try
             {
-                return _settings.GetActiveVault()?.Id;
+                return _vaultSettings.GetActiveVault()?.Id;
             }
             catch
             {
@@ -58,8 +61,8 @@ namespace TaskRunner.Services
             var config = GetEmbeddingConfig();
             if (config != null)
                 return !string.IsNullOrEmpty(config.BaseUrl) && !string.IsNullOrEmpty(config.Model);
-            return !string.IsNullOrEmpty(_settings.SemanticEmbeddingUrl) && 
-                   !string.IsNullOrEmpty(_settings.SemanticEmbeddingModel);
+            return !string.IsNullOrEmpty(_aiSettings.SemanticEmbeddingUrl) && 
+                   !string.IsNullOrEmpty(_aiSettings.SemanticEmbeddingModel);
         }
 
         private EmbeddingConfig? GetEmbeddingConfig()
@@ -101,7 +104,7 @@ namespace TaskRunner.Services
                     if (!string.IsNullOrEmpty(config.EncryptedApiKey))
                     {
                         try { apiKey = _protectionService.Decrypt(config.EncryptedApiKey); }
-                        catch { }
+                        catch (Exception ex) { _logger.LogDebug(ex, "操作失败"); }
                     }
                     generator = _aiClientService.CreateEmbeddingGenerator(config.BaseUrl, config.Model, apiKey);
                     providerId = config.ProviderId;
@@ -110,7 +113,7 @@ namespace TaskRunner.Services
                 else
                 {
                     generator = _aiClientService.CreateEmbeddingGenerator();
-                    modelName = _settings.SemanticEmbeddingModel;
+                    modelName = _aiSettings.SemanticEmbeddingModel;
                 }
 
                 var result = await generator.GenerateAsync([text.Trim()]);
@@ -129,7 +132,7 @@ namespace TaskRunner.Services
             catch (Exception ex)
             {
                 sw.Stop();
-                await RecordEmbeddingMetricAsync("embedding", _settings.SemanticEmbeddingModel, sw.ElapsedMilliseconds, false, ex.Message);
+                await RecordEmbeddingMetricAsync("embedding", _aiSettings.SemanticEmbeddingModel, sw.ElapsedMilliseconds, false, ex.Message);
                 _logger.LogDebug(ex, "获取 Embedding 失败");
                 return null;
             }
@@ -139,7 +142,7 @@ namespace TaskRunner.Services
         {
             try
             {
-                var providers = _settings.GetAiProviders();
+                var providers = _aiSettings.GetAiProviders();
                 var matchedProvider = providers.FirstOrDefault(p =>
                     p.Id.Equals(providerId, StringComparison.OrdinalIgnoreCase));
 

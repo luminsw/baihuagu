@@ -1,6 +1,7 @@
 using TaskRunner.Core.Shared;
 using Microsoft.AspNetCore.Mvc;
 using System.Text.Json;
+using TaskRunner.Helpers;
 using TaskRunner.Contracts.Anki;
 
 namespace TaskRunner.Controllers
@@ -16,7 +17,7 @@ namespace TaskRunner.Controllers
         private readonly Services.DailyCardService _dailyCardService;
         private readonly Services.AchievementEngine _achievementEngine;
         private readonly Services.LearnerService _learnerService;
-        private readonly Services.SettingsService _settings;
+        private readonly Services.VaultSettingsService _vaultSettings;
         private readonly Services.TaskManager _taskManager;
         private readonly ILogger<AnkiController> _logger;
 
@@ -25,7 +26,7 @@ namespace TaskRunner.Controllers
             Services.DailyCardService dailyCardService,
             Services.AchievementEngine achievementEngine,
             Services.LearnerService learnerService,
-            Services.SettingsService settings,
+            Services.VaultSettingsService vaultSettings,
             Services.TaskManager taskManager,
             ILogger<AnkiController> logger)
         {
@@ -33,7 +34,7 @@ namespace TaskRunner.Controllers
             _dailyCardService = dailyCardService;
             _achievementEngine = achievementEngine;
             _learnerService = learnerService;
-            _settings = settings;
+            _vaultSettings = vaultSettings;
             _taskManager = taskManager;
             _logger = logger;
         }
@@ -366,11 +367,7 @@ namespace TaskRunner.Controllers
 
         private void WriteStudyStats(string file, StudyStats stats)
         {
-            var json = JsonSerializer.Serialize(stats, new JsonSerializerOptions
-            {
-                WriteIndented = true,
-                Encoder = System.Text.Encodings.Web.JavaScriptEncoder.Create(System.Text.Unicode.UnicodeRanges.All)
-            });
+            var json = JsonSerializer.Serialize(stats, JsonHelper.IndentedUnicode);
             System.IO.File.WriteAllText(file, json);
         }
 
@@ -557,7 +554,7 @@ namespace TaskRunner.Controllers
             if (string.IsNullOrWhiteSpace(vaultId))
                 return BadRequest(new { success = false, message = "知识库 ID 不能为空" });
 
-            var vault = _settings.GetVaults().FirstOrDefault(v => v.Id == vaultId);
+            var vault = _vaultSettings.GetVaults().FirstOrDefault(v => v.Id == vaultId);
             if (vault == null)
                 return NotFound(new { success = false, message = "知识库不存在" });
 
@@ -641,7 +638,7 @@ namespace TaskRunner.Controllers
         {
             if (string.IsNullOrWhiteSpace(vaultId))
                 return null;
-            var vaultPath = _settings.GetVaults().FirstOrDefault(v => v.Id == vaultId)?.Path;
+            var vaultPath = _vaultSettings.GetVaults().FirstOrDefault(v => v.Id == vaultId)?.Path;
             if (string.IsNullOrEmpty(vaultPath))
                 return null;
             return System.IO.Path.Combine(vaultPath, "cards");

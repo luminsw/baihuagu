@@ -9,16 +9,16 @@ namespace TaskRunner.Controllers
     public class ObsidianController : ControllerBase
     {
         private readonly SystemHealthService _healthService;
-        private readonly SettingsService _settings;
+        private readonly VaultSettingsService _vaultSettings;
         private readonly ILogger<ObsidianController> _logger;
 
         public ObsidianController(
             SystemHealthService healthService, 
-            SettingsService settings,
+            VaultSettingsService vaultSettings,
             ILogger<ObsidianController> logger)
         {
             _healthService = healthService;
-            _settings = settings;
+            _vaultSettings = vaultSettings;
             _logger = logger;
         }
 
@@ -48,7 +48,7 @@ namespace TaskRunner.Controllers
         {
             try
             {
-                var vault = _settings.GetActiveVault();
+                var vault = _vaultSettings.GetActiveVault();
                 if (vault == null)
                 {
                     return BadRequest(new { success = false, error = "没有配置知识库" });
