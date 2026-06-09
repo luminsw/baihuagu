@@ -1,3 +1,4 @@
+using TaskRunner.Core.Shared;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using TaskRunner.Contracts.Onboarding;

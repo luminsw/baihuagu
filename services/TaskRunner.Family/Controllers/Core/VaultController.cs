@@ -1,3 +1,4 @@
+using TaskRunner.Core.Shared;
 using TaskRunner.Services.Security;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;

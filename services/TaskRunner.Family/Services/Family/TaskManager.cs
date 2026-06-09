@@ -2,7 +2,7 @@ using System.Collections.Concurrent;
 using System.Text.Json;
 using Microsoft.AspNetCore.SignalR;
 using Microsoft.EntityFrameworkCore;
-using TaskRunner.Hubs;
+using TaskRunner.Core.Shared.Hubs;
 using TaskRunner.Data;
 
 namespace TaskRunner.Services

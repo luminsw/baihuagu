@@ -1,9 +1,10 @@
+using TaskRunner.Core.Shared;
 using TaskRunner.Services.Security;
 using TaskRunner.Services;
 using TaskRunner.Core.Shared.Security;
 using TaskRunner.Core.Shared.Notifications;
 using TaskRunner.Services.LocalAI;
-using TaskRunner.Hubs;
+using TaskRunner.Core.Shared.Hubs;
 using TaskRunner.Filters;
 using Microsoft.Extensions.Configuration;
 using Microsoft.EntityFrameworkCore;

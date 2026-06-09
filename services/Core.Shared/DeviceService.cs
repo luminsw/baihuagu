@@ -1,16 +1,17 @@
+using Microsoft.Extensions.Configuration;
+using Microsoft.Extensions.Logging;
+using Microsoft.EntityFrameworkCore;
+using Microsoft.AspNetCore.SignalR;
 using System.Collections.Concurrent;
 using System.Net.WebSockets;
 using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
-using Microsoft.AspNetCore.SignalR;
-using Microsoft.EntityFrameworkCore;
-using TaskRunner.Contracts.Devices;
 using TaskRunner.Data;
 using TaskRunner.Data.Entities;
+using TaskRunner.Contracts.Devices;
 
-namespace TaskRunner.Services
-{
+namespace TaskRunner.Core.Shared;
     /// <summary>
     /// 设备状态
     /// </summary>
@@ -876,5 +877,3 @@ namespace TaskRunner.Services
         public string Action { get; set; } = "sync";
         public DateTime CreatedAt { get; set; }
     }
-
-}

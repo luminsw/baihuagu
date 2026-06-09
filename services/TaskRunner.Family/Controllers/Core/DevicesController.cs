@@ -1,6 +1,7 @@
+using TaskRunner.Core.Shared;
 using Microsoft.AspNetCore.Mvc;
 using TaskRunner.Services;
-using TaskRunner.Hubs;
+using TaskRunner.Core.Shared.Hubs;
 using Microsoft.AspNetCore.SignalR;
 using TaskRunner.Contracts.Devices;
 

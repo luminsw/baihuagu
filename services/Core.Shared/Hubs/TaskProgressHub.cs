@@ -1,6 +1,7 @@
+using Microsoft.Extensions.Logging;
 using Microsoft.AspNetCore.SignalR;
 
-namespace TaskRunner.Hubs
+namespace TaskRunner.Core.Shared.Hubs
 {
     /// <summary>
     /// 任务进度推送 Hub

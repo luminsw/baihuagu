@@ -1,3 +1,4 @@
+using TaskRunner.Core.Shared;
 using MobileContract.Devices;
 using MobileContract.Pairing;
 using MobileContract.Services;

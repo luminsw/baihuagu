@@ -1,3 +1,4 @@
+using TaskRunner.Core.Shared;
 using Microsoft.AspNetCore.Mvc;
 
 namespace TaskRunner.Services.Strategies;

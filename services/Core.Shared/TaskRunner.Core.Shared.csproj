@@ -19,5 +19,6 @@
 
   <ItemGroup>
     <ProjectReference Include="../TaskRunner.Contracts/TaskRunner.Contracts.csproj" />
+    <ProjectReference Include="../TaskRunner.Data/TaskRunner.Data.csproj" />
   </ItemGroup>
 </Project>
