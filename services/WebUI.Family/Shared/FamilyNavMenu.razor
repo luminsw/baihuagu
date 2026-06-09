@@ -10,24 +10,24 @@
 <!-- 场景选择器 -->
 <div class="scene-selector">
     <button class="scene-btn @(_activeScene == 0 ? "active" : "")" @onclick="() => _activeScene = 0">
-        <span class="scene-icon">🌿</span>
-        <span class="scene-label">笔记</span>
+        <span class="scene-icon">📚</span>
+        <span class="scene-label">知识库</span>
     </button>
     <button class="scene-btn @(_activeScene == 1 ? "active" : "")" @onclick="() => _activeScene = 1">
-        <span class="scene-icon">💻</span>
-        <span class="scene-label">计算机</span>
+        <span class="scene-icon">👨‍👩‍👧</span>
+        <span class="scene-label">家庭</span>
     </button>
     <button class="scene-btn @(_activeScene == 2 ? "active" : "")" @onclick="() => _activeScene = 2">
-        <span class="scene-icon">⚙️</span>
-        <span class="scene-label">基础设施</span>
+        <span class="scene-icon">🤖</span>
+        <span class="scene-label">AI 实验室</span>
     </button>
 </div>
 
-<!-- 笔记场景 -->
+<!-- 📚 知识库 -->
 @if (_activeScene == 0)
 {
     <div class="nav-group">
-        <div class="nav-group-label">常用</div>
+        <div class="nav-group-label">浏览</div>
         <NavLink href="" Match="NavLinkMatch.All">
             <span class="nav-icon bi bi-house-door"></span>
             <span>首页</span>
@@ -36,17 +36,9 @@
             <span class="nav-icon bi bi-search"></span>
             <span>搜索</span>
         </NavLink>
-        <NavLink href="messages">
-            <span class="nav-icon bi bi-chat-dots"></span>
-            <span>AI 对话</span>
-        </NavLink>
     </div>
     <div class="nav-group">
         <div class="nav-group-label">学习</div>
-        <NavLink href="browse">
-            <span class="nav-icon bi bi-journal-text"></span>
-            <span>知识库浏览</span>
-        </NavLink>
         <NavLink href="cards">
             <span class="nav-icon bi bi-layers"></span>
             <span>记忆卡片</span>
@@ -55,6 +47,36 @@
             <span class="nav-icon bi bi-journal-bookmark"></span>
             <span>每日一帖</span>
         </NavLink>
+    </div>
+    <div class="nav-group">
+        <div class="nav-group-label">管理</div>
+        <NavLink href="vaults">
+            <span class="nav-icon bi bi-folder2-open"></span>
+            <span>知识库管理</span>
+        </NavLink>
+        <NavLink href="qr-tool">
+            <span class="nav-icon bi bi-qr-code"></span>
+            <span>二维码工具</span>
+        </NavLink>
+    </div>
+}
+
+<!-- 👨‍👩‍👧 家庭 -->
+@if (_activeScene == 1)
+{
+    <div class="nav-group">
+        <div class="nav-group-label">亲子</div>
+        <NavLink href="tasks">
+            <span class="nav-icon bi bi-list-check"></span>
+            <span>任务</span>
+        </NavLink>
+        <NavLink href="openclaw">
+            <span class="nav-icon bi bi-robot"></span>
+            <span>OpenClaw</span>
+        </NavLink>
+    </div>
+    <div class="nav-group">
+        <div class="nav-group-label">成长</div>
         <NavLink href="achievements">
             <span class="nav-icon bi bi-trophy"></span>
             <span>成就墙</span>
@@ -65,7 +87,26 @@
         </NavLink>
     </div>
     <div class="nav-group">
-        <div class="nav-group-label">工具</div>
+        <div class="nav-group-label">监管</div>
+        <NavLink href="dashboard">
+            <span class="nav-icon bi bi-bar-chart-line"></span>
+            <span>家长看板</span>
+        </NavLink>
+    </div>
+}
+
+<!-- 🤖 AI 实验室 -->
+@if (_activeScene == 2)
+{
+    <div class="nav-group">
+        <div class="nav-group-label">对话</div>
+        <NavLink href="messages">
+            <span class="nav-icon bi bi-chat-dots"></span>
+            <span>AI 对话</span>
+        </NavLink>
+    </div>
+    <div class="nav-group">
+        <div class="nav-group-label">生成</div>
         <NavLink href="build">
             <span class="nav-icon bi bi-bricks"></span>
             <span>AI 生成</span>
@@ -74,102 +115,68 @@
             <span class="nav-icon bi bi-robot"></span>
             <span>AI 生成知识库</span>
         </NavLink>
-        <NavLink href="vaults">
-            <span class="nav-icon bi bi-folder2-open"></span>
-            <span>知识库管理</span>
-        </NavLink>
-        <NavLink href="qr-tool">
-            <span class="nav-icon bi bi-qr-code"></span>
-            <span>二维码工具</span>
-        </NavLink>
-        @if (_isProfessional)
-        {
-            <NavLink href="performance-monitor">
-                <span class="nav-icon bi bi-activity"></span>
-                <span>性能监控</span>
-            </NavLink>
-        }
-    </div>
-}
-
-<!-- 开发场景 -->
-@if (_activeScene == 1)
-{
-    <div class="nav-group">
-        <div class="nav-group-label">计算机</div>
-        <NavLink href="openclaw">
-            <span class="nav-icon bi bi-robot"></span>
-            <span>OpenClaw</span>
-        </NavLink>
-        <NavLink href="tasks">
-            <span class="nav-icon bi bi-list-check"></span>
-            <span>任务</span>
-        </NavLink>
-        @if (_isProfessional && _canShowLocalModels)
-        {
-            <NavLink href="local-models">
-                <span class="nav-icon bi bi-cpu"></span>
-                <span>本地模型</span>
-            </NavLink>
-        }
-        @if (_isProfessional && _canShowModelBenchmark)
-        {
-            <NavLink href="model-benchmark">
-                <span class="nav-icon bi bi-speedometer2"></span>
-                <span>模型 benchmark</span>
-            </NavLink>
-        }
-    </div>
-}
-
-<!-- 基础设施场景 -->
-@if (_activeScene == 2)
-{
-    <div class="nav-group">
-        <div class="nav-group-label">AI 配置</div>
-        <NavLink href="settings">
-            <span class="nav-icon bi bi-gear"></span>
-            <span>AI 设置</span>
-        </NavLink>
-        <NavLink href="dashboard">
-            <span class="nav-icon bi bi-bar-chart-line"></span>
-            <span>家长看板</span>
-        </NavLink>
-    </div>
-    <div class="nav-group">
-        <div class="nav-group-label">系统</div>
-        <NavLink href="devices">
-            <span class="nav-icon bi bi-phone"></span>
-            <span>移动端</span>
-        </NavLink>
-        <NavLink href="health">
-            <span class="nav-icon bi bi-heart-pulse"></span>
-            <span>健康检查</span>
-        </NavLink>
     </div>
     @if (_isProfessional)
     {
         <div class="nav-group">
-            <div class="nav-group-label">高级</div>
-            <NavLink href="hardware-benchmark">
-                <span class="nav-icon bi bi-motherboard"></span>
-                <span>硬件评测</span>
-            </NavLink>
+            <div class="nav-group-label">研究</div>
+            @if (_canShowLocalModels)
+            {
+                <NavLink href="local-models">
+                    <span class="nav-icon bi bi-cpu"></span>
+                    <span>本地模型</span>
+                </NavLink>
+            }
+            @if (_canShowModelBenchmark)
+            {
+                <NavLink href="model-benchmark">
+                    <span class="nav-icon bi bi-speedometer2"></span>
+                    <span>模型评测</span>
+                </NavLink>
+            }
             <NavLink href="ai-metrics">
                 <span class="nav-icon bi bi-graph-up-arrow"></span>
                 <span>AI 性能监控</span>
             </NavLink>
-            <NavLink href="log-settings">
-                <span class="nav-icon bi bi-journal-code"></span>
-                <span>日志配置</span>
-            </NavLink>
-            <NavLink href="mobile-logs">
-                <span class="nav-icon bi bi-journal-text"></span>
-                <span>移动端日志</span>
+            <NavLink href="hardware-benchmark">
+                <span class="nav-icon bi bi-motherboard"></span>
+                <span>硬件评测</span>
             </NavLink>
         </div>
     }
+    <div class="nav-group">
+        <div class="nav-group-label">配置</div>
+        <NavLink href="settings">
+            <span class="nav-icon bi bi-gear"></span>
+            <span>AI 设置</span>
+        </NavLink>
+    </div>
 }
+
+<!-- 系统（独立于场景） -->
+<div class="nav-group">
+    <div class="nav-group-label">系统</div>
+    <NavLink href="devices">
+        <span class="nav-icon bi bi-phone"></span>
+        <span>移动端</span>
+    </NavLink>
+    <NavLink href="health">
+        <span class="nav-icon bi bi-heart-pulse"></span>
+        <span>健康检查</span>
+    </NavLink>
+    <NavLink href="log-settings">
+        <span class="nav-icon bi bi-journal-code"></span>
+        <span>日志配置</span>
+    </NavLink>
+    <NavLink href="mobile-logs">
+        <span class="nav-icon bi bi-journal-text"></span>
+        <span>移动端日志</span>
+    </NavLink>
+    <NavLink href="performance-monitor">
+        <span class="nav-icon bi bi-activity"></span>
+        <span>性能监控</span>
+    </NavLink>
+</div>
 
 <!-- 模式切换 -->
 <div class="nav-group">
@@ -224,11 +231,11 @@
     private void OnLocationChanged(object? sender, Microsoft.AspNetCore.Components.Routing.LocationChangedEventArgs e)
     {
         var relativePath = NavigationManager.ToBaseRelativePath(e.Location);
-        // URL 推断场景：openclaw/local-models/model-benchmark → 计算机(1)，settings/devices/health → 基础设施(2)，其余 → 笔记(0)
+        // URL 推断场景
         var inferred = relativePath switch
         {
-            string p when p.StartsWith("openclaw") || p.StartsWith("local-models") || p.StartsWith("model-benchmark") => 1,
-            string p when p.StartsWith("settings") || p.StartsWith("devices") || p.StartsWith("health") || p.StartsWith("hardware") || p.StartsWith("ai-metrics") || p.StartsWith("log-settings") || p.StartsWith("mobile-logs") || p.StartsWith("dashboard") => 2,
+            string p when p.StartsWith("tasks") || p.StartsWith("openclaw") || p.StartsWith("achievements") || p.StartsWith("leaderboard") || p.StartsWith("dashboard") => 1,
+            string p when p.StartsWith("messages") || p.StartsWith("build") || p.StartsWith("generate") || p.StartsWith("local-models") || p.StartsWith("model-benchmark") || p.StartsWith("ai-metrics") || p.StartsWith("hardware-benchmark") || p.StartsWith("settings") => 2,
             _ => 0
         };
         if (inferred != _activeScene)
@@ -243,8 +250,6 @@
         _isProfessional = UserTypeService.IsProfessional;
         InvokeAsync(StateHasChanged);
     }
-
-
 
     private async Task ToggleUserType()
     {
