@@ -1,6 +1,7 @@
 using System.Text.Json;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.AI;
+using TaskRunner.Contracts.Ai;
 using TaskRunner.Controllers;
 using TaskRunner.Data;
 using TaskRunner.Data.Entities;

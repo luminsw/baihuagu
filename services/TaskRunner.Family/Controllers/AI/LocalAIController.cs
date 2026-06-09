@@ -1,5 +1,6 @@
 using System.Text.Json;
 using Microsoft.AspNetCore.Mvc;
+using TaskRunner.Contracts.Ai;
 using TaskRunner.Services.LocalAI;
 
 namespace TaskRunner.Controllers;
@@ -202,11 +203,6 @@ public class LocalAIController : ControllerBase
         public List<ChatHistoryItem>? History { get; set; }
     }
 
-    public class ChatHistoryItem
-    {
-        public string Role { get; set; } = "user"; // "user" or "assistant"
-        public string Content { get; set; } = string.Empty;
-    }
 
     public class LocalModelInfo
     {

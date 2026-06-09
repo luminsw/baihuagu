@@ -1,4 +1,4 @@
-using TaskRunner.Controllers;
+using TaskRunner.Contracts.Ai;
 using TaskRunner.Models;
 
 namespace TaskRunner.Services;

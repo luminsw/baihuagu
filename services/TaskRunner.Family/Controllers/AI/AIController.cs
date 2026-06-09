@@ -910,11 +910,6 @@ namespace TaskRunner.Controllers
         public bool? EnableTools { get; set; }
     }
 
-    public class ChatHistoryItem
-    {
-        public string Role { get; set; } = "user"; // "user" or "assistant"
-        public string Content { get; set; } = string.Empty;
-    }
 
     public class AskRequest
         {
