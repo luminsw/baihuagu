@@ -19,7 +19,7 @@ namespace TaskRunner.Services
         private readonly IDbContextFactory<AIDbContext> _aiDbContextFactory;
         private IReadOnlyList<AiProviderConfig>? _aiProvidersCache;
 
-        private readonly object _vaultPathLock = new();
+        private readonly VaultSettingsService _vaultSettings;
         private string? _runtimeVaultId;
 
         public SettingsService(
@@ -28,6 +28,7 @@ namespace TaskRunner.Services
             IDbContextFactory<AppDbContext> dbContextFactory,
             IDbContextFactory<FamilyDbContext> familyDbContextFactory,
             IDbContextFactory<AIDbContext> aiDbContextFactory,
+            VaultSettingsService vaultSettings,
             ILogger<SettingsService> logger)
         {
             _configuration = configuration;
@@ -36,6 +37,7 @@ namespace TaskRunner.Services
             _familyDbContextFactory = familyDbContextFactory;
             _aiDbContextFactory = aiDbContextFactory;
             _logger = logger;
+            _vaultSettings = vaultSettings;
 
             LoadFromDatabase();
             LoadLocalModelConfigFromFile();
@@ -304,269 +306,21 @@ namespace TaskRunner.Services
             }
         }
 
-        public IReadOnlyList<VaultConfig> GetVaults()
-        {
-            using var dbContext = _dbContextFactory.CreateDbContext();
-            lock (_vaultPathLock)
-            {
-                return dbContext.Vaults
-                    .Where(v => !v.IsDeleted)
-                    .OrderBy(v => v.CreatedAt)
-                    .Select(v => new VaultConfig
-                    {
-                        Id = v.VaultId,
-                        Name = v.Name,
-                        Path = v.Path,
-                        CreatedAt = v.CreatedAt,
-                        IsPaid = v.IsPaid,
-                        Tags = ParseTags(v.Tags),
-                        Industry = v.Industry
-                    })
-                    .ToList();
-            }
-        }
+        public IReadOnlyList<VaultConfig> GetVaults() => _vaultSettings.GetVaults();
 
-        public VaultConfig? GetActiveVault()
-        {
-            using var dbContext = _dbContextFactory.CreateDbContext();
-            lock (_vaultPathLock)
-            {
-                var vault = dbContext.Vaults
-                    .Where(v => !v.IsDeleted)
-                    .OrderBy(v => v.CreatedAt)
-                    .FirstOrDefault();
+        public VaultConfig? GetActiveVault() => _vaultSettings.GetActiveVault();
 
-                if (vault == null) return null;
-                return new VaultConfig
-                {
-                    Id = vault.VaultId,
-                    Name = vault.Name,
-                    Path = vault.Path,
-                    CreatedAt = vault.CreatedAt,
-                    IsPaid = vault.IsPaid,
-                    Tags = ParseTags(vault.Tags)
-                };
-            }
-        }
+        public IReadOnlyList<VaultConfig> GetTrashVaults() => _vaultSettings.GetTrashVaults();
 
-        public IReadOnlyList<VaultConfig> GetTrashVaults()
-        {
-            using var dbContext = _dbContextFactory.CreateDbContext();
-            lock (_vaultPathLock)
-            {
-                return dbContext.Vaults
-                    .Where(v => v.IsDeleted)
-                    .OrderByDescending(v => v.DeletedAt)
-                    .Select(v => new VaultConfig
-                    {
-                        Id = v.VaultId,
-                        Name = v.Name,
-                        Path = v.Path,
-                        CreatedAt = v.CreatedAt,
-                        IsPaid = v.IsPaid,
-                        Tags = ParseTags(v.Tags),
-                        Industry = v.Industry
-                    })
-                    .ToList();
-            }
-        }
+        public VaultConfig AddVault(string name, string path, string industry) => _vaultSettings.AddVault(name, path, industry);
 
-        public VaultConfig AddVault(string name, string path, string industry)
-        {
-            using var dbContext = _dbContextFactory.CreateDbContext();
-            lock (_vaultPathLock)
-            {
-                var vaultId = Guid.NewGuid().ToString("N");
-                var trimmedName = name.Trim();
-                var trimmedIndustry = industry.Trim();
+        public bool ActivateVault(string vaultId) => _vaultSettings.ActivateVault(vaultId);
 
-                // 规范化路径：如果未指定路径，使用标准路径 VaultRootPathPreference/local/行业/名称/
-                var normalizedPath = path.Trim();
-                if (string.IsNullOrWhiteSpace(normalizedPath))
-                {
-                    var vaultRoot = VaultRootPathPreference;
-                    if (string.IsNullOrWhiteSpace(vaultRoot))
-                    {
-                        vaultRoot = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "data", "vaults");
-                    }
-                    normalizedPath = Path.Combine(vaultRoot, "local", trimmedIndustry, trimmedName);
-                }
+        public bool RemoveVault(string vaultId) => _vaultSettings.RemoveVault(vaultId);
 
-                // 查重：同名或同路径均不允许重复创建
-                var existingByName = dbContext.Vaults
-                    .FirstOrDefault(v => v.Name == trimmedName && !v.IsDeleted);
-                if (existingByName != null)
-                {
-                    throw new InvalidOperationException($"知识库名称 '{trimmedName}' 已存在，请勿重复创建。");
-                }
+        public bool RestoreVault(string vaultId) => _vaultSettings.RestoreVault(vaultId);
 
-                var existingByPath = dbContext.Vaults
-                    .FirstOrDefault(v => v.Path == normalizedPath && !v.IsDeleted);
-                if (existingByPath != null)
-                {
-                    throw new InvalidOperationException($"知识库路径 '{normalizedPath}' 已被 '{existingByPath.Name}' 占用，请勿重复创建。");
-                }
-
-                var vault = new Data.Entities.Vault
-                {
-                    VaultId = vaultId,
-                    Name = trimmedName,
-                    Path = normalizedPath,
-                    IsActive = false,
-                    Industry = trimmedIndustry
-                };
-
-                dbContext.Vaults.Add(vault);
-                dbContext.SaveChanges();
-
-                // 第一个知识库时初始化 runtime ID
-                var allVaultsCount = dbContext.Vaults.Count();
-                if (allVaultsCount == 1)
-                {
-                    _runtimeVaultId = vaultId;
-                }
-
-                return new VaultConfig
-                {
-                    Id = vaultId,
-                    Name = vault.Name,
-                    Path = vault.Path,
-                    CreatedAt = vault.CreatedAt,
-                    Industry = vault.Industry
-                };
-            }
-        }
-
-        public bool ActivateVault(string vaultId)
-        {
-            // 已废弃：不再支持切换"当前知识库"，所有知识库平等
-            throw new NotSupportedException("ActivateVault 已废弃：不再支持切换当前知识库");
-        }
-
-        public bool RemoveVault(string vaultId)
-        {
-            using var dbContext = _dbContextFactory.CreateDbContext();
-            lock (_vaultPathLock)
-            {
-                var vault = dbContext.Vaults
-                    .FirstOrDefault(v => v.VaultId == vaultId);
-
-                if (vault == null || vault.IsDeleted) return false;
-
-                // 将知识库目录移入回收站
-                if (!string.IsNullOrWhiteSpace(vault.Path) && Directory.Exists(vault.Path))
-                {
-                    var trashPath = GetTrashPath(vault);
-                    var trashDir = Path.GetDirectoryName(trashPath);
-                    if (!string.IsNullOrEmpty(trashDir))
-                    {
-                        Directory.CreateDirectory(trashDir);
-                    }
-                    try
-                    {
-                        Directory.Move(vault.Path, trashPath);
-                        _logger.LogInformation("知识库已移入回收站: {Name} -> {TrashPath}", vault.Name, trashPath);
-                    }
-                    catch (Exception ex)
-                    {
-                        _logger.LogError(ex, "移入回收站失败: {Path}，中止删除操作", vault.Path);
-                        return false;
-                    }
-                }
-
-                vault.IsDeleted = true;
-                vault.DeletedAt = DateTime.UtcNow;
-                dbContext.SaveChanges();
-
-                // 如果删除的是第一个知识库，更新 runtime ID
-                var remaining = dbContext.Vaults.Where(v => !v.IsDeleted).OrderBy(v => v.CreatedAt).FirstOrDefault();
-                if (remaining != null)
-                {
-                    _runtimeVaultId = remaining.VaultId;
-                }
-                else
-                {
-                    _runtimeVaultId = Guid.NewGuid().ToString("N");
-                }
-
-                return true;
-            }
-        }
-
-        public bool RestoreVault(string vaultId)
-        {
-            using var dbContext = _dbContextFactory.CreateDbContext();
-            lock (_vaultPathLock)
-            {
-                var vault = dbContext.Vaults.FirstOrDefault(v => v.VaultId == vaultId);
-                if (vault == null || !vault.IsDeleted) return false;
-
-                if (Directory.Exists(vault.Path))
-                {
-                    _logger.LogWarning("恢复知识库失败，原始路径已被占用: {Path}", vault.Path);
-                    return false;
-                }
-
-                var trashPath = FindTrashPath(vault);
-                if (trashPath == null || !Directory.Exists(trashPath))
-                {
-                    _logger.LogWarning("恢复知识库失败，回收站中找不到目录: {Name}", vault.Name);
-                    return false;
-                }
-
-                var parentDir = Path.GetDirectoryName(vault.Path);
-                if (!string.IsNullOrEmpty(parentDir))
-                {
-                    Directory.CreateDirectory(parentDir);
-                }
-
-                try
-                {
-                    Directory.Move(trashPath, vault.Path);
-                }
-                catch (Exception ex)
-                {
-                    _logger.LogError(ex, "恢复知识库时移动目录失败: {TrashPath} -> {Path}", trashPath, vault.Path);
-                    return false;
-                }
-
-                vault.IsDeleted = false;
-                vault.DeletedAt = null;
-                dbContext.SaveChanges();
-
-                _logger.LogInformation("知识库已恢复: {Name} -> {Path}", vault.Name, vault.Path);
-                return true;
-            }
-        }
-
-        public bool EmptyTrash()
-        {
-            using var dbContext = _dbContextFactory.CreateDbContext();
-            lock (_vaultPathLock)
-            {
-                var trashVaults = dbContext.Vaults.Where(v => v.IsDeleted).ToList();
-                foreach (var vault in trashVaults)
-                {
-                    var trashPath = FindTrashPath(vault);
-                    if (trashPath != null && Directory.Exists(trashPath))
-                    {
-                        try
-                        {
-                            Directory.Delete(trashPath, true);
-                        }
-                        catch (Exception ex)
-                        {
-                            _logger.LogError(ex, "清空回收站时删除目录失败，保留数据库记录: {Path}", trashPath);
-                            continue; // 物理删除失败，跳过 DB 记录移除
-                        }
-                    }
-                    dbContext.Vaults.Remove(vault);
-                }
-                dbContext.SaveChanges();
-                _logger.LogInformation("回收站已清空，永久删除 {Count} 个知识库", trashVaults.Count);
-                return true;
-            }
-        }
+        public bool EmptyTrash() => _vaultSettings.EmptyTrash();
 
         private string GetDeletedBasePath()
         {
@@ -604,120 +358,18 @@ namespace TaskRunner.Services
             return null;
         }
 
-        public bool UpdateVaultName(string vaultId, string newName)
-        {
-            using var dbContext = _dbContextFactory.CreateDbContext();
-            lock (_vaultPathLock)
-            {
-                var vault = dbContext.Vaults
-                    .FirstOrDefault(v => v.VaultId == vaultId);
-                    
-                if (vault == null) return false;
+        public bool UpdateVaultName(string vaultId, string newName) => _vaultSettings.UpdateVaultName(vaultId, newName);
 
-                vault.Name = newName.Trim();
-                dbContext.SaveChanges();
-                return true;
-            }
-        }
+        public bool UpdateVaultPath(string vaultId, string newPath) => _vaultSettings.UpdateVaultPath(vaultId, newPath);
 
-        public bool UpdateVaultPath(string vaultId, string newPath)
-        {
-            using var dbContext = _dbContextFactory.CreateDbContext();
-            lock (_vaultPathLock)
-            {
-                var vault = dbContext.Vaults
-                    .FirstOrDefault(v => v.VaultId == vaultId);
-                    
-                if (vault == null) return false;
+        public bool UpdateVaultPaid(string vaultId, bool isPaid) => _vaultSettings.UpdateVaultPaid(vaultId, isPaid);
 
-                vault.Path = newPath.Trim();
-                dbContext.SaveChanges();
-                return true;
-            }
-        }
+        public bool UpdateVaultTags(string vaultId, string tags) => _vaultSettings.UpdateVaultTags(vaultId, tags);
 
-        public bool UpdateVaultPaid(string vaultId, bool isPaid)
-        {
-            using var dbContext = _dbContextFactory.CreateDbContext();
-            lock (_vaultPathLock)
-            {
-                var vault = dbContext.Vaults
-                    .FirstOrDefault(v => v.VaultId == vaultId);
-                    
-                if (vault == null) return false;
+        public bool UpdateVaultIndustry(string vaultId, string industry) => _vaultSettings.UpdateVaultIndustry(vaultId, industry);
 
-                vault.IsPaid = isPaid;
-                dbContext.SaveChanges();
-                return true;
-            }
-        }
 
-        public bool UpdateVaultTags(string vaultId, string tags)
-        {
-            using var dbContext = _dbContextFactory.CreateDbContext();
-            lock (_vaultPathLock)
-            {
-                var vault = dbContext.Vaults
-                    .FirstOrDefault(v => v.VaultId == vaultId);
-
-                if (vault == null) return false;
-
-                vault.Tags = tags.Trim();
-                dbContext.SaveChanges();
-                return true;
-            }
-        }
-
-        public bool UpdateVaultIndustry(string vaultId, string industry)
-        {
-            using var dbContext = _dbContextFactory.CreateDbContext();
-            lock (_vaultPathLock)
-            {
-                var vault = dbContext.Vaults
-                    .FirstOrDefault(v => v.VaultId == vaultId);
-
-                if (vault == null) return false;
-
-                vault.Industry = industry.Trim();
-                dbContext.SaveChanges();
-                return true;
-            }
-        }
-
-        private static List<string> ParseTags(string? tags)
-        {
-            if (string.IsNullOrWhiteSpace(tags)) return new List<string>();
-            return tags.Split(',', StringSplitOptions.RemoveEmptyEntries)
-                .Select(t => t.Trim())
-                .Where(t => !string.IsNullOrWhiteSpace(t))
-                .ToList();
-        }
-
-        public void SetVaultPath(string? vaultPath)
-        {
-            using var dbContext = _dbContextFactory.CreateDbContext();
-            lock (_vaultPathLock)
-            {
-                var nextPath = string.IsNullOrWhiteSpace(vaultPath) ? null : vaultPath.Trim();
-
-                // 更新第一个知识库的路径
-                var activeVault = dbContext.Vaults
-                    .OrderBy(v => v.CreatedAt)
-                    .FirstOrDefault();
-                    
-                if (activeVault != null && nextPath != null)
-                {
-                    var changed = !string.Equals(activeVault.Path, nextPath, StringComparison.OrdinalIgnoreCase);
-                    activeVault.Path = nextPath;
-                    dbContext.SaveChanges();
-                    
-                    if (changed)
-                    {
-                        _runtimeVaultId = Guid.NewGuid().ToString("N");
-                    }
-                }
-            }
-        }
+        public void SetVaultPath(string? vaultPath) => _vaultSettings.SetVaultPath(vaultPath);
 
         public void ClearAiProvidersCache()
         {
@@ -891,236 +543,14 @@ namespace TaskRunner.Services
         /// Docker 模式：/opt/yj-family/vaults
         /// 非 Docker 模式：~/.yj-vaults
         /// </summary>
-        public string VaultRootPathPreference
-        {
-            get
-            {
-                // 优先使用环境变量（Docker 部署时设置）
-                var env = Environment.GetEnvironmentVariable("TASKRUNNER_VAULT_ROOT");
-                if (!string.IsNullOrWhiteSpace(env))
-                    return env.TrimEnd('/', '\\');
-                
-                // 检测是否在 Docker 容器中运行
-                var isDocker = Environment.GetEnvironmentVariable("DOTNET_RUNNING_IN_CONTAINER") == "true" ||
-                               File.Exists("/.dockerenv");
-                
-                if (isDocker)
-                {
-                    // Docker 模式：使用固定路径
-                    return "/opt/yj-family/vaults";
-                }
-                else
-                {
-                    // 非 Docker 模式：使用用户主目录
-                    var homeDir = Environment.GetFolderPath(Environment.SpecialFolder.UserProfile);
-                    return Path.Combine(homeDir, ".yj-vaults");
-                }
-            }
-        }
+        public string VaultRootPathPreference => _vaultSettings.VaultRootPathPreference;
 
         /// <summary>
         /// 同步根目录下的知识库与数据库记录：新增目录补录，已删除目录清库
         /// 本地知识库在 {root}/local/ 下按行业/名称组织
         /// 移动端推送知识库在 {root}/mobile/ 下按 vaultId 组织
         /// </summary>
-        public (int added, int removed) SyncVaultsWithFilesystem(string rootPath)
-        {
-            if (!Directory.Exists(rootPath))
-            {
-                throw new DirectoryNotFoundException($"知识库根目录不存在: {rootPath}");
-            }
-
-            int added = 0;
-            int removed = 0;
-            using var dbContext = _dbContextFactory.CreateDbContext();
-            lock (_vaultPathLock)
-            {
-                var existingVaults = dbContext.Vaults
-                    .Where(v => !v.IsDeleted)
-                    .ToList();
-
-                var existingPaths = existingVaults
-                    .Select(v => v.Path)
-                    .ToHashSet(StringComparer.OrdinalIgnoreCase);
-
-                // 收集文件系统中所有看起来像知识库的目录
-                var fsVaultPaths = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
-
-                // 1. 扫描本地知识库：{root}/local/{行业}/{名称}/
-                var localDir = Path.Combine(rootPath, "local");
-                if (Directory.Exists(localDir))
-                {
-                    foreach (var industryDir in Directory.GetDirectories(localDir))
-                    {
-                        var industryName = Path.GetFileName(industryDir);
-
-                        // 防御：如果第一层目录本身直接包含 notes/ 或 cards/，则它自身就是一个知识库
-                        var topNotesDir = Path.Combine(industryDir, "notes");
-                        var topCardsDir = Path.Combine(industryDir, "cards");
-                        if (Directory.Exists(topNotesDir) || Directory.Exists(topCardsDir))
-                        {
-                            fsVaultPaths.Add(industryDir);
-                            if (!existingPaths.Contains(industryDir))
-                            {
-                                dbContext.Vaults.Add(new Data.Entities.Vault
-                                {
-                                    VaultId = Guid.NewGuid().ToString("N"),
-                                    Name = industryName,
-                                    Path = industryDir,
-                                    IsActive = false,
-                                    Industry = industryName,
-                                    Source = "local"
-                                });
-                                existingPaths.Add(industryDir);
-                                added++;
-                            }
-                            continue;
-                        }
-
-                        foreach (var vaultDir in Directory.GetDirectories(industryDir))
-                        {
-                            var vaultName = Path.GetFileName(vaultDir);
-                            if (vaultName.Equals("notes", StringComparison.OrdinalIgnoreCase)
-                                || vaultName.Equals("cards", StringComparison.OrdinalIgnoreCase))
-                            {
-                                _logger.LogDebug("SyncVaultsWithFilesystem 跳过保留目录名: {VaultDir}", vaultDir);
-                                continue;
-                            }
-
-                            var notesDir = Path.Combine(vaultDir, "notes");
-                            var cardsDir = Path.Combine(vaultDir, "cards");
-
-                            bool looksLikeVault = Directory.Exists(notesDir)
-                                || Directory.Exists(cardsDir);
-
-                            if (!looksLikeVault)
-                            {
-                                _logger.LogWarning("SyncVaultsWithFilesystem 跳过非知识库目录（缺少 notes/ 或 cards/）: {VaultDir}", vaultDir);
-                                continue;
-                            }
-
-                            fsVaultPaths.Add(vaultDir);
-
-                            if (existingPaths.Contains(vaultDir))
-                            {
-                                _logger.LogDebug("SyncVaultsWithFilesystem 跳过重复路径: {VaultDir}", vaultDir);
-                                continue;
-                            }
-
-                            var vault = new Data.Entities.Vault
-                            {
-                                VaultId = Guid.NewGuid().ToString("N"),
-                                Name = vaultName,
-                                Path = vaultDir,
-                                IsActive = false,
-                                Industry = industryName,
-                                Source = "local"
-                            };
-                            dbContext.Vaults.Add(vault);
-                            existingPaths.Add(vaultDir);
-                            added++;
-                        }
-                    }
-                }
-
-                // 2. 扫描移动端推送知识库：{root}/mobile/{行业}/{名称}/
-                var mobileDir = Path.Combine(rootPath, "mobile");
-                if (Directory.Exists(mobileDir))
-                {
-                    foreach (var industryDir in Directory.GetDirectories(mobileDir))
-                    {
-                        var industryName = Path.GetFileName(industryDir);
-
-                        // 防御：如果行业目录本身直接包含 notes/ 或 cards/，则它自身就是一个知识库（无行业子目录的旧结构兼容）
-                        var topNotesDir = Path.Combine(industryDir, "notes");
-                        var topCardsDir = Path.Combine(industryDir, "cards");
-                        if (Directory.Exists(topNotesDir) || Directory.Exists(topCardsDir))
-                        {
-                            fsVaultPaths.Add(industryDir);
-                            if (!existingPaths.Contains(industryDir))
-                            {
-                                var vaultName = VaultNameResolver.InferNameFromPath(industryDir);
-                                dbContext.Vaults.Add(new Data.Entities.Vault
-                                {
-                                    VaultId = Guid.NewGuid().ToString("N"),
-                                    Name = vaultName,
-                                    Path = industryDir,
-                                    IsActive = false,
-                                    Industry = industryName,
-                                    Source = "mobile"
-                                });
-                                existingPaths.Add(industryDir);
-                                added++;
-                            }
-                            continue;
-                        }
-
-                        foreach (var vaultDir in Directory.GetDirectories(industryDir))
-                        {
-                            var vaultName = Path.GetFileName(vaultDir);
-                            if (vaultName.Equals("notes", StringComparison.OrdinalIgnoreCase)
-                                || vaultName.Equals("cards", StringComparison.OrdinalIgnoreCase))
-                            {
-                                _logger.LogDebug("SyncVaultsWithFilesystem 跳过保留目录名: {VaultDir}", vaultDir);
-                                continue;
-                            }
-
-                            var notesDir = Path.Combine(vaultDir, "notes");
-                            var cardsDir = Path.Combine(vaultDir, "cards");
-
-                            bool looksLikeVault = Directory.Exists(notesDir)
-                                || Directory.Exists(cardsDir);
-
-                            if (!looksLikeVault)
-                            {
-                                _logger.LogWarning("SyncVaultsWithFilesystem 跳过非知识库目录（缺少 notes/ 或 cards/）: {VaultDir}", vaultDir);
-                                continue;
-                            }
-
-                            fsVaultPaths.Add(vaultDir);
-
-                            if (existingPaths.Contains(vaultDir))
-                            {
-                                _logger.LogDebug("SyncVaultsWithFilesystem 跳过重复路径: {VaultDir}", vaultDir);
-                                continue;
-                            }
-
-                            var vault = new Data.Entities.Vault
-                            {
-                                VaultId = Guid.NewGuid().ToString("N"),
-                                Name = vaultName,
-                                Path = vaultDir,
-                                IsActive = false,
-                                Industry = industryName,
-                                Source = "mobile"
-                            };
-                            dbContext.Vaults.Add(vault);
-                            existingPaths.Add(vaultDir);
-                            added++;
-                        }
-                    }
-                }
-
-                // 软删除数据库中已不存在对应目录的记录（改为 IsDeleted=true，保留元数据）
-                foreach (var vault in existingVaults)
-                {
-                    if (!fsVaultPaths.Contains(vault.Path))
-                    {
-                        _logger.LogWarning("SyncVaultsWithFilesystem 软删除知识库（物理目录不存在）: {VaultName} {Path}", vault.Name, vault.Path);
-                        vault.IsDeleted = true;
-                        vault.DeletedAt = DateTime.UtcNow;
-                        removed++;
-                    }
-                }
-
-                if (added > 0 || removed > 0)
-                {
-                    dbContext.SaveChanges();
-                    _logger.LogInformation("同步知识库完成：新增 {Added} 个，移除 {Removed} 个", added, removed);
-                }
-            }
-            return (added, removed);
-        }
+        public (int added, int removed) SyncVaultsWithFilesystem(string rootPath) => _vaultSettings.SyncVaultsWithFilesystem(rootPath);
 
         #endregion
 

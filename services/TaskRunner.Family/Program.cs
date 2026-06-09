@@ -171,6 +171,7 @@ builder.Services.AddDbContextFactory<TaskRunner.Data.AIDbContext>(options =>
 
 builder.Services.AddSingleton<TaskManager>();
 builder.Services.AddSingleton<SettingsService>();
+builder.Services.AddSingleton<VaultSettingsService>();
 builder.Services.AddSingleton<DefaultPromptProvider>();
 builder.Services.AddSingleton<AiClientService>();
 builder.Services.AddSingleton<AnthropicAiClient>();
