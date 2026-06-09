@@ -1,3 +1,4 @@
+using TaskRunner.Core.Shared;
 using MobileContract.Logging;
 using MobileContract.Services;
 using MLogRecord = MobileContract.Logging.MobileLogRecord;

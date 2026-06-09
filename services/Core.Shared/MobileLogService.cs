@@ -1,3 +1,4 @@
+using Microsoft.Extensions.Logging;
 using Microsoft.EntityFrameworkCore;
 using TaskRunner.Data;
 using TaskRunner.Data.Entities;
