@@ -259,6 +259,7 @@ builder.Services.AddSingleton<LmStudioService>();
 builder.Services.AddSingleton<LlamaCppService>();
 builder.Services.AddSingleton<LocalModelDeploymentService>();
 builder.Services.AddSingleton<AiMetricsService>();
+builder.Services.AddSingleton<BenchmarkRepository>();
 builder.Services.AddSingleton<ModelBenchmarkService>();
 builder.Services.AddSingleton<OpenClawConfigService>();
 builder.Services.AddSingleton<ILocalAiConfigService, LocalAiConfigService>();

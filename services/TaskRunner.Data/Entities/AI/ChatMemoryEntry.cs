@@ -34,7 +34,7 @@ public class ChatMemoryEntry
     /// AI 回复摘要
     /// </summary>
     [Required]
-    public string AssistantSummary { get; set; }
+    public string AssistantSummary { get; set; } = "";
 
     /// <summary>
     /// 完整用户消息（用于上下文注入）

@@ -12,15 +12,18 @@ namespace TaskRunner.Controllers;
 public class ModelBenchmarkController : ControllerBase
 {
     private readonly ModelBenchmarkService _benchmarkService;
+    private readonly BenchmarkRepository _benchmarkRepo;
     private readonly HardwareInfoService _hardwareInfoService;
     private readonly ILogger<ModelBenchmarkController> _logger;
 
     public ModelBenchmarkController(
         ModelBenchmarkService benchmarkService,
+        BenchmarkRepository benchmarkRepo,
         HardwareInfoService hardwareInfoService,
         ILogger<ModelBenchmarkController> logger)
     {
         _benchmarkService = benchmarkService;
+        _benchmarkRepo = benchmarkRepo;
         _hardwareInfoService = hardwareInfoService;
         _logger = logger;
     }
@@ -124,7 +127,7 @@ public class ModelBenchmarkController : ControllerBase
     [HttpGet("history")]
     public ActionResult<List<BenchmarkSession>> GetHistory([FromQuery] string? category)
     {
-        return Ok(_benchmarkService.GetHistory(category));
+        return Ok(_benchmarkRepo.GetHistory(category));
     }
 
     /// <summary>
@@ -133,7 +136,7 @@ public class ModelBenchmarkController : ControllerBase
     [HttpGet("leaderboard")]
     public ActionResult<List<BenchmarkLeaderboardEntry>> GetLeaderboard([FromQuery] string? category)
     {
-        return Ok(_benchmarkService.GetLeaderboard(category));
+        return Ok(_benchmarkRepo.GetLeaderboard(category));
     }
 
     /// <summary>
@@ -142,7 +145,7 @@ public class ModelBenchmarkController : ControllerBase
     [HttpDelete("history/{sessionId}")]
     public async Task<IActionResult> DeleteSession(string sessionId)
     {
-        var ok = await _benchmarkService.DeleteSessionAsync(sessionId);
+        var ok = await _benchmarkRepo.DeleteSessionAsync(sessionId);
         return ok ? NoContent() : NotFound();
     }
 
@@ -152,7 +155,7 @@ public class ModelBenchmarkController : ControllerBase
     [HttpDelete("history")]
     public async Task<IActionResult> ClearHistory()
     {
-        await _benchmarkService.ClearHistoryAsync();
+        await _benchmarkRepo.ClearHistoryAsync();
         return NoContent();
     }
 }
