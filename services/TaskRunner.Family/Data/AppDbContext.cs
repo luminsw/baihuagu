@@ -55,74 +55,9 @@ public class AppDbContext : DbContext
     public DbSet<IapPurchaseRecord> IapPurchaseRecords => Set<IapPurchaseRecord>();
 
     /// <summary>
-    /// 任务历史
-    /// </summary>
-    public DbSet<TaskEntity> Tasks => Set<TaskEntity>();
-
-    /// <summary>
     /// 服务器地址配置（用于移动端连接）
     /// </summary>
     public DbSet<ServerAddressSetting> ServerAddressSettings => Set<ServerAddressSetting>();
-
-    /// <summary>
-    /// OpenClaw 任务
-    /// </summary>
-    public DbSet<OpenClawTask> OpenClawTasks => Set<OpenClawTask>();
-
-    /// <summary>
-    /// AI 调用性能指标
-    /// </summary>
-    public DbSet<AiUsageMetric> AiUsageMetrics => Set<AiUsageMetric>();
-
-    /// <summary>
-    /// Benchmark 测试结果
-    /// </summary>
-    public DbSet<BenchmarkSessionEntity> BenchmarkSessions => Set<BenchmarkSessionEntity>();
-
-    /// <summary>
-    /// Onboarding 完成状态
-    /// </summary>
-    public DbSet<OnboardingState> OnboardingStates => Set<OnboardingState>();
-
-    /// <summary>
-    /// 初始化任务进度
-    /// </summary>
-    public DbSet<InitTaskProgress> InitTaskProgresses => Set<InitTaskProgress>();
-
-    /// <summary>
-    /// Embedding 模型配置
-    /// </summary>
-    public DbSet<EmbeddingConfig> EmbeddingConfigs => Set<EmbeddingConfig>();
-
-    /// <summary>
-    /// 学习者档案
-    /// </summary>
-    public DbSet<LearnerProfile> LearnerProfiles => Set<LearnerProfile>();
-
-    /// <summary>
-    /// 成就解锁记录
-    /// </summary>
-    public DbSet<Achievement> Achievements => Set<Achievement>();
-
-    /// <summary>
-    /// 学习活动记录
-    /// </summary>
-    public DbSet<StudyActivity> StudyActivities => Set<StudyActivity>();
-
-    /// <summary>
-    /// 笔记向量缓存
-    /// </summary>
-    public DbSet<NoteEmbedding> NoteEmbeddings => Set<NoteEmbedding>();
-
-    /// <summary>
-    /// 卡片复习状态
-    /// </summary>
-    public DbSet<CardReviewState> CardReviewStates => Set<CardReviewState>();
-
-    /// <summary>
-    /// 对话记忆条目
-    /// </summary>
-    public DbSet<ChatMemoryEntry> ChatMemoryEntries => Set<ChatMemoryEntry>();
 
     /// <summary>
     /// 移动端日志
@@ -311,23 +246,6 @@ public class AppDbContext : DbContext
             entity.Property(e => e.SyncTime).HasDefaultValueSql("datetime('now')");
         });
 
-        // 任务历史
-        modelBuilder.Entity<TaskEntity>(entity =>
-        {
-            entity.ToTable("Tasks");
-            entity.HasKey(e => e.Id);
-            entity.HasIndex(e => e.TaskId).IsUnique();
-            entity.HasIndex(e => e.Status);
-            entity.HasIndex(e => e.CreatedAt);
-
-            entity.Property(e => e.TaskId).HasMaxLength(100).IsRequired();
-            entity.Property(e => e.TaskType).HasMaxLength(50).IsRequired();
-            entity.Property(e => e.Status).HasMaxLength(50).IsRequired().HasDefaultValue("Pending");
-            entity.Property(e => e.Progress).HasDefaultValue(0);
-            entity.Property(e => e.CreatedAt).HasDefaultValueSql("datetime('now')");
-            entity.Property(e => e.UpdatedAt).HasDefaultValueSql("datetime('now')");
-        });
-
         // 服务器地址配置
         modelBuilder.Entity<ServerAddressSetting>(entity =>
         {
@@ -339,22 +257,6 @@ public class AppDbContext : DbContext
             entity.Property(e => e.ServerInstanceId).HasMaxLength(100).IsRequired().HasDefaultValue("");
             entity.Property(e => e.CreatedAt).HasDefaultValueSql("datetime('now')");
             entity.Property(e => e.UpdatedAt).HasDefaultValueSql("datetime('now')");
-        });
-
-        // OpenClaw 任务
-        modelBuilder.Entity<OpenClawTask>(entity =>
-        {
-            entity.ToTable("OpenClawTasks");
-            entity.HasKey(e => e.Id);
-            entity.HasIndex(e => e.TaskId).IsUnique();
-            entity.HasIndex(e => e.Status);
-            entity.HasIndex(e => e.CreatedAt);
-
-            entity.Property(e => e.TaskId).HasMaxLength(20).IsRequired();
-            entity.Property(e => e.Prompt).IsRequired();
-            entity.Property(e => e.Status).HasMaxLength(50).IsRequired().HasDefaultValue("pending");
-            entity.Property(e => e.ReportPath).HasMaxLength(1000);
-            entity.Property(e => e.CreatedAt).HasDefaultValueSql("datetime('now')");
         });
 
         // AI 调用性能指标
@@ -375,150 +277,6 @@ public class AppDbContext : DbContext
             entity.Property(e => e.CalledAt).HasDefaultValueSql("datetime('now')");
         });
 
-        // Benchmark 测试结果
-        modelBuilder.Entity<BenchmarkSessionEntity>(entity =>
-        {
-            entity.ToTable("BenchmarkSessions");
-            entity.HasKey(e => e.Id);
-            entity.HasIndex(e => e.SessionId).IsUnique();
-            entity.HasIndex(e => e.Category);
-            entity.HasIndex(e => e.TestedAt);
-
-            entity.Property(e => e.SessionId).HasMaxLength(20).IsRequired();
-            entity.Property(e => e.ModelName).HasMaxLength(200).IsRequired();
-            entity.Property(e => e.Category).HasMaxLength(50).IsRequired();
-            entity.Property(e => e.ProviderId).HasMaxLength(50).IsRequired();
-            entity.Property(e => e.ModelId).HasMaxLength(100).IsRequired();
-            entity.Property(e => e.ResultsJson).IsRequired().HasDefaultValue("[]");
-            entity.Property(e => e.TestedAt).HasDefaultValueSql("datetime('now')");
-        });
-
-        // Onboarding 状态
-        modelBuilder.Entity<OnboardingState>(entity =>
-        {
-            entity.ToTable("OnboardingStates");
-            entity.HasKey(e => e.Id);
-
-            entity.Property(e => e.IsCompleted).HasDefaultValue(false);
-            entity.Property(e => e.CreatedAt).HasDefaultValueSql("datetime('now')");
-            entity.Property(e => e.UpdatedAt).HasDefaultValueSql("datetime('now')");
-        });
-
-        // 初始化任务进度
-        modelBuilder.Entity<InitTaskProgress>(entity =>
-        {
-            entity.ToTable("InitTaskProgresses");
-            entity.HasKey(e => e.Id);
-            entity.HasIndex(e => e.TaskId).IsUnique();
-
-            entity.Property(e => e.TaskId).HasMaxLength(50).IsRequired();
-            entity.Property(e => e.TaskType).HasMaxLength(50).IsRequired();
-            entity.Property(e => e.IsCompleted).HasDefaultValue(false);
-            entity.Property(e => e.IsSkipped).HasDefaultValue(false);
-            entity.Property(e => e.CreatedAt).HasDefaultValueSql("datetime('now')");
-            entity.Property(e => e.UpdatedAt).HasDefaultValueSql("datetime('now')");
-        });
-
-        // Embedding 配置
-        modelBuilder.Entity<EmbeddingConfig>(entity =>
-        {
-            entity.ToTable("EmbeddingConfigs");
-            entity.HasKey(e => e.Id);
-            entity.HasIndex(e => e.ProviderId);
-
-            entity.Property(e => e.ProviderId).HasMaxLength(50).IsRequired();
-            entity.Property(e => e.Model).HasMaxLength(200).IsRequired();
-            entity.Property(e => e.BaseUrl).HasMaxLength(500).IsRequired();
-            entity.Property(e => e.EncryptedApiKey).HasMaxLength(2000);
-            entity.Property(e => e.IsEnabled).HasDefaultValue(true);
-            entity.Property(e => e.CreatedAt).HasDefaultValueSql("datetime('now')");
-            entity.Property(e => e.UpdatedAt).HasDefaultValueSql("datetime('now')");
-        });
-
-        // 学习者档案
-        modelBuilder.Entity<LearnerProfile>(entity =>
-        {
-            entity.ToTable("LearnerProfiles");
-            entity.HasKey(e => e.Id);
-            entity.HasIndex(e => e.Name);
-
-            entity.Property(e => e.Name).HasMaxLength(50).IsRequired();
-            entity.Property(e => e.AvatarEmoji).HasMaxLength(10);
-            entity.Property(e => e.Color).HasMaxLength(20);
-            entity.Property(e => e.CreatedAt).HasDefaultValueSql("datetime('now')");
-        });
-
-        // 成就解锁记录
-        modelBuilder.Entity<Achievement>(entity =>
-        {
-            entity.ToTable("Achievements");
-            entity.HasKey(e => e.Id);
-            entity.HasIndex(e => new { e.LearnerId, e.Key }).IsUnique();
-
-            entity.Property(e => e.Key).HasMaxLength(50).IsRequired();
-            entity.Property(e => e.Title).HasMaxLength(100).IsRequired();
-            entity.Property(e => e.Description).HasMaxLength(500);
-            entity.Property(e => e.Icon).HasMaxLength(20);
-            entity.Property(e => e.Tier).HasMaxLength(20);
-            entity.Property(e => e.Category).HasMaxLength(20);
-            entity.Property(e => e.UnlockedAt).HasDefaultValueSql("datetime('now')");
-        });
-
-        // 学习活动记录
-        modelBuilder.Entity<StudyActivity>(entity =>
-        {
-            entity.ToTable("StudyActivities");
-            entity.HasKey(e => e.Id);
-            entity.HasIndex(e => e.LearnerId);
-            entity.HasIndex(e => new { e.LearnerId, e.VaultId, e.CreatedAt });
-
-            entity.Property(e => e.VaultId).HasMaxLength(50).IsRequired();
-            entity.Property(e => e.ActivityType).HasMaxLength(30).IsRequired();
-            entity.Property(e => e.CardId).HasMaxLength(100);
-            entity.Property(e => e.Result).HasMaxLength(20);
-            entity.Property(e => e.CreatedAt).HasDefaultValueSql("datetime('now')");
-        });
-
-        // 笔记向量缓存
-        modelBuilder.Entity<NoteEmbedding>(entity =>
-        {
-            entity.ToTable("NoteEmbeddings");
-            entity.HasKey(e => e.Id);
-            entity.HasIndex(e => new { e.VaultId, e.NotePath }).IsUnique();
-
-            entity.Property(e => e.VaultId).HasMaxLength(50).IsRequired();
-            entity.Property(e => e.NotePath).HasMaxLength(500).IsRequired();
-            entity.Property(e => e.CreatedAt).HasDefaultValueSql("datetime('now')");
-            entity.Property(e => e.UpdatedAt).HasDefaultValueSql("datetime('now')");
-        });
-
-        // 卡片复习状态
-        modelBuilder.Entity<CardReviewState>(entity =>
-        {
-            entity.ToTable("CardReviewStates");
-            entity.HasKey(e => e.Id);
-            entity.HasIndex(e => new { e.LearnerId, e.VaultId, e.CardId }).IsUnique();
-            entity.HasIndex(e => new { e.LearnerId, e.VaultId, e.NextReviewDate });
-
-            entity.Property(e => e.VaultId).HasMaxLength(50).IsRequired();
-            entity.Property(e => e.CardId).HasMaxLength(100).IsRequired();
-            entity.Property(e => e.LastResult).HasMaxLength(20);
-            entity.Property(e => e.CreatedAt).HasDefaultValueSql("datetime('now')");
-            entity.Property(e => e.UpdatedAt).HasDefaultValueSql("datetime('now')");
-        });
-
-        // 对话记忆条目
-        modelBuilder.Entity<ChatMemoryEntry>(entity =>
-        {
-            entity.ToTable("ChatMemoryEntries");
-            entity.HasKey(e => e.Id);
-            entity.HasIndex(e => new { e.SessionId, e.Round });
-
-            entity.Property(e => e.SessionId).HasMaxLength(100).IsRequired();
-            entity.Property(e => e.UserSummary).IsRequired();
-            entity.Property(e => e.AssistantSummary).IsRequired();
-            entity.Property(e => e.CreatedAt).HasDefaultValueSql("datetime('now')");
-        });
     }
 
     /// <summary>
@@ -558,37 +316,9 @@ public class AppDbContext : DbContext
             {
                 device.UpdatedAt = DateTime.Now;
             }
-            else if (entry.Entity is TaskEntity task)
-            {
-                task.UpdatedAt = DateTime.Now;
-            }
             else if (entry.Entity is ServerAddressSetting setting)
             {
                 setting.UpdatedAt = DateTime.Now;
-            }
-            else if (entry.Entity is OpenClawTask task2)
-            {
-                // OpenClawTask 无 UpdatedAt
-            }
-            else if (entry.Entity is OnboardingState onboarding)
-            {
-                onboarding.UpdatedAt = DateTime.Now;
-            }
-            else if (entry.Entity is InitTaskProgress initTask)
-            {
-                initTask.UpdatedAt = DateTime.Now;
-            }
-            else if (entry.Entity is EmbeddingConfig embedding)
-            {
-                embedding.UpdatedAt = DateTime.Now;
-            }
-            else if (entry.Entity is NoteEmbedding noteEmbedding)
-            {
-                noteEmbedding.UpdatedAt = DateTime.Now;
-            }
-            else if (entry.Entity is CardReviewState reviewState)
-            {
-                reviewState.UpdatedAt = DateTime.Now;
             }
             else if (entry.Entity is DeviceQuota deviceQuota)
             {
