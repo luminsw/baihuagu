@@ -1,5 +1,6 @@
 using System.Text;
 using System.Text.Json;
+using TaskRunner.Contracts.Anki;
 using TaskRunner.Helpers;
 using AnkiGen.Core;
 
@@ -298,15 +299,15 @@ namespace TaskRunner.Services
         /// <summary>
         /// 将 AnkiNote 转换为 JsonCard
         /// </summary>
-        private List<JsonCard> NoteToCards(AnkiNote note, string deckName)
+        private List<Contracts.Anki.JsonCard> NoteToCards(AnkiNote note, string deckName)
         {
-            var cards = new List<JsonCard>();
+            var cards = new List<Contracts.Anki.JsonCard>();
             var fields = note.Fields;
 
             if (fields.Count >= 2)
             {
                 // 正向卡片
-                cards.Add(new JsonCard
+                cards.Add(new Contracts.Anki.JsonCard
                 {
                     Front = fields[0],
                     Back = fields[1],
@@ -316,7 +317,7 @@ namespace TaskRunner.Services
                 // 如果是反向模板，添加反向卡片
                 if (note.Model.Templates.Count == 2)
                 {
-                    cards.Add(new JsonCard
+                    cards.Add(new Contracts.Anki.JsonCard
                     {
                         Front = fields[1],
                         Back = fields[0],
@@ -403,32 +404,4 @@ namespace TaskRunner.Services
         }
     }
 
-    // DTOs
-    public class GenerateResult
-    {
-        public bool Success { get; set; }
-        public string Message { get; set; } = "";
-        public int CardCount { get; set; }
-    }
-
-    public class BatchGenerateResult
-    {
-        public bool Success { get; set; }
-        public string Message { get; set; } = "";
-        public int TotalCards { get; set; }
-        public List<GenerateResult>? Results { get; set; }
-    }
-
-    public class JsonDeckData
-    {
-        public string? Name { get; set; }
-        public List<JsonCard>? Cards { get; set; }
-    }
-
-    public class JsonCard
-    {
-        public string Front { get; set; } = "";
-        public string Back { get; set; } = "";
-        public List<string> Tags { get; set; } = new();
-    }
 }

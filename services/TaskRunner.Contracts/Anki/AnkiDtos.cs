@@ -81,3 +81,31 @@ public class DeckInfo
     public int CardCount { get; set; }
     public List<string> Sources { get; set; } = new();
 }
+
+public class JsonDeckData
+{
+    public string? Name { get; set; }
+    public List<JsonCard>? Cards { get; set; }
+}
+
+public class JsonCard
+{
+    public string Front { get; set; } = "";
+    public string Back { get; set; } = "";
+    public List<string> Tags { get; set; } = new();
+}
+
+public class GenerateResult
+{
+    public bool Success { get; set; }
+    public string Message { get; set; } = "";
+    public int CardCount { get; set; }
+}
+
+public class BatchGenerateResult
+{
+    public bool Success { get; set; }
+    public string Message { get; set; } = "";
+    public int TotalCards { get; set; }
+    public List<GenerateResult>? Results { get; set; }
+}

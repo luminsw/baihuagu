@@ -43,11 +43,11 @@ namespace TaskRunner.Controllers
         /// 从单个笔记生成 Anki 卡片
         /// </summary>
         [HttpPost("generate")]
-        public async Task<ActionResult<Services.GenerateResult>> GenerateFromNote([FromBody] GenerateRequest request)
+        public async Task<ActionResult<GenerateResult>> GenerateFromNote([FromBody] GenerateRequest request)
         {
             if (string.IsNullOrWhiteSpace(request.NotePath))
             {
-                return BadRequest(new Services.GenerateResult { Success = false, Message = "笔记路径不能为空" });
+                return BadRequest(new GenerateResult { Success = false, Message = "笔记路径不能为空" });
             }
 
             var result = await _cardGenerator.GenerateFromNote(request.NotePath);
@@ -58,11 +58,11 @@ namespace TaskRunner.Controllers
         /// 批量生成卡片（从目录）
         /// </summary>
         [HttpPost("generate-batch")]
-        public async Task<ActionResult<Services.BatchGenerateResult>> GenerateFromDirectory([FromBody] BatchGenerateRequest request)
+        public async Task<ActionResult<BatchGenerateResult>> GenerateFromDirectory([FromBody] BatchGenerateRequest request)
         {
             if (string.IsNullOrWhiteSpace(request.Directory))
             {
-                return BadRequest(new Services.BatchGenerateResult { Success = false, Message = "目录不能为空" });
+                return BadRequest(new BatchGenerateResult { Success = false, Message = "目录不能为空" });
             }
 
             var result = await _cardGenerator.GenerateFromDirectory(request.Directory, request.Recursive);
@@ -657,18 +657,6 @@ namespace TaskRunner.Controllers
         public bool Recursive { get; set; } = true;
     }
 
-    public class JsonDeckData
-    {
-        public string? Name { get; set; }
-        public List<JsonCard>? Cards { get; set; }
-    }
-
-    public class JsonCard
-    {
-        public string Front { get; set; } = "";
-        public string Back { get; set; } = "";
-        public List<string> Tags { get; set; } = new();
-    }
 
     // 学习统计相关
     public class StudyRequest
