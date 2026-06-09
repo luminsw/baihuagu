@@ -13,6 +13,8 @@ namespace TaskRunner.Services
         private readonly IServiceProvider _serviceProvider;
         private readonly ILogger<SettingsService> _logger;
         private readonly IDbContextFactory<AppDbContext> _dbContextFactory;
+        private readonly IDbContextFactory<FamilyDbContext> _familyDbContextFactory;
+        private readonly IDbContextFactory<AIDbContext> _aiDbContextFactory;
         private IReadOnlyList<AiProviderConfig>? _aiProvidersCache;
 
         private readonly object _vaultPathLock = new();
@@ -22,11 +24,15 @@ namespace TaskRunner.Services
             IConfiguration configuration, 
             IServiceProvider serviceProvider, 
             IDbContextFactory<AppDbContext> dbContextFactory,
+            IDbContextFactory<FamilyDbContext> familyDbContextFactory,
+            IDbContextFactory<AIDbContext> aiDbContextFactory,
             ILogger<SettingsService> logger)
         {
             _configuration = configuration;
             _serviceProvider = serviceProvider;
             _dbContextFactory = dbContextFactory;
+            _familyDbContextFactory = familyDbContextFactory;
+            _aiDbContextFactory = aiDbContextFactory;
             _logger = logger;
 
             LoadFromDatabase();
@@ -75,22 +81,20 @@ namespace TaskRunner.Services
         /// </summary>
         private void LoadFromDatabase()
         {
+            // 迁移 Core 数据库
             using var dbContext = _dbContextFactory.CreateDbContext();
-            // 确保数据库表结构已创建（首次运行或跨平台部署时）
-            try
-            {
-                _logger.LogDebug("About to migrate DB at: {ConnectionString}", dbContext.Database.GetDbConnection().ConnectionString);
-                dbContext.Database.Migrate();
-                _logger.LogDebug("Migrate completed successfully");
-            }
-            catch (Exception ex)
-            {
-                _logger.LogError(ex, "Migrate FAILED");
-                _logger.LogError(ex, "数据库迁移失败: {Message}", ex.Message);
-                throw;
-            }
+            MigrateDatabase(dbContext, "Core");
+
+            // 迁移 Family 数据库
+            using var familyDb = _familyDbContextFactory.CreateDbContext();
+            MigrateDatabase(familyDb, "Family");
+
+            // 迁移 AI 数据库
+            using var aiDb = _aiDbContextFactory.CreateDbContext();
+            MigrateDatabase(aiDb, "AI");
+
             // 密钥迁移：检测并修复因加密密钥变化导致的 API Key 无法解密问题
-            MigrateApiKeysIfNeeded(dbContext);
+            MigrateApiKeysIfNeeded(aiDb);
 
             var firstVault = dbContext.Vaults
                 .OrderBy(v => v.CreatedAt)
@@ -116,7 +120,7 @@ namespace TaskRunner.Services
         /// 2. 如果 .yj-key 文件不存在：尝试用旧版机器指纹解密所有 Key，成功后生成 .yj-key 并重新加密
         ///    如果没有旧数据能解密，直接生成 .yj-key（确保后续加密使用固定密钥）
         /// </summary>
-        private void MigrateApiKeysIfNeeded(TaskRunner.Data.AppDbContext dbContext)
+        private void MigrateApiKeysIfNeeded(TaskRunner.Data.AIDbContext dbContext)
         {
             try
             {
@@ -219,7 +223,23 @@ namespace TaskRunner.Services
             }
             catch (Exception ex)
             {
-                _logger.LogError(ex, "API Key 自动迁移失败：加密密钥可能已变更，已配置的 AI 提供商可能无法使用");
+                _logger.LogError(ex, "API Key 迁移过程出错: {Message}", ex.Message);
+            }
+        }
+
+        private void MigrateDatabase(DbContext dbContext, string domainName)
+        {
+            try
+            {
+                _logger.LogDebug("About to migrate {Domain} DB at: {ConnectionString}", domainName, dbContext.Database.GetDbConnection().ConnectionString);
+                dbContext.Database.Migrate();
+                _logger.LogDebug("{Domain} migrate completed successfully", domainName);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "{Domain} migrate FAILED", domainName);
+                _logger.LogError(ex, "{Domain} 数据库迁移失败: {Message}", domainName, ex.Message);
+                throw;
             }
         }
 
