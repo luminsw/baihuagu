@@ -1,0 +1,235 @@
+using Microsoft.EntityFrameworkCore;
+using TaskRunner.Data.Entities;
+
+namespace TaskRunner.Data;
+
+/// <summary>
+/// 家庭亲子域数据库上下文
+/// </summary>
+public class FamilyDbContext : DbContext
+{
+    private readonly string _dbPath;
+
+    public FamilyDbContext(DbContextOptions<FamilyDbContext> options) : base(options)
+    {
+        _dbPath = Database.GetDbConnection().ConnectionString;
+    }
+
+    public FamilyDbContext()
+    {
+        _dbPath = GetDefaultDbPath();
+    }
+
+    public DbSet<TaskEntity> Tasks => Set<TaskEntity>();
+    public DbSet<OpenClawTask> OpenClawTasks => Set<OpenClawTask>();
+    public DbSet<LearnerProfile> LearnerProfiles => Set<LearnerProfile>();
+    public DbSet<Achievement> Achievements => Set<Achievement>();
+    public DbSet<StudyActivity> StudyActivities => Set<StudyActivity>();
+    public DbSet<CardReviewState> CardReviewStates => Set<CardReviewState>();
+    public DbSet<OnboardingState> OnboardingStates => Set<OnboardingState>();
+    public DbSet<InitTaskProgress> InitTaskProgresses => Set<InitTaskProgress>();
+
+    public string DatabasePath => _dbPath;
+
+    protected override void OnConfiguring(DbContextOptionsBuilder optionsBuilder)
+    {
+        if (!optionsBuilder.IsConfigured)
+        {
+            var dbPath = GetDefaultDbPath();
+            optionsBuilder.UseSqlite($"Data Source={dbPath};Foreign Keys=True;");
+        }
+    }
+
+    private static string GetDefaultDbPath()
+    {
+        string dataDir;
+        var envDir = Environment.GetEnvironmentVariable("TASKRUNNER_DATA_DIR");
+        if (!string.IsNullOrEmpty(envDir))
+        {
+            dataDir = envDir;
+        }
+        else
+        {
+            var baseDir = AppDomain.CurrentDomain.BaseDirectory;
+            var binDebug = Path.Combine("bin", "Debug");
+            var binRelease = Path.Combine("bin", "Release");
+            if (baseDir.Contains(binDebug) || baseDir.Contains(binRelease))
+            {
+                var index = baseDir.IndexOf(binDebug);
+                if (index < 0) index = baseDir.IndexOf(binRelease);
+                if (index > 0)
+                {
+                    dataDir = Path.Combine(baseDir.Substring(0, index), "data");
+                }
+                else
+                {
+                    dataDir = Path.Combine(baseDir, "data");
+                }
+            }
+            else
+            {
+                dataDir = Path.Combine(baseDir, "data");
+            }
+        }
+        Directory.CreateDirectory(dataDir);
+        return Path.Combine(dataDir, "family.db");
+    }
+
+    public static string GetDbPath()
+    {
+        return GetDefaultDbPath();
+    }
+
+    protected override void OnModelCreating(ModelBuilder modelBuilder)
+    {
+        base.OnModelCreating(modelBuilder);
+
+        modelBuilder.Entity<TaskEntity>(entity =>
+        {
+            entity.ToTable("Tasks");
+            entity.HasKey(e => e.Id);
+            entity.HasIndex(e => e.TaskId).IsUnique();
+            entity.HasIndex(e => e.Status);
+            entity.HasIndex(e => e.CreatedAt);
+
+            entity.Property(e => e.TaskId).HasMaxLength(100).IsRequired();
+            entity.Property(e => e.TaskType).HasMaxLength(50).IsRequired();
+            entity.Property(e => e.Status).HasMaxLength(50).IsRequired().HasDefaultValue("Pending");
+            entity.Property(e => e.Progress).HasDefaultValue(0);
+            entity.Property(e => e.CreatedAt).HasDefaultValueSql("datetime('now')");
+            entity.Property(e => e.UpdatedAt).HasDefaultValueSql("datetime('now')");
+        });
+
+        modelBuilder.Entity<OpenClawTask>(entity =>
+        {
+            entity.ToTable("OpenClawTasks");
+            entity.HasKey(e => e.Id);
+            entity.HasIndex(e => e.TaskId).IsUnique();
+            entity.HasIndex(e => e.Status);
+            entity.HasIndex(e => e.CreatedAt);
+
+            entity.Property(e => e.TaskId).HasMaxLength(20).IsRequired();
+            entity.Property(e => e.Prompt).IsRequired();
+            entity.Property(e => e.Status).HasMaxLength(50).IsRequired().HasDefaultValue("pending");
+            entity.Property(e => e.ReportPath).HasMaxLength(1000);
+            entity.Property(e => e.CreatedAt).HasDefaultValueSql("datetime('now')");
+        });
+
+        modelBuilder.Entity<OnboardingState>(entity =>
+        {
+            entity.ToTable("OnboardingStates");
+            entity.HasKey(e => e.Id);
+
+            entity.Property(e => e.IsCompleted).HasDefaultValue(false);
+            entity.Property(e => e.CreatedAt).HasDefaultValueSql("datetime('now')");
+            entity.Property(e => e.UpdatedAt).HasDefaultValueSql("datetime('now')");
+        });
+
+        modelBuilder.Entity<InitTaskProgress>(entity =>
+        {
+            entity.ToTable("InitTaskProgresses");
+            entity.HasKey(e => e.Id);
+            entity.HasIndex(e => e.TaskId).IsUnique();
+
+            entity.Property(e => e.TaskId).HasMaxLength(50).IsRequired();
+            entity.Property(e => e.TaskType).HasMaxLength(50).IsRequired();
+            entity.Property(e => e.IsCompleted).HasDefaultValue(false);
+            entity.Property(e => e.IsSkipped).HasDefaultValue(false);
+            entity.Property(e => e.CreatedAt).HasDefaultValueSql("datetime('now')");
+            entity.Property(e => e.UpdatedAt).HasDefaultValueSql("datetime('now')");
+        });
+
+        modelBuilder.Entity<LearnerProfile>(entity =>
+        {
+            entity.ToTable("LearnerProfiles");
+            entity.HasKey(e => e.Id);
+            entity.HasIndex(e => e.Name);
+
+            entity.Property(e => e.Name).HasMaxLength(50).IsRequired();
+            entity.Property(e => e.AvatarEmoji).HasMaxLength(10);
+            entity.Property(e => e.Color).HasMaxLength(20);
+            entity.Property(e => e.CreatedAt).HasDefaultValueSql("datetime('now')");
+        });
+
+        modelBuilder.Entity<Achievement>(entity =>
+        {
+            entity.ToTable("Achievements");
+            entity.HasKey(e => e.Id);
+            entity.HasIndex(e => new { e.LearnerId, e.Key }).IsUnique();
+
+            entity.Property(e => e.Key).HasMaxLength(50).IsRequired();
+            entity.Property(e => e.Title).HasMaxLength(100).IsRequired();
+            entity.Property(e => e.Description).HasMaxLength(500);
+            entity.Property(e => e.Icon).HasMaxLength(20);
+            entity.Property(e => e.Tier).HasMaxLength(20);
+            entity.Property(e => e.Category).HasMaxLength(20);
+            entity.Property(e => e.UnlockedAt).HasDefaultValueSql("datetime('now')");
+        });
+
+        modelBuilder.Entity<StudyActivity>(entity =>
+        {
+            entity.ToTable("StudyActivities");
+            entity.HasKey(e => e.Id);
+            entity.HasIndex(e => e.LearnerId);
+            entity.HasIndex(e => new { e.LearnerId, e.VaultId, e.CreatedAt });
+
+            entity.Property(e => e.VaultId).HasMaxLength(50).IsRequired();
+            entity.Property(e => e.ActivityType).HasMaxLength(30).IsRequired();
+            entity.Property(e => e.CardId).HasMaxLength(100);
+            entity.Property(e => e.Result).HasMaxLength(20);
+            entity.Property(e => e.CreatedAt).HasDefaultValueSql("datetime('now')");
+        });
+
+        modelBuilder.Entity<CardReviewState>(entity =>
+        {
+            entity.ToTable("CardReviewStates");
+            entity.HasKey(e => e.Id);
+            entity.HasIndex(e => new { e.LearnerId, e.VaultId, e.CardId }).IsUnique();
+            entity.HasIndex(e => new { e.LearnerId, e.VaultId, e.NextReviewDate });
+
+            entity.Property(e => e.VaultId).HasMaxLength(50).IsRequired();
+            entity.Property(e => e.CardId).HasMaxLength(100).IsRequired();
+            entity.Property(e => e.LastResult).HasMaxLength(20);
+            entity.Property(e => e.CreatedAt).HasDefaultValueSql("datetime('now')");
+            entity.Property(e => e.UpdatedAt).HasDefaultValueSql("datetime('now')");
+        });
+    }
+
+    public override int SaveChanges()
+    {
+        UpdateTimestamps();
+        return base.SaveChanges();
+    }
+
+    public override Task<int> SaveChangesAsync(CancellationToken cancellationToken = default)
+    {
+        UpdateTimestamps();
+        return base.SaveChangesAsync(cancellationToken);
+    }
+
+    private void UpdateTimestamps()
+    {
+        var entries = ChangeTracker.Entries()
+            .Where(e => e.State == EntityState.Modified);
+
+        foreach (var entry in entries)
+        {
+            if (entry.Entity is TaskEntity task)
+            {
+                task.UpdatedAt = DateTime.Now;
+            }
+            else if (entry.Entity is OnboardingState onboarding)
+            {
+                onboarding.UpdatedAt = DateTime.Now;
+            }
+            else if (entry.Entity is InitTaskProgress initTask)
+            {
+                initTask.UpdatedAt = DateTime.Now;
+            }
+            else if (entry.Entity is CardReviewState reviewState)
+            {
+                reviewState.UpdatedAt = DateTime.Now;
+            }
+        }
+    }
+}

@@ -1,0 +1,212 @@
+using Microsoft.EntityFrameworkCore;
+using TaskRunner.Data.Entities;
+
+namespace TaskRunner.Data;
+
+/// <summary>
+/// AI 研究域数据库上下文
+/// </summary>
+public class AIDbContext : DbContext
+{
+    private readonly string _dbPath;
+
+    public AIDbContext(DbContextOptions<AIDbContext> options) : base(options)
+    {
+        _dbPath = Database.GetDbConnection().ConnectionString;
+    }
+
+    public AIDbContext()
+    {
+        _dbPath = GetDefaultDbPath();
+    }
+
+    public DbSet<AiProviderSetting> AiProviderSettings => Set<AiProviderSetting>();
+    public DbSet<AiUsageMetric> AiUsageMetrics => Set<AiUsageMetric>();
+    public DbSet<BenchmarkSessionEntity> BenchmarkSessions => Set<BenchmarkSessionEntity>();
+    public DbSet<EmbeddingConfig> EmbeddingConfigs => Set<EmbeddingConfig>();
+    public DbSet<NoteEmbedding> NoteEmbeddings => Set<NoteEmbedding>();
+    public DbSet<ChatMemoryEntry> ChatMemoryEntries => Set<ChatMemoryEntry>();
+
+    public string DatabasePath => _dbPath;
+
+    protected override void OnConfiguring(DbContextOptionsBuilder optionsBuilder)
+    {
+        if (!optionsBuilder.IsConfigured)
+        {
+            var dbPath = GetDefaultDbPath();
+            optionsBuilder.UseSqlite($"Data Source={dbPath};Foreign Keys=True;");
+        }
+    }
+
+    private static string GetDefaultDbPath()
+    {
+        string dataDir;
+        var envDir = Environment.GetEnvironmentVariable("TASKRUNNER_DATA_DIR");
+        if (!string.IsNullOrEmpty(envDir))
+        {
+            dataDir = envDir;
+        }
+        else
+        {
+            var baseDir = AppDomain.CurrentDomain.BaseDirectory;
+            var binDebug = Path.Combine("bin", "Debug");
+            var binRelease = Path.Combine("bin", "Release");
+            if (baseDir.Contains(binDebug) || baseDir.Contains(binRelease))
+            {
+                var index = baseDir.IndexOf(binDebug);
+                if (index < 0) index = baseDir.IndexOf(binRelease);
+                if (index > 0)
+                {
+                    dataDir = Path.Combine(baseDir.Substring(0, index), "data");
+                }
+                else
+                {
+                    dataDir = Path.Combine(baseDir, "data");
+                }
+            }
+            else
+            {
+                dataDir = Path.Combine(baseDir, "data");
+            }
+        }
+        Directory.CreateDirectory(dataDir);
+        return Path.Combine(dataDir, "ai.db");
+    }
+
+    public static string GetDbPath()
+    {
+        return GetDefaultDbPath();
+    }
+
+    protected override void OnModelCreating(ModelBuilder modelBuilder)
+    {
+        base.OnModelCreating(modelBuilder);
+
+        modelBuilder.Entity<AiProviderSetting>(entity =>
+        {
+            entity.ToTable("AiProviderSettings");
+            entity.HasKey(e => e.Id);
+            entity.HasIndex(e => e.ProviderId).IsUnique();
+            entity.HasIndex(e => e.IsMain);
+
+            entity.Property(e => e.ProviderId).HasMaxLength(50).IsRequired();
+            entity.Property(e => e.ProviderName).HasMaxLength(100).IsRequired();
+            entity.Property(e => e.BaseUrl).HasMaxLength(500).IsRequired();
+            entity.Property(e => e.EncryptedApiKey).HasMaxLength(2000);
+            entity.Property(e => e.ModelsJson).IsRequired().HasDefaultValue("[]");
+            entity.Property(e => e.SortOrder).HasDefaultValue(0);
+            entity.Property(e => e.IsEnabled).HasDefaultValue(true);
+            entity.Property(e => e.IsMain).HasDefaultValue(false);
+            entity.Property(e => e.Tier).HasDefaultValue(0);
+            entity.Property(e => e.CreatedAt).HasDefaultValueSql("datetime('now')");
+            entity.Property(e => e.UpdatedAt).HasDefaultValueSql("datetime('now')");
+        });
+
+        modelBuilder.Entity<AiUsageMetric>(entity =>
+        {
+            entity.ToTable("AiUsageMetrics");
+            entity.HasKey(e => e.Id);
+            entity.HasIndex(e => e.CalledAt);
+            entity.HasIndex(e => e.ProviderId);
+            entity.HasIndex(e => e.ModelId);
+            entity.HasIndex(e => e.Operation);
+
+            entity.Property(e => e.ProviderId).HasMaxLength(50).IsRequired();
+            entity.Property(e => e.ProviderName).HasMaxLength(100).IsRequired();
+            entity.Property(e => e.ModelId).HasMaxLength(100).IsRequired();
+            entity.Property(e => e.Operation).HasMaxLength(50).IsRequired();
+            entity.Property(e => e.ErrorMessage).HasMaxLength(2000);
+            entity.Property(e => e.CalledAt).HasDefaultValueSql("datetime('now')");
+        });
+
+        modelBuilder.Entity<BenchmarkSessionEntity>(entity =>
+        {
+            entity.ToTable("BenchmarkSessions");
+            entity.HasKey(e => e.Id);
+            entity.HasIndex(e => e.SessionId).IsUnique();
+            entity.HasIndex(e => e.Category);
+            entity.HasIndex(e => e.TestedAt);
+
+            entity.Property(e => e.SessionId).HasMaxLength(20).IsRequired();
+            entity.Property(e => e.ModelName).HasMaxLength(200).IsRequired();
+            entity.Property(e => e.Category).HasMaxLength(50).IsRequired();
+            entity.Property(e => e.ProviderId).HasMaxLength(50).IsRequired();
+            entity.Property(e => e.ModelId).HasMaxLength(100).IsRequired();
+            entity.Property(e => e.ResultsJson).IsRequired().HasDefaultValue("[]");
+            entity.Property(e => e.TestedAt).HasDefaultValueSql("datetime('now')");
+        });
+
+        modelBuilder.Entity<EmbeddingConfig>(entity =>
+        {
+            entity.ToTable("EmbeddingConfigs");
+            entity.HasKey(e => e.Id);
+            entity.HasIndex(e => e.ProviderId);
+
+            entity.Property(e => e.ProviderId).HasMaxLength(50).IsRequired();
+            entity.Property(e => e.Model).HasMaxLength(200).IsRequired();
+            entity.Property(e => e.BaseUrl).HasMaxLength(500).IsRequired();
+            entity.Property(e => e.EncryptedApiKey).HasMaxLength(2000);
+            entity.Property(e => e.IsEnabled).HasDefaultValue(true);
+            entity.Property(e => e.CreatedAt).HasDefaultValueSql("datetime('now')");
+            entity.Property(e => e.UpdatedAt).HasDefaultValueSql("datetime('now')");
+        });
+
+        modelBuilder.Entity<NoteEmbedding>(entity =>
+        {
+            entity.ToTable("NoteEmbeddings");
+            entity.HasKey(e => e.Id);
+            entity.HasIndex(e => new { e.VaultId, e.NotePath }).IsUnique();
+
+            entity.Property(e => e.VaultId).HasMaxLength(50).IsRequired();
+            entity.Property(e => e.NotePath).HasMaxLength(500).IsRequired();
+            entity.Property(e => e.CreatedAt).HasDefaultValueSql("datetime('now')");
+            entity.Property(e => e.UpdatedAt).HasDefaultValueSql("datetime('now')");
+        });
+
+        modelBuilder.Entity<ChatMemoryEntry>(entity =>
+        {
+            entity.ToTable("ChatMemoryEntries");
+            entity.HasKey(e => e.Id);
+            entity.HasIndex(e => new { e.SessionId, e.Round });
+
+            entity.Property(e => e.SessionId).HasMaxLength(100).IsRequired();
+            entity.Property(e => e.UserSummary).IsRequired();
+            entity.Property(e => e.AssistantSummary).IsRequired();
+            entity.Property(e => e.CreatedAt).HasDefaultValueSql("datetime('now')");
+        });
+    }
+
+    public override int SaveChanges()
+    {
+        UpdateTimestamps();
+        return base.SaveChanges();
+    }
+
+    public override Task<int> SaveChangesAsync(CancellationToken cancellationToken = default)
+    {
+        UpdateTimestamps();
+        return base.SaveChangesAsync(cancellationToken);
+    }
+
+    private void UpdateTimestamps()
+    {
+        var entries = ChangeTracker.Entries()
+            .Where(e => e.State == EntityState.Modified);
+
+        foreach (var entry in entries)
+        {
+            if (entry.Entity is AiProviderSetting provider)
+            {
+                provider.UpdatedAt = DateTime.Now;
+            }
+            else if (entry.Entity is EmbeddingConfig embedding)
+            {
+                embedding.UpdatedAt = DateTime.Now;
+            }
+            else if (entry.Entity is NoteEmbedding noteEmbedding)
+            {
+                noteEmbedding.UpdatedAt = DateTime.Now;
+            }
+        }
+    }
+}
