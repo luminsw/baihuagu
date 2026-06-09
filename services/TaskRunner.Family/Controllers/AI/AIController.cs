@@ -894,21 +894,6 @@ namespace TaskRunner.Controllers
         }
     }
 
-    public class ChatRequest
-    {
-        public string Message { get; set; } = string.Empty;
-        public string? ProviderId { get; set; }
-        public string? Model { get; set; }
-        public List<ChatHistoryItem>? History { get; set; }
-        /// <summary>
-        /// 会话 ID（用于记忆系统的摘要缓存和语义检索）
-        /// </summary>
-        public string? SessionId { get; set; }
-        /// <summary>
-        /// 是否启用 Function Calling（工具调用）。默认 true（聊天场景通常需要搜索知识库等工具）
-        /// </summary>
-        public bool? EnableTools { get; set; }
-    }
 
 
     public class AskRequest

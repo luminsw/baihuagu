@@ -144,3 +144,13 @@ public class ChatHistoryItem
     public string Role { get; set; } = "user";
     public string Content { get; set; } = string.Empty;
 }
+
+public class ChatRequest
+{
+    public string Message { get; set; } = string.Empty;
+    public string? ProviderId { get; set; }
+    public string? Model { get; set; }
+    public List<ChatHistoryItem>? History { get; set; }
+    public string? SessionId { get; set; }
+    public bool? EnableTools { get; set; }
+}
