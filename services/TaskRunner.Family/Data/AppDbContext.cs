@@ -24,11 +24,6 @@ public class AppDbContext : DbContext
     }
 
     /// <summary>
-    /// AI 提供商配置
-    /// </summary>
-    public DbSet<AiProviderSetting> AiProviderSettings => Set<AiProviderSetting>();
-
-    /// <summary>
     /// 知识库
     /// </summary>
     public DbSet<Vault> Vaults => Set<Vault>();
@@ -126,27 +121,6 @@ public class AppDbContext : DbContext
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
         base.OnModelCreating(modelBuilder);
-
-        // AI 提供商配置
-        modelBuilder.Entity<AiProviderSetting>(entity =>
-        {
-            entity.ToTable("AiProviderSettings");
-            entity.HasKey(e => e.Id);
-            entity.HasIndex(e => e.ProviderId).IsUnique();
-            entity.HasIndex(e => e.IsMain);
-
-            entity.Property(e => e.ProviderId).HasMaxLength(50).IsRequired();
-            entity.Property(e => e.ProviderName).HasMaxLength(100).IsRequired();
-            entity.Property(e => e.BaseUrl).HasMaxLength(500).IsRequired();
-            entity.Property(e => e.EncryptedApiKey).HasMaxLength(2000);
-            entity.Property(e => e.ModelsJson).IsRequired().HasDefaultValue("[]");
-            entity.Property(e => e.SortOrder).HasDefaultValue(0);
-            entity.Property(e => e.IsEnabled).HasDefaultValue(true);
-            entity.Property(e => e.IsMain).HasDefaultValue(false);
-            entity.Property(e => e.Tier).HasDefaultValue(0);
-            entity.Property(e => e.CreatedAt).HasDefaultValueSql("datetime('now')");
-            entity.Property(e => e.UpdatedAt).HasDefaultValueSql("datetime('now')");
-        });
 
         // 知识库
         modelBuilder.Entity<Vault>(entity =>
@@ -304,11 +278,7 @@ public class AppDbContext : DbContext
 
         foreach (var entry in entries)
         {
-            if (entry.Entity is AiProviderSetting provider)
-            {
-                provider.UpdatedAt = DateTime.Now;
-            }
-            else if (entry.Entity is Vault vault)
+            if (entry.Entity is Vault vault)
             {
                 vault.UpdatedAt = DateTime.Now;
             }
