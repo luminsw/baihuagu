@@ -1,9 +1,10 @@
+using TaskRunner.Services.Security;
 using System.IO.Compression;
 using System.Text.Json;
 using Microsoft.EntityFrameworkCore;
 using TaskRunner.Data;
 using TaskRunner.Data.Entities;
-using TaskRunner.Services.Security;
+using TaskRunner.Core.Shared.Security;
 
 namespace TaskRunner.Services;
 

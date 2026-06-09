@@ -1,7 +1,7 @@
 using System.Security.Cryptography;
 using System.Text;
 
-namespace TaskRunner.Services.Security;
+namespace TaskRunner.Core.Shared.Security;
 
 /// <summary>
 /// AES-256-GCM 加密方案 - 用于 API Key 的加密

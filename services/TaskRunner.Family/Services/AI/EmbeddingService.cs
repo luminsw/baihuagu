@@ -16,7 +16,7 @@ namespace TaskRunner.Services
         private readonly AiClientService _aiClientService;
         private readonly SettingsService _settings;
         private readonly IDbContextFactory<AIDbContext> _dbFactory;
-        private readonly TaskRunner.Services.Security.ApiKeyProtectionService _protectionService;
+        private readonly TaskRunner.Core.Shared.Security.ApiKeyProtectionService _protectionService;
         private readonly ILogger<EmbeddingService> _logger;
 
         private const int MaxNotesToRerank = 50;
@@ -25,7 +25,7 @@ namespace TaskRunner.Services
             AiClientService aiClientService,
             SettingsService settings,
             IDbContextFactory<AIDbContext> dbFactory,
-            TaskRunner.Services.Security.ApiKeyProtectionService protectionService,
+            TaskRunner.Core.Shared.Security.ApiKeyProtectionService protectionService,
             ILogger<EmbeddingService> logger)
         {
             _aiClientService = aiClientService;

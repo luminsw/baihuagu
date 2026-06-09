@@ -2,7 +2,7 @@ using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using TaskRunner.Data;
 using TaskRunner.Data.Entities;
-using TaskRunner.Services.Security;
+using TaskRunner.Core.Shared.Security;
 
 namespace TaskRunner.Controllers;
 

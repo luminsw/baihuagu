@@ -1,3 +1,4 @@
+using TaskRunner.Services.Security;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using System.Text.Json;
@@ -5,7 +6,7 @@ using System.Text.Json.Serialization;
 using TaskRunner.Data;
 using TaskRunner.Services;
 using TaskRunner.Services.Strategies;
-using TaskRunner.Services.Security;
+using TaskRunner.Core.Shared.Security;
 using TaskRunner.Contracts.Vaults;
 
 namespace TaskRunner.Controllers

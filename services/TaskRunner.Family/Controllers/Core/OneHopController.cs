@@ -1,6 +1,7 @@
+using TaskRunner.Services.Security;
 using Microsoft.AspNetCore.Mvc;
 using TaskRunner.Services;
-using TaskRunner.Services.Security;
+using TaskRunner.Core.Shared.Security;
 
 namespace TaskRunner.Controllers
 {

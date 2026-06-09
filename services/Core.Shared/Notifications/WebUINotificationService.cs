@@ -1,4 +1,8 @@
-namespace TaskRunner.Services;
+using Microsoft.Extensions.Configuration;
+using Microsoft.Extensions.Logging;
+using System.Net.Http.Json;
+
+namespace TaskRunner.Core.Shared.Notifications;
 
 /// <summary>
 /// 向 WebUI 推送状态变更通知（HTTP 回调方式）

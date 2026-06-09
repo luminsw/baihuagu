@@ -1,8 +1,9 @@
+using TaskRunner.Core.Shared.Notifications;
 using Microsoft.AspNetCore.Mvc;
 using TaskRunner.Data.Entities;
 using TaskRunner.Models;
 using TaskRunner.Services;
-using TaskRunner.Services.Security;
+using TaskRunner.Core.Shared.Security;
 using TaskRunner.Contracts.Ai;
 
 namespace TaskRunner.Controllers;

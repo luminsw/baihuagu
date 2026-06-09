@@ -1,7 +1,7 @@
 using System.Diagnostics;
 using System.Net.Http;
 using System.Runtime.InteropServices;
-using TaskRunner.Services.Security;
+using TaskRunner.Core.Shared.Security;
 using ComponentStatus = TaskRunner.Contracts.Health.ComponentStatusDto;
 using SystemHealthReport = TaskRunner.Contracts.Health.SystemHealthReportDto;
 

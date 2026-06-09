@@ -3,7 +3,7 @@ using Microsoft.EntityFrameworkCore;
 using TaskRunner.Data;
 using TaskRunner.Data.Entities;
 using TaskRunner.Models;
-using TaskRunner.Services.Security;
+using TaskRunner.Core.Shared.Security;
 
 namespace TaskRunner.Services;
 
