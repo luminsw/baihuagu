@@ -37,6 +37,7 @@
 
   <ItemGroup>
     <PackageReference Include="AnkiGen.Core" Version="1.0.0" />
+    <ProjectReference Include="..\TaskRunner.Data\TaskRunner.Data.csproj" />
     <ProjectReference Include="..\Core.Shared\TaskRunner.Core.Shared.csproj" />
     <ProjectReference Include="..\TaskRunner.Contracts\TaskRunner.Contracts.csproj" />
     <ProjectReference Include="..\..\libs\MobileContract\MobileContract.csproj" />
