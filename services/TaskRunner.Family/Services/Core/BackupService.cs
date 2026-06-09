@@ -42,6 +42,8 @@ public class BackupService
 {
     private readonly SettingsService _settings;
     private readonly IDbContextFactory<AppDbContext> _dbContextFactory;
+    private readonly IDbContextFactory<FamilyDbContext> _familyDbContextFactory;
+    private readonly IDbContextFactory<AIDbContext> _aiDbContextFactory;
     private readonly ApiKeyProtectionService _apiKeyProtection;
     private readonly DataEncryptionService _dataEncryption;
     private readonly ILogger<BackupService> _logger;
@@ -55,12 +57,16 @@ public class BackupService
     public BackupService(
         SettingsService settings,
         IDbContextFactory<AppDbContext> dbContextFactory,
+        IDbContextFactory<FamilyDbContext> familyDbContextFactory,
+        IDbContextFactory<AIDbContext> aiDbContextFactory,
         ApiKeyProtectionService apiKeyProtection,
         DataEncryptionService dataEncryption,
         ILogger<BackupService> logger)
     {
         _settings = settings;
         _dbContextFactory = dbContextFactory;
+        _familyDbContextFactory = familyDbContextFactory;
+        _aiDbContextFactory = aiDbContextFactory;
         _apiKeyProtection = apiKeyProtection;
         _dataEncryption = dataEncryption;
         _logger = logger;
@@ -164,6 +170,8 @@ public class BackupService
         Directory.CreateDirectory(dbDir);
 
         using var db = _dbContextFactory.CreateDbContext();
+        using var familyDb = _familyDbContextFactory.CreateDbContext();
+        using var aiDb = _aiDbContextFactory.CreateDbContext();
 
         cancellationToken.ThrowIfCancellationRequested();
 
@@ -181,7 +189,7 @@ public class BackupService
             JsonSerializer.Serialize(vaultsData, _jsonOpts));
 
         // AiProviderSettings - API Key 解密后用备份密码重新加密
-        var providers = await db.AiProviderSettings.ToListAsync(cancellationToken);
+        var providers = await aiDb.AiProviderSettings.ToListAsync(cancellationToken);
         var providersData = providers.Select(p =>
         {
             var plainApiKey = _apiKeyProtection.Decrypt(p.EncryptedApiKey);
@@ -215,7 +223,7 @@ public class BackupService
             JsonSerializer.Serialize(providersData, _jsonOpts), cancellationToken);
 
         // Tasks
-        var tasks = await db.Tasks.ToListAsync(cancellationToken);
+        var tasks = await familyDb.Tasks.ToListAsync(cancellationToken);
         await File.WriteAllTextAsync(Path.Combine(dbDir, "tasks.json"),
             JsonSerializer.Serialize(tasks, _jsonOpts), cancellationToken);
 
@@ -415,6 +423,8 @@ public class BackupService
         if (!Directory.Exists(dbDir)) return true;
 
         using var db = _dbContextFactory.CreateDbContext();
+        using var familyDb = _familyDbContextFactory.CreateDbContext();
+        using var aiDb = _aiDbContextFactory.CreateDbContext();
 
         cancellationToken.ThrowIfCancellationRequested();
 
@@ -472,7 +482,7 @@ public class BackupService
             {
                 if (overwrite)
                 {
-                    db.AiProviderSettings.RemoveRange(db.AiProviderSettings);
+                    aiDb.AiProviderSettings.RemoveRange(aiDb.AiProviderSettings);
                 }
 
                 foreach (var p in providersData)
@@ -523,12 +533,12 @@ public class BackupService
                         UpdatedAt = p.GetProperty("UpdatedAt").GetDateTime()
                     };
 
-                    if (!db.AiProviderSettings.Any(x => x.ProviderId == provider.ProviderId))
+                    if (!aiDb.AiProviderSettings.Any(x => x.ProviderId == provider.ProviderId))
                     {
-                        db.AiProviderSettings.Add(provider);
+                        aiDb.AiProviderSettings.Add(provider);
                     }
                 }
-                await db.SaveChangesAsync(cancellationToken);
+                await aiDb.SaveChangesAsync(cancellationToken);
             }
         }
 
@@ -544,17 +554,17 @@ public class BackupService
             {
                 if (overwrite)
                 {
-                    db.Tasks.RemoveRange(db.Tasks);
+                    familyDb.Tasks.RemoveRange(familyDb.Tasks);
                 }
 
                 foreach (var task in tasksData)
                 {
-                    if (!db.Tasks.Any(t => t.TaskId == task.TaskId))
+                    if (!familyDb.Tasks.Any(t => t.TaskId == task.TaskId))
                     {
-                        db.Tasks.Add(task);
+                        familyDb.Tasks.Add(task);
                     }
                 }
-                await db.SaveChangesAsync(cancellationToken);
+                await familyDb.SaveChangesAsync(cancellationToken);
             }
         }
 
