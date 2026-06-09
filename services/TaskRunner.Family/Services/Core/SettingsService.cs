@@ -1,8 +1,10 @@
+using Microsoft.Data.Sqlite;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using System.Runtime.InteropServices;
 using TaskRunner.Models;
 using TaskRunner.Data;
+using TaskRunner.Data.Entities;
 using TaskRunner.Contracts.Vaults;
 
 namespace TaskRunner.Services
@@ -95,6 +97,9 @@ namespace TaskRunner.Services
 
             // 密钥迁移：检测并修复因加密密钥变化导致的 API Key 无法解密问题
             MigrateApiKeysIfNeeded(aiDb);
+
+            // 架构拆分：从旧数据库（taskrunner.db）迁移 AI/Family 数据到新数据库
+            MigrateLegacyDataIfNeeded();
 
             var firstVault = dbContext.Vaults
                 .OrderBy(v => v.CreatedAt)
@@ -1238,6 +1243,227 @@ namespace TaskRunner.Services
             public string? DownloadDirectory { get; set; }
             public string? PreferredSource { get; set; }
             public bool? UseChinaMirror { get; set; }
+        }
+
+        /// <summary>
+        /// 架构拆分数据迁移：从旧数据库（taskrunner.db）迁移 AI/Family 数据到新数据库（ai.db/family.db）。
+        /// 此迁移只在检测到新数据库为空时执行一次。
+        /// </summary>
+        private void MigrateLegacyDataIfNeeded()
+        {
+            var legacyDbPath = AppDbContext.GetDbPath();
+            if (!File.Exists(legacyDbPath))
+                return;
+
+            try
+            {
+                // 1. 迁移 AI 数据
+                using var aiDb = _aiDbContextFactory.CreateDbContext();
+                if (!aiDb.AiProviderSettings.Any())
+                {
+                    MigrateAiDataFromLegacy(legacyDbPath, aiDb);
+                }
+
+                // 2. 迁移 Family 数据（只迁移有实际数据的表，跳过空表）
+                using var familyDb = _familyDbContextFactory.CreateDbContext();
+                var hasFamilyData = familyDb.Tasks.Any()
+                    || familyDb.OpenClawTasks.Any()
+                    || familyDb.LearnerProfiles.Any()
+                    || familyDb.Achievements.Any()
+                    || familyDb.StudyActivities.Any()
+                    || familyDb.CardReviewStates.Any()
+                    || familyDb.OnboardingStates.Any()
+                    || familyDb.InitTaskProgresses.Any(p => p.IsCompleted);
+                if (!hasFamilyData)
+                {
+                    MigrateFamilyDataFromLegacy(legacyDbPath, familyDb);
+                }
+
+                // 3. 修复 Core 表结构（ServerAddressSettings 缺少 Domain 列）
+                FixCoreSchema(legacyDbPath);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "架构拆分数据迁移失败");
+            }
+        }
+
+        private void MigrateAiDataFromLegacy(string legacyDbPath, AIDbContext aiDb)
+        {
+            using var connection = new SqliteConnection($"Data Source={legacyDbPath}");
+            connection.Open();
+
+            int total = 0;
+
+            // AiProviderSettings
+            using (var cmd = connection.CreateCommand())
+            {
+                cmd.CommandText = @"SELECT ProviderId, ProviderName, BaseUrl, AnthropicBaseUrl, EncryptedApiKey, IsMain, ModelsJson, SortOrder, IsEnabled, Tier, CreatedAt, UpdatedAt FROM AiProviderSettings";
+                using var reader = cmd.ExecuteReader();
+                while (reader.Read())
+                {
+                    aiDb.AiProviderSettings.Add(new AiProviderSetting
+                    {
+                        ProviderId = reader.GetString(0),
+                        ProviderName = reader.GetString(1),
+                        BaseUrl = reader.GetString(2),
+                        AnthropicBaseUrl = reader.IsDBNull(3) ? null : reader.GetString(3),
+                        EncryptedApiKey = reader.IsDBNull(4) ? null : reader.GetString(4),
+                        IsMain = reader.GetBoolean(5),
+                        ModelsJson = reader.GetString(6),
+                        SortOrder = reader.GetInt32(7),
+                        IsEnabled = reader.GetBoolean(8),
+                        Tier = reader.GetInt32(9),
+                        CreatedAt = reader.GetDateTime(10),
+                        UpdatedAt = reader.GetDateTime(11)
+                    });
+                    total++;
+                }
+            }
+
+            // AiUsageMetrics
+            using (var cmd = connection.CreateCommand())
+            {
+                cmd.CommandText = @"SELECT CalledAt, ProviderId, ProviderName, ModelId, Operation, LatencyMs, InputTokens, OutputTokens, TotalTokens, TokensPerSecond, IsSuccess, ErrorMessage FROM AiUsageMetrics";
+                using var reader = cmd.ExecuteReader();
+                while (reader.Read())
+                {
+                    aiDb.AiUsageMetrics.Add(new AiUsageMetric
+                    {
+                        CalledAt = reader.GetDateTime(0),
+                        ProviderId = reader.GetString(1),
+                        ProviderName = reader.GetString(2),
+                        ModelId = reader.GetString(3),
+                        Operation = reader.GetString(4),
+                        LatencyMs = reader.GetInt64(5),
+                        InputTokens = reader.IsDBNull(6) ? null : reader.GetInt32(6),
+                        OutputTokens = reader.IsDBNull(7) ? null : reader.GetInt32(7),
+                        TotalTokens = reader.IsDBNull(8) ? null : reader.GetInt32(8),
+                        TokensPerSecond = reader.IsDBNull(9) ? null : reader.GetDouble(9),
+                        IsSuccess = reader.GetBoolean(10),
+                        ErrorMessage = reader.IsDBNull(11) ? null : reader.GetString(11)
+                    });
+                    total++;
+                }
+            }
+
+            // EmbeddingConfigs
+            using (var cmd = connection.CreateCommand())
+            {
+                cmd.CommandText = @"SELECT ProviderId, Model, BaseUrl, EncryptedApiKey, Dimensions, IsEnabled, CreatedAt, UpdatedAt FROM EmbeddingConfigs";
+                using var reader = cmd.ExecuteReader();
+                while (reader.Read())
+                {
+                    aiDb.EmbeddingConfigs.Add(new EmbeddingConfig
+                    {
+                        ProviderId = reader.GetString(0),
+                        Model = reader.GetString(1),
+                        BaseUrl = reader.GetString(2),
+                        EncryptedApiKey = reader.IsDBNull(3) ? null : reader.GetString(3),
+                        Dimensions = reader.IsDBNull(4) ? null : reader.GetInt32(4),
+                        IsEnabled = reader.GetBoolean(5),
+                        CreatedAt = reader.GetDateTime(6),
+                        UpdatedAt = reader.GetDateTime(7)
+                    });
+                    total++;
+                }
+            }
+
+            // NoteEmbeddings
+            using (var cmd = connection.CreateCommand())
+            {
+                cmd.CommandText = @"SELECT VaultId, NotePath, VectorJson, Dimensions, CreatedAt, UpdatedAt FROM NoteEmbeddings";
+                using var reader = cmd.ExecuteReader();
+                while (reader.Read())
+                {
+                    aiDb.NoteEmbeddings.Add(new NoteEmbedding
+                    {
+                        VaultId = reader.GetString(0),
+                        NotePath = reader.GetString(1),
+                        VectorJson = reader.GetString(2),
+                        Dimensions = reader.GetInt32(3),
+                        CreatedAt = reader.GetDateTime(4),
+                        UpdatedAt = reader.GetDateTime(5)
+                    });
+                    total++;
+                }
+            }
+
+            aiDb.SaveChanges();
+            _logger.LogInformation("已从旧数据库迁移 {Count} 条 AI 数据到 ai.db", total);
+        }
+
+        private void MigrateFamilyDataFromLegacy(string legacyDbPath, FamilyDbContext familyDb)
+        {
+            using var connection = new SqliteConnection($"Data Source={legacyDbPath}");
+            connection.Open();
+
+            int total = 0;
+
+            // InitTaskProgresses（只迁移有实际进度的，跳过空记录）
+            using (var cmd = connection.CreateCommand())
+            {
+                cmd.CommandText = @"SELECT TaskId, TaskType, IsCompleted, IsSkipped, CompletedAt, CreatedAt, UpdatedAt FROM InitTaskProgresses WHERE IsCompleted = 1 OR IsSkipped = 1";
+                using var reader = cmd.ExecuteReader();
+                while (reader.Read())
+                {
+                    var existing = familyDb.InitTaskProgresses.FirstOrDefault(p => p.TaskId == reader.GetString(0));
+                    if (existing != null)
+                    {
+                        existing.IsCompleted = reader.GetBoolean(2);
+                        existing.IsSkipped = reader.GetBoolean(3);
+                        existing.CompletedAt = reader.IsDBNull(4) ? null : reader.GetDateTime(4);
+                        existing.UpdatedAt = reader.GetDateTime(6);
+                    }
+                    else
+                    {
+                        familyDb.InitTaskProgresses.Add(new InitTaskProgress
+                        {
+                            TaskId = reader.GetString(0),
+                            TaskType = reader.GetString(1),
+                            IsCompleted = reader.GetBoolean(2),
+                            IsSkipped = reader.GetBoolean(3),
+                            CompletedAt = reader.IsDBNull(4) ? null : reader.GetDateTime(4),
+                            CreatedAt = reader.GetDateTime(5),
+                            UpdatedAt = reader.GetDateTime(6)
+                        });
+                    }
+                    total++;
+                }
+            }
+
+            familyDb.SaveChanges();
+            _logger.LogInformation("已从旧数据库迁移 {Count} 条 Family 数据到 family.db", total);
+        }
+
+        private void FixCoreSchema(string legacyDbPath)
+        {
+            using var connection = new SqliteConnection($"Data Source={legacyDbPath}");
+            connection.Open();
+
+            // 检查 ServerAddressSettings 是否缺少 Domain 列
+            using (var cmd = connection.CreateCommand())
+            {
+                cmd.CommandText = "PRAGMA table_info(ServerAddressSettings)";
+                using var reader = cmd.ExecuteReader();
+                bool hasDomain = false;
+                while (reader.Read())
+                {
+                    if (reader.GetString(1) == "Domain")
+                    {
+                        hasDomain = true;
+                        break;
+                    }
+                }
+
+                if (!hasDomain)
+                {
+                    using var alterCmd = connection.CreateCommand();
+                    alterCmd.CommandText = "ALTER TABLE ServerAddressSettings ADD COLUMN Domain TEXT DEFAULT ''";
+                    alterCmd.ExecuteNonQuery();
+                    _logger.LogInformation("已为 ServerAddressSettings 表添加 Domain 列");
+                }
+            }
         }
 
         #endregion
