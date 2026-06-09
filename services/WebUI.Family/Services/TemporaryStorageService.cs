@@ -24,7 +24,7 @@ public class TemporaryStorageService
     /// <summary>
     /// 获取数据
     /// </summary>
-    public bool TryGet(string key, out string value)
+    public bool TryGet(string key, out string? value)
     {
         if (_storage.TryGetValue(key, out value))
         {

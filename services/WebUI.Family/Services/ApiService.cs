@@ -293,7 +293,7 @@ namespace WebUI.Services
             return await fallbackClient.GetAsync(path, cancellationToken);
         }
 
-        private async Task<HttpResponseMessage> PostWithFallbackAsync(string path, HttpContent body, CancellationToken cancellationToken = default)
+        private async Task<HttpResponseMessage> PostWithFallbackAsync(string path, HttpContent? body, CancellationToken cancellationToken = default)
         {
             EnsurePrimaryBaseAddress();
             var primaryBaseUrl = GetPrimaryBaseUrl();
@@ -307,6 +307,10 @@ namespace WebUI.Services
             using var fallbackClient = new HttpClient();
             fallbackClient.BaseAddress = new Uri(_fallbackBaseUrl);
             fallbackClient.Timeout = LongHttpTimeout;
+            if (body == null)
+            {
+                return await fallbackClient.PostAsync(path, null);
+            }
             var fallbackBody = new StringContent(await body.ReadAsStringAsync(), Encoding.UTF8, "application/json");
             return await fallbackClient.PostAsync(path, fallbackBody);
         }
@@ -1149,7 +1153,7 @@ namespace WebUI.Services
         /// <summary>
         /// 包装 POST 请求并记录指标
         /// </summary>
-        private async Task<HttpResponseMessage> PostWithMetricsAsync(string endpoint, HttpContent content, CancellationToken cancellationToken = default)
+        private async Task<HttpResponseMessage> PostWithMetricsAsync(string endpoint, HttpContent? content, CancellationToken cancellationToken = default)
         {
             var stopwatch = Stopwatch.StartNew();
             try
