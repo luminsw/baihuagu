@@ -119,6 +119,8 @@ bld/
 
 # Docker 数据
 docker/data/
+# Nginx 证书（私钥绝不能进仓库）
+docker/nginx/certs/
 
 # 鸿蒙依赖
 ohos/node_modules/
