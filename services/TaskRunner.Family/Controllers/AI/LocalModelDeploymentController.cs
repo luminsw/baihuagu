@@ -147,7 +147,7 @@ namespace TaskRunner.Controllers
         /// 查询部署任务状态
         /// </summary>
         [HttpGet("deploy/{taskId}")]
-        public ActionResult<DeployRunnerTaskStatusDto> GetDeployStatus(string taskId)
+        public ActionResult<DeployTaskStatusDto> GetDeployStatus(string taskId)
         {
             var status = _deploymentService.GetRunnerTaskStatus(taskId);
             if (status == null)
