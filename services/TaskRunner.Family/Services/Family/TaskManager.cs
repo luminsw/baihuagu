@@ -12,10 +12,10 @@ namespace TaskRunner.Services
         private readonly ConcurrentDictionary<string, TaskInfo> _tasks = new();
         private readonly ConcurrentDictionary<string, CancellationTokenSource> _runningCts = new();
         private readonly IHubContext<TaskProgressHub>? _hubContext;
-        private readonly IDbContextFactory<AppDbContext> _dbContextFactory;
+        private readonly IDbContextFactory<FamilyDbContext> _dbContextFactory;
         private readonly ILogger<TaskManager>? _logger;
 
-        public TaskManager(IDbContextFactory<AppDbContext> dbContextFactory, IHubContext<TaskProgressHub>? hubContext = null, ILogger<TaskManager>? logger = null)
+        public TaskManager(IDbContextFactory<FamilyDbContext> dbContextFactory, IHubContext<TaskProgressHub>? hubContext = null, ILogger<TaskManager>? logger = null)
         {
             _dbContextFactory = dbContextFactory;
             _hubContext = hubContext;

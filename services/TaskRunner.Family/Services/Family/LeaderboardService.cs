@@ -10,9 +10,9 @@ namespace TaskRunner.Services;
 
 public class LeaderboardService
 {
-    private readonly IDbContextFactory<AppDbContext> _dbFactory;
+    private readonly IDbContextFactory<FamilyDbContext> _dbFactory;
 
-    public LeaderboardService(IDbContextFactory<AppDbContext> dbFactory)
+    public LeaderboardService(IDbContextFactory<FamilyDbContext> dbFactory)
     {
         _dbFactory = dbFactory;
     }
@@ -238,7 +238,7 @@ public class LeaderboardService
         };
     }
 
-    private async Task<int> CalculateStreakAsync(AppDbContext db, int learnerId)
+    private async Task<int> CalculateStreakAsync(FamilyDbContext db, int learnerId)
     {
         var dates = await db.StudyActivities
             .Where(a => a.LearnerId == learnerId && a.ActivityType == "study")

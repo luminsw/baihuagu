@@ -14,14 +14,14 @@ namespace TaskRunner.Controllers;
 [Route("api/onboarding")]
 public class OnboardingController : ControllerBase
 {
-    private readonly AppDbContext _dbContext;
+    private readonly FamilyDbContext _dbContext;
     private readonly SettingsService _settingsService;
     private readonly DeviceService _deviceService;
     private readonly AiConfigService _aiConfigService;
     private readonly ILogger<OnboardingController> _logger;
 
     public OnboardingController(
-        AppDbContext dbContext,
+        FamilyDbContext dbContext,
         SettingsService settingsService,
         DeviceService deviceService,
         AiConfigService aiConfigService,

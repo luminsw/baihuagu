@@ -17,7 +17,7 @@ public class ModelBenchmarkService
     private readonly AiClientService _aiClient;
     private readonly SettingsService _settings;
     private readonly LocalModelDeploymentService _localDeployment;
-    private readonly IDbContextFactory<AppDbContext> _dbFactory;
+    private readonly IDbContextFactory<AIDbContext> _dbFactory;
         private readonly AiMetricsService _metrics;
     private readonly ILogger<ModelBenchmarkService> _logger;
     private readonly object _statusLock = new();
@@ -28,7 +28,7 @@ public class ModelBenchmarkService
         AiClientService aiClient,
         SettingsService settings,
         LocalModelDeploymentService localDeployment,
-        IDbContextFactory<AppDbContext> dbFactory,
+        IDbContextFactory<AIDbContext> dbFactory,
             AiMetricsService metrics,
         ILogger<ModelBenchmarkService> logger)
     {

@@ -13,12 +13,12 @@ namespace TaskRunner.Controllers;
 [Route("api/embedding/config")]
 public class EmbeddingConfigController : ControllerBase
 {
-    private readonly IDbContextFactory<AppDbContext> _dbContextFactory;
+    private readonly IDbContextFactory<AIDbContext> _dbContextFactory;
     private readonly ApiKeyProtectionService _protectionService;
     private readonly ILogger<EmbeddingConfigController> _logger;
 
     public EmbeddingConfigController(
-        IDbContextFactory<AppDbContext> dbContextFactory,
+        IDbContextFactory<AIDbContext> dbContextFactory,
         ApiKeyProtectionService protectionService,
         ILogger<EmbeddingConfigController> logger)
     {

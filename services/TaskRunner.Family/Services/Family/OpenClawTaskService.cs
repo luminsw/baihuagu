@@ -29,7 +29,7 @@ public interface IOpenClawTaskService
 
 public class OpenClawTaskService : IOpenClawTaskService
 {
-    private readonly IDbContextFactory<AppDbContext> _dbFactory;
+    private readonly IDbContextFactory<FamilyDbContext> _dbFactory;
     private readonly IHttpClientFactory _httpClientFactory;
     private readonly TaskRunner.Services.TaskManager? _taskManager;
     private readonly ILogger<OpenClawTaskService> _logger;
@@ -38,7 +38,7 @@ public class OpenClawTaskService : IOpenClawTaskService
     // OpenClaw TaskId -> TaskManager TaskId 映射
     private static readonly System.Collections.Concurrent.ConcurrentDictionary<int, string> _openClawToTaskManagerMap = new();
 
-    public OpenClawTaskService(IDbContextFactory<AppDbContext> dbFactory, IHttpClientFactory httpClientFactory, TaskRunner.Services.TaskManager? taskManager, ILogger<OpenClawTaskService> logger)
+    public OpenClawTaskService(IDbContextFactory<FamilyDbContext> dbFactory, IHttpClientFactory httpClientFactory, TaskRunner.Services.TaskManager? taskManager, ILogger<OpenClawTaskService> logger)
     {
         _dbFactory = dbFactory;
         _httpClientFactory = httpClientFactory;

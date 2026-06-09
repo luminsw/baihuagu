@@ -18,7 +18,7 @@ public class ChatMemoryService
     private readonly AiClientService _aiClientService;
     private readonly EmbeddingService _embeddingService;
     private readonly DefaultPromptProvider _scenePromptService;
-    private readonly IDbContextFactory<AppDbContext> _dbFactory;
+    private readonly IDbContextFactory<AIDbContext> _dbFactory;
     private readonly ILogger<ChatMemoryService> _logger;
 
     // 触发摘要压缩的阈值：超过此轮数时，将早期对话压缩为摘要
@@ -37,7 +37,7 @@ public class ChatMemoryService
         AiClientService aiClientService,
         EmbeddingService embeddingService,
         DefaultPromptProvider scenePromptService,
-        IDbContextFactory<AppDbContext> dbFactory,
+        IDbContextFactory<AIDbContext> dbFactory,
         ILogger<ChatMemoryService> logger)
     {
         _aiClientService = aiClientService;

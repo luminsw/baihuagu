@@ -15,7 +15,7 @@ namespace TaskRunner.Services
     {
         private readonly AiClientService _aiClientService;
         private readonly SettingsService _settings;
-        private readonly IDbContextFactory<AppDbContext> _dbFactory;
+        private readonly IDbContextFactory<AIDbContext> _dbFactory;
         private readonly TaskRunner.Services.Security.ApiKeyProtectionService _protectionService;
         private readonly ILogger<EmbeddingService> _logger;
 
@@ -24,7 +24,7 @@ namespace TaskRunner.Services
         public EmbeddingService(
             AiClientService aiClientService,
             SettingsService settings,
-            IDbContextFactory<AppDbContext> dbFactory,
+            IDbContextFactory<AIDbContext> dbFactory,
             TaskRunner.Services.Security.ApiKeyProtectionService protectionService,
             ILogger<EmbeddingService> logger)
         {

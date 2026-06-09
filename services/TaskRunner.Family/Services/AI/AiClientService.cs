@@ -18,7 +18,7 @@ namespace TaskRunner.Services
     {
         private readonly SettingsService _settings;
         private readonly LocalAiAutoStarter _autoStarter;
-        private readonly IDbContextFactory<AppDbContext> _dbFactory;
+        private readonly IDbContextFactory<AIDbContext> _dbFactory;
         private readonly AiMetricsService _metrics;
         private readonly IDistributedCache _cache;
         private readonly AnthropicAiClient _anthropicClient;
@@ -27,7 +27,7 @@ namespace TaskRunner.Services
         public AiClientService(
             SettingsService settings,
             LocalAiAutoStarter autoStarter,
-            IDbContextFactory<AppDbContext> dbFactory,
+            IDbContextFactory<AIDbContext> dbFactory,
             AiMetricsService metrics,
             IDistributedCache cache,
             AnthropicAiClient anthropicClient,

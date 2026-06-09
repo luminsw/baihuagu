@@ -36,7 +36,7 @@ public class StudyRecordMigrationService : BackgroundService
     public async Task MigrateAsync(CancellationToken cancellationToken = default)
     {
         using var scope = _serviceProvider.CreateScope();
-        var dbFactory = scope.ServiceProvider.GetRequiredService<IDbContextFactory<AppDbContext>>();
+        var dbFactory = scope.ServiceProvider.GetRequiredService<IDbContextFactory<FamilyDbContext>>();
         var settings = scope.ServiceProvider.GetRequiredService<SettingsService>();
         var learnerService = scope.ServiceProvider.GetRequiredService<LearnerService>();
 

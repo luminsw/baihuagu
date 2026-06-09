@@ -9,10 +9,10 @@ namespace TaskRunner.Services;
 /// </summary>
 public class LearnerService
 {
-    private readonly IDbContextFactory<AppDbContext> _dbFactory;
+    private readonly IDbContextFactory<FamilyDbContext> _dbFactory;
     private readonly ILogger<LearnerService> _logger;
 
-    public LearnerService(IDbContextFactory<AppDbContext> dbFactory, ILogger<LearnerService> logger)
+    public LearnerService(IDbContextFactory<FamilyDbContext> dbFactory, ILogger<LearnerService> logger)
     {
         _dbFactory = dbFactory;
         _logger = logger;

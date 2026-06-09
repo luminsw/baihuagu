@@ -9,10 +9,10 @@ namespace TaskRunner.Services;
 /// </summary>
 public class AchievementEngine
 {
-    private readonly IDbContextFactory<AppDbContext> _dbFactory;
+    private readonly IDbContextFactory<FamilyDbContext> _dbFactory;
     private readonly ILogger<AchievementEngine> _logger;
 
-    public AchievementEngine(IDbContextFactory<AppDbContext> dbFactory, ILogger<AchievementEngine> logger)
+    public AchievementEngine(IDbContextFactory<FamilyDbContext> dbFactory, ILogger<AchievementEngine> logger)
     {
         _dbFactory = dbFactory;
         _logger = logger;
@@ -180,7 +180,7 @@ public class AchievementEngine
         }).ToList();
     }
 
-    private async Task<int> CalculateStreakAsync(AppDbContext db, int learnerId)
+    private async Task<int> CalculateStreakAsync(FamilyDbContext db, int learnerId)
     {
         // 按天统计学习次数
         var dates = await db.StudyActivities
@@ -207,7 +207,7 @@ public class AchievementEngine
         return streak;
     }
 
-    private async Task<double> CalculateTodayAccuracyAsync(AppDbContext db, int learnerId)
+    private async Task<double> CalculateTodayAccuracyAsync(FamilyDbContext db, int learnerId)
     {
         var today = DateTime.UtcNow.Date;
         var records = await db.StudyActivities

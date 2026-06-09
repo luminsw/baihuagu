@@ -13,14 +13,14 @@ namespace TaskRunner.Services;
 public class DailyCardService
 {
     private readonly SettingsService _settings;
-    private readonly IDbContextFactory<AppDbContext> _dbFactory;
+    private readonly IDbContextFactory<FamilyDbContext> _dbFactory;
     private readonly LearnerService _learnerService;
     private readonly ILogger<DailyCardService> _logger;
     private static readonly System.Collections.Concurrent.ConcurrentDictionary<string, object> _fileLocks = new();
 
     public DailyCardService(
         SettingsService settings,
-        IDbContextFactory<AppDbContext> dbFactory,
+        IDbContextFactory<FamilyDbContext> dbFactory,
         LearnerService learnerService,
         ILogger<DailyCardService> logger)
     {

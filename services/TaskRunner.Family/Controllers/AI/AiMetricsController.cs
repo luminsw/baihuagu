@@ -12,9 +12,9 @@ namespace TaskRunner.Controllers;
 [Route("api/ai/metrics")]
 public class AiMetricsController : ControllerBase
 {
-    private readonly IDbContextFactory<AppDbContext> _dbFactory;
+    private readonly IDbContextFactory<AIDbContext> _dbFactory;
 
-    public AiMetricsController(IDbContextFactory<AppDbContext> dbFactory)
+    public AiMetricsController(IDbContextFactory<AIDbContext> dbFactory)
     {
         _dbFactory = dbFactory;
     }

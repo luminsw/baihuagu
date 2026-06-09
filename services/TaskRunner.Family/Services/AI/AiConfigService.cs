@@ -16,12 +16,12 @@ namespace TaskRunner.Services;
 /// </summary>
 public class AiConfigService
 {
-    private readonly IDbContextFactory<AppDbContext> _dbContextFactory;
+    private readonly IDbContextFactory<AIDbContext> _dbContextFactory;
     private readonly ApiKeyProtectionService _protectionService;
     private readonly ILogger<AiConfigService> _logger;
 
     public AiConfigService(
-        IDbContextFactory<AppDbContext> dbContextFactory,
+        IDbContextFactory<AIDbContext> dbContextFactory,
         ApiKeyProtectionService protectionService,
         ILogger<AiConfigService> logger)
     {
