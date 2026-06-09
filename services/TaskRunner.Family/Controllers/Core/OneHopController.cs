@@ -1,5 +1,5 @@
 using TaskRunner.Core.Shared;
-using TaskRunner.Services.Security;
+using TaskRunner.Core.Shared.Security;
 using Microsoft.AspNetCore.Mvc;
 using TaskRunner.Services;
 using TaskRunner.Core.Shared.Security;

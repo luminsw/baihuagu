@@ -1,5 +1,5 @@
 using TaskRunner.Core.Shared;
-using TaskRunner.Services.Security;
+using TaskRunner.Core.Shared.Security;
 using TaskRunner.Services;
 using TaskRunner.Core.Shared.Security;
 using TaskRunner.Core.Shared.Notifications;
@@ -219,7 +219,7 @@ builder.Services.AddHostedService(provider => provider.GetRequiredService<MDnsSe
 // 注册 AI 配置服务（Data Protection + SQLite）
 builder.Services.AddDataProtection();
 builder.Services.AddSingleton<TaskRunner.Core.Shared.Security.ApiKeyProtectionService>();
-builder.Services.AddSingleton<TaskRunner.Services.Security.DataEncryptionService>();
+builder.Services.AddSingleton<TaskRunner.Core.Shared.Security.DataEncryptionService>();
 builder.Services.AddSingleton<TaskRunner.Services.AiConfigService>();
 builder.Services.AddSingleton<TaskRunner.Services.BackupService>();
 builder.Services.AddSingleton<TaskRunner.Services.NotesMdCliService>();

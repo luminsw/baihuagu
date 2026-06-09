@@ -1,8 +1,9 @@
-using TaskRunner.Services.Security;
+using Microsoft.Extensions.Logging;
+using TaskRunner.Core.Shared.Security;
 using System.Security.Cryptography;
 using System.Text;
 
-namespace TaskRunner.Services.Security;
+namespace TaskRunner.Core.Shared.Security;
 
 /// <summary>
 /// 数据加密服务 - 用于加密和解密笔记内容

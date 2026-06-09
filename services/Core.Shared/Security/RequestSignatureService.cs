@@ -1,8 +1,10 @@
-using TaskRunner.Services.Security;
+using Microsoft.Extensions.Configuration;
+using Microsoft.Extensions.Logging;
+using TaskRunner.Core.Shared.Security;
 using System.Security.Cryptography;
 using System.Text;
 
-namespace TaskRunner.Services.Security;
+namespace TaskRunner.Core.Shared.Security;
 
 /// <summary>
 /// 移动端请求签名验证服务

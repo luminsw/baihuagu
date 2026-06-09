@@ -1,5 +1,5 @@
 using TaskRunner.Core.Shared;
-using TaskRunner.Services.Security;
+using TaskRunner.Core.Shared.Security;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using System.Text.Json;
