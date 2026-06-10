@@ -71,12 +71,15 @@ services:
       - ASPNETCORE_URLS=http://0.0.0.0:5177
       # 通过宿主机 localhost 访问 TaskRunner（host 网络）
       - TaskRunnerApi__BaseUrl=http://127.0.0.1:8788/
+      - TaskRunnerAiApi__BaseUrl=http://127.0.0.1:8789/
       - OpenObserve__WebUrl=http://127.0.0.1:5080/
       - OpenObserve__Enabled=true
       - ADMIN_PASSWORD_HASH=${ADMIN_PASSWORD_HASH:-}
       - ADMIN_IP_WHITELIST=${ADMIN_IP_WHITELIST:-}
     depends_on:
       taskrunner:
+        condition: service_healthy
+      taskrunner-ai:
         condition: service_healthy
     healthcheck:
       test: ["CMD", "curl", "-f", "http://127.0.0.1:5177/"]
@@ -106,6 +109,37 @@ services:
       timeout: 5s
       retries: 3
       start_period: 10s
+
+  taskrunner-ai:
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile.taskrunner.ai
+      args:
+        - GIT_COMMIT=${GIT_COMMIT:-unknown}
+        - GIT_BRANCH=${GIT_BRANCH:-unknown}
+    image: yj-family/taskrunner-ai:latest
+    container_name: yj-family-taskrunner-ai
+    restart: unless-stopped
+    network_mode: host
+    user: "${USER_UID:-0}:${USER_GID:-0}"
+    volumes:
+      - /opt/yj-family/data:/app/data
+      - /opt/yj-family/logs:/app/logs
+      - /opt/yj-family/config/taskrunner-ai:/app/config:ro
+      - ${VAULTS_DIR:-/home/lumin/Vaults}:${VAULTS_DIR:-/home/lumin/Vaults}
+    environment:
+      - TASKRUNNER_DATA_DIR=/app/data
+      - ASPNETCORE_URLS=http://0.0.0.0:8789
+      - OpenObserve__WebUrl=http://127.0.0.1:5080/
+      - OpenObserve__Enabled=true
+      - TASKRUNNER_VAULT_ROOT=${VAULTS_DIR:-/home/lumin/Vaults}
+      - YJ_ENCRYPTION_KEY=${YJ_ENCRYPTION_KEY:-}
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://127.0.0.1:8789/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
 
   openobserve:
     # 可观测性服务（日志/指标），非核心，默认不自动启动

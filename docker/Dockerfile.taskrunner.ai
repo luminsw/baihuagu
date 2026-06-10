@@ -1,0 +1,46 @@
+# TaskRunner.AI - 百花谷 AI 微服务
+# 基于预构建的基础镜像，加速构建过程
+#
+# 首次构建前需要先构建基础镜像：
+#   docker build -f Dockerfile.base-build -t yj-family/base-build:latest ..
+#   docker build -f Dockerfile.base-runtime -t yj-family/base-runtime:latest ..
+
+# ==================== Build 阶段 ====================
+FROM yj-family/base-build:latest AS build
+WORKDIR /src
+
+# 先复制项目文件以利用 Docker 缓存层
+COPY services/TaskRunner.Contracts/TaskRunner.Contracts.csproj services/TaskRunner.Contracts/
+COPY services/TaskRunner.Data/TaskRunner.Data.csproj services/TaskRunner.Data/
+COPY services/Core.Shared/TaskRunner.Core.Shared.csproj services/Core.Shared/
+COPY services/TaskRunner.AI/TaskRunner.AI.csproj services/TaskRunner.AI/
+COPY NuGet.config .
+COPY nuget-local/ nuget-local/
+RUN dotnet restore services/TaskRunner.AI/TaskRunner.AI.csproj
+
+# 复制全部源码并发布
+COPY services/ services/
+COPY libs/ libs/
+RUN dotnet publish services/TaskRunner.AI/TaskRunner.AI.csproj \
+    -c Release -o /app/publish --no-restore
+
+# ==================== Runtime 阶段 ====================
+FROM yj-family/base-runtime:latest AS runtime
+WORKDIR /app
+
+COPY --from=build /app/publish .
+
+ARG GIT_COMMIT=unknown
+ARG GIT_BRANCH=unknown
+LABEL git.commit=$GIT_COMMIT
+LABEL git.branch=$GIT_BRANCH
+
+EXPOSE 8789
+
+ENV ASPNETCORE_URLS=http://0.0.0.0:8789
+ENV TASKRUNNER_DATA_DIR=/app/data
+
+HEALTHCHECK --interval=30s --timeout=10s --start-period=40s --retries=3 \
+    CMD curl -f http://localhost:8789/health || exit 1
+
+ENTRYPOINT ["dotnet", "TaskRunner.AI.dll"]
