@@ -190,6 +190,7 @@ namespace WebUI.Services
         private static readonly TimeSpan LongHttpTimeout = TimeSpan.FromMinutes(5);
 
         private readonly HttpClient _httpClient;
+        private readonly HttpClient _aiHttpClient;
         private readonly SettingsService _settingsService;
         private readonly ILogger<ApiService> _logger;
         private readonly ApiCallMetricsService? _metricsService;
@@ -201,6 +202,7 @@ namespace WebUI.Services
             _settingsService = settingsService;
             _logger = logger;
             _httpClient = httpClientFactory.CreateClient("TaskRunnerApi");
+            _aiHttpClient = httpClientFactory.CreateClient("TaskRunnerAiApi");
             
             // 延迟获取服务避免循环依赖
             _metricsService = serviceProvider.GetService<ApiCallMetricsService>();
@@ -1337,7 +1339,7 @@ namespace WebUI.Services
             try
             {
                 using var quick = new CancellationTokenSource(QuickCallTimeout);
-                var response = await GetWithMetricsAsync("/api/embedding/config", quick.Token);
+                var response = await _aiHttpClient.GetAsync("/api/embedding/config", quick.Token);
                 response.EnsureSuccessStatusCode();
                 return await response.Content.ReadFromJsonAsync<EmbeddingConfigDto>(quick.Token) ?? new EmbeddingConfigDto();
             }
@@ -1353,7 +1355,7 @@ namespace WebUI.Services
             try
             {
                 using var quick = new CancellationTokenSource(QuickCallTimeout);
-                var response = await PostWithMetricsAsync("/api/embedding/config", JsonContent.Create(request), quick.Token);
+                var response = await _aiHttpClient.PostAsync("/api/embedding/config", JsonContent.Create(request), quick.Token);
                 response.EnsureSuccessStatusCode();
                 return await response.Content.ReadFromJsonAsync<SaveAiProviderResult>(quick.Token)
                        ?? new SaveAiProviderResult { Success = false, Message = "未知错误" };
@@ -2668,7 +2670,7 @@ namespace WebUI.Services
         {
             try
             {
-                var response = await _httpClient.GetAsync($"/api/ai/metrics/summary?days={days}", cancellationToken);
+                var response = await _aiHttpClient.GetAsync($"/api/ai/metrics/summary?days={days}", cancellationToken);
                 response.EnsureSuccessStatusCode();
                 return await response.Content.ReadFromJsonAsync<AiMetricsSummaryDto>(cancellationToken);
             }
@@ -2683,7 +2685,7 @@ namespace WebUI.Services
         {
             try
             {
-                var response = await _httpClient.GetAsync($"/api/ai/metrics/providers?days={days}", cancellationToken);
+                var response = await _aiHttpClient.GetAsync($"/api/ai/metrics/providers?days={days}", cancellationToken);
                 response.EnsureSuccessStatusCode();
                 return await response.Content.ReadFromJsonAsync<List<AiProviderMetricsDto>>(cancellationToken) ?? new List<AiProviderMetricsDto>();
             }
@@ -2698,7 +2700,7 @@ namespace WebUI.Services
         {
             try
             {
-                var response = await _httpClient.GetAsync($"/api/ai/metrics/models?days={days}", cancellationToken);
+                var response = await _aiHttpClient.GetAsync($"/api/ai/metrics/models?days={days}", cancellationToken);
                 response.EnsureSuccessStatusCode();
                 return await response.Content.ReadFromJsonAsync<List<AiModelMetricsDto>>(cancellationToken) ?? new List<AiModelMetricsDto>();
             }
@@ -2713,7 +2715,7 @@ namespace WebUI.Services
         {
             try
             {
-                var response = await _httpClient.GetAsync($"/api/ai/metrics/trends?days={days}", cancellationToken);
+                var response = await _aiHttpClient.GetAsync($"/api/ai/metrics/trends?days={days}", cancellationToken);
                 response.EnsureSuccessStatusCode();
                 return await response.Content.ReadFromJsonAsync<List<AiMetricsTrendDto>>(cancellationToken) ?? new List<AiMetricsTrendDto>();
             }
@@ -2728,7 +2730,7 @@ namespace WebUI.Services
         {
             try
             {
-                var response = await _httpClient.GetAsync($"/api/ai/metrics/recent?limit={limit}&days={days}", cancellationToken);
+                var response = await _aiHttpClient.GetAsync($"/api/ai/metrics/recent?limit={limit}&days={days}", cancellationToken);
                 response.EnsureSuccessStatusCode();
                 return await response.Content.ReadFromJsonAsync<List<AiUsageMetricDto>>(cancellationToken) ?? new List<AiUsageMetricDto>();
             }
