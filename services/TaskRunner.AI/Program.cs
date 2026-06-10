@@ -4,6 +4,8 @@ using Microsoft.AspNetCore.HttpOverrides;
 using System.Text.Encodings.Web;
 using System.Text.Unicode;
 using Serilog;
+using TaskRunner.Core.Shared;
+using TaskRunner.Services;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -66,6 +68,11 @@ builder.Services.AddDbContextFactory<TaskRunner.Data.AIDbContext>(options =>
 builder.Services.AddHttpClient();
 builder.Services.AddMemoryCache();
 builder.Services.AddDistributedMemoryCache();
+
+// AI 配置与客户端基础设施（共享自 Core.Shared）
+builder.Services.AddSingleton<AiSettingsService>();
+builder.Services.AddSingleton<AiConfigService>();
+builder.Services.AddAiClientServices();
 
 // 本地模型推理后端（GGUF / ONNX）
 builder.Services.AddSingleton<TaskRunner.Services.LocalAI.ILocalModelInference, TaskRunner.Services.LocalAI.LlamaSharpInference>();

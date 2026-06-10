@@ -177,10 +177,8 @@ builder.Services.AddSingleton<MigrationService>();
 builder.Services.AddSingleton<VaultSettingsService>();
 builder.Services.AddHostedService<StartupOrchestratorHostedService>();
 builder.Services.AddSingleton<DefaultPromptProvider>();
-builder.Services.AddSingleton<AiClientService>();
-builder.Services.AddSingleton<AnthropicAiClient>();
+builder.Services.AddAiClientServices();
 builder.Services.AddSingleton<AiFunctionService>();
-builder.Services.AddSingleton<LocalAiAutoStarter>();
 
 builder.Services.AddSingleton<NoteParser>();
 builder.Services.AddSingleton<CardRepository>();

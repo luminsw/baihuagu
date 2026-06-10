@@ -1,5 +1,6 @@
 using System.Diagnostics;
 using System.Net.Sockets;
+using Microsoft.Extensions.Logging;
 
 namespace TaskRunner.Services
 {

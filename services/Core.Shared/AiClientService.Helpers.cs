@@ -4,6 +4,7 @@ using Microsoft.Extensions.AI;
 using Microsoft.Extensions.Caching.Distributed;
 using OpenAI;
 using System.ClientModel;
+using Microsoft.Extensions.Logging;
 using TaskRunner.Data;
 using TaskRunner.Data.Entities;
 using TaskRunner.Models;
