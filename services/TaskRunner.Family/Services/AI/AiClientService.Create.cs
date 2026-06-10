@@ -1,0 +1,129 @@
+using System.Diagnostics;
+using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.AI;
+using Microsoft.Extensions.Caching.Distributed;
+using OpenAI;
+using System.ClientModel;
+using TaskRunner.Data;
+using TaskRunner.Data.Entities;
+using TaskRunner.Models;
+
+namespace TaskRunner.Services;
+
+public partial class AiClientService
+{
+        public IChatClient CreateChatClient(string providerId, string model)
+        {
+            return CreateChatClient(providerId, model, tools: null);
+        }
+
+        /// <summary>
+        /// 为指定提供商+模型创建 IChatClient（支持 Function Calling）
+        /// </summary>
+        public IChatClient CreateChatClient(string providerId, string model, IList<AITool>? tools)
+        {
+            var provider = _aiSettings.GetAiProvider(providerId)
+                ?? throw new Exception($"未找到 AI 提供商：{providerId}");
+
+            var apiKey = _aiSettings.GetAiApiKey(providerId);
+            if (string.IsNullOrWhiteSpace(apiKey))
+                _logger.LogWarning("提供商 {ProviderId} 未配置 API Key，将以无鉴权方式请求", providerId);
+
+            var endpoint = new Uri(provider.AiBaseUrl.TrimEnd('/') );
+            var clientOptions = new OpenAIClientOptions { Endpoint = endpoint };
+
+            // 无 API Key 时使用占位符（Ollama/LMStudio 等本地服务不需要 Key）
+            var credential = string.IsNullOrWhiteSpace(apiKey)
+                ? new ApiKeyCredential("placeholder")
+                : new ApiKeyCredential(apiKey);
+
+            var openaiClient = new OpenAIClient(credential, clientOptions);
+            var client = openaiClient.GetChatClient(model).AsIChatClient();
+            return client;
+        }
+
+        /// <summary>
+        /// 为指定提供商+模型创建 IChatClient（通过 AiProviderConfig 对象）
+        /// </summary>
+        public IChatClient CreateChatClient(AiProviderConfig provider, string model)
+        {
+            return CreateChatClient(provider.Id, model);
+        }
+
+        /// <summary>
+        /// 为指定提供商+模型创建 IChatClient（通过 AiProviderConfig 对象，支持 Function Calling）
+        /// </summary>
+        public IChatClient CreateChatClient(AiProviderConfig provider, string model, IList<AITool>? tools)
+        {
+            return CreateChatClient(provider.Id, model, tools);
+        }
+
+        /// <summary>
+        /// 创建带分布式缓存的 IChatClient（用于非流式请求）
+        /// </summary>
+        private IChatClient CreateChatClientWithCache(string providerId, string model)
+        {
+            var client = CreateChatClient(providerId, model);
+            return client.AsBuilder()
+                .UseDistributedCache(_cache)
+                .Build();
+        }
+
+        /// <summary>
+        /// 创建带分布式缓存的 IChatClient（用于非流式请求）
+        /// </summary>
+        private IChatClient CreateChatClientWithCache(AiProviderConfig provider, string model)
+        {
+            return CreateChatClientWithCache(provider.Id, model);
+        }
+
+        /// <summary>
+        /// 创建 Embedding 生成器（回退到旧配置）
+        /// </summary>
+        public IEmbeddingGenerator<string, Embedding<float>> CreateEmbeddingGenerator()
+        {
+            var url = _aiSettings.SemanticEmbeddingUrl;
+            var model = _aiSettings.SemanticEmbeddingModel;
+
+            if (string.IsNullOrWhiteSpace(url) || string.IsNullOrWhiteSpace(model))
+                throw new Exception("未配置 Embedding URL 或模型");
+
+            // Embedding 可能使用与 Chat 不同的提供商
+            // 尝试从 AI 提供商中匹配 Embedding URL
+            var providers = _aiSettings.GetAiProviders();
+            var matchedProvider = providers.FirstOrDefault(p =>
+                p.AiBaseUrl.TrimEnd('/').Equals(url.TrimEnd('/'), StringComparison.OrdinalIgnoreCase));
+
+            string apiKey;
+            if (matchedProvider != null)
+            {
+                apiKey = _aiSettings.GetAiApiKey(matchedProvider.Id);
+            }
+            else
+            {
+                // 使用主提供商的 API Key
+                apiKey = _aiSettings.AiApiKey;
+            }
+
+            return CreateEmbeddingGenerator(url, model, apiKey);
+        }
+
+        /// <summary>
+        /// 为指定 URL+模型+Key 创建 Embedding 生成器
+        /// </summary>
+        public IEmbeddingGenerator<string, Embedding<float>> CreateEmbeddingGenerator(string url, string model, string? apiKey)
+        {
+            if (string.IsNullOrWhiteSpace(url) || string.IsNullOrWhiteSpace(model))
+                throw new Exception("未配置 Embedding URL 或模型");
+
+            var endpoint = new Uri(url.TrimEnd('/'));
+            var clientOptions = new OpenAIClientOptions { Endpoint = endpoint };
+
+            var credential = string.IsNullOrWhiteSpace(apiKey)
+                ? new ApiKeyCredential("placeholder")
+                : new ApiKeyCredential(apiKey);
+
+            var openaiClient = new OpenAIClient(credential, clientOptions);
+            return openaiClient.GetEmbeddingClient(model).AsIEmbeddingGenerator();
+        }
+}
