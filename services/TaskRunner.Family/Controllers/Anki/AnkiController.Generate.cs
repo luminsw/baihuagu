@@ -1,0 +1,171 @@
+using TaskRunner.Core.Shared;
+using Microsoft.AspNetCore.Mvc;
+using System.Text.Json;
+using TaskRunner.Helpers;
+using TaskRunner.Contracts.Anki;
+
+namespace TaskRunner.Controllers;
+
+public partial class AnkiController
+{
+        [HttpPost("generate-all")]
+        public async Task<ActionResult<object>> GenerateAllCards([FromQuery] string vaultId)
+        {
+            if (string.IsNullOrWhiteSpace(vaultId))
+                return BadRequest(new { success = false, message = "知识库 ID 不能为空" });
+
+            var vault = _vaultSettings.GetVaults().FirstOrDefault(v => v.Id == vaultId);
+            if (vault == null)
+                return NotFound(new { success = false, message = "知识库不存在" });
+
+            var notesPath = System.IO.Path.Combine(vault.Path, "notes");
+            if (!Directory.Exists(notesPath))
+                return Ok(new { success = true, message = "笔记目录不存在", totalCards = 0 });
+
+            // 创建后台任务执行卡片生成
+            var taskId = _taskManager.CreateTask("anki_generate", new Dictionary<string, string>
+            {
+                ["vaultId"] = vaultId,
+                ["vaultName"] = vault.Name,
+                ["notesPath"] = notesPath
+            });
+            _logger.LogInformation("[AnkiController] 创建卡片生成任务 {TaskId}，知识库 {VaultName}({VaultId})", taskId, vault.Name, vaultId);
+
+            _ = Task.Run(async () =>
+            {
+                try
+                {
+                    await _taskManager.UpdateProgress(taskId, 0, 100, $"开始为 {vault.Name} 生成记忆卡片...");
+                    var result = await _cardGenerator.GenerateFromDirectory(notesPath, recursive: true, vaultId: vaultId);
+                    await _taskManager.UpdateProgress(taskId, 100, 100, result.Message);
+                    await _taskManager.UpdateStatus(taskId, RunnerTaskStatus.Success, data: new { totalCards = result.TotalCards, message = result.Message });
+                    _logger.LogInformation("[AnkiController] 任务 {TaskId} 完成：{Message}", taskId, result.Message);
+                }
+                catch (Exception ex)
+                {
+                    _logger.LogError(ex, "[AnkiController] 任务 {TaskId} 生成卡片失败", taskId);
+                    await _taskManager.UpdateStatus(taskId, RunnerTaskStatus.Failed, error: ex.Message);
+                }
+            });
+
+            return Ok(new { success = true, taskId, message = "卡片生成任务已创建", vaultName = vault.Name });
+        }
+
+        /// <summary>
+        /// 从 JSON 文件中读取卡片列表，支持 JsonDeckData 和 List&lt;CardItemDto&gt; 两种格式
+        /// </summary>
+        private List<CardItemDto> ReadCardsFromFile(string json, string fileName)
+        {
+            try
+            {
+                // 先尝试解析为 JsonDeckData 格式（{ Name, Cards: [...] }）
+                var deckData = JsonSerializer.Deserialize<JsonDeckData>(json);
+                if (deckData?.Cards != null && deckData.Cards.Count > 0)
+                {
+                    return deckData.Cards.Select((c, i) => new CardItemDto
+                    {
+                        Id = $"{fileName}_{i}",
+                        Deck = deckData.Name ?? fileName,
+                        Front = c.Front,
+                        Back = c.Back,
+                        Tags = c.Tags ?? new(),
+                        Source = fileName
+                    }).ToList();
+                }
+            }
+            catch { }
+
+            try
+            {
+                // 回退到数组格式（[{ Front, Back, Deck, Tags }]）
+                var cardsArray = JsonSerializer.Deserialize<List<CardItemDto>>(json);
+                if (cardsArray != null)
+                {
+                    foreach (var card in cardsArray)
+                    {
+                        if (string.IsNullOrEmpty(card.Source))
+                            card.Source = fileName;
+                    }
+                    return cardsArray;
+                }
+            }
+            catch { }
+
+            return new List<CardItemDto>();
+        }
+
+        private string? ResolveCardsPath(string vaultId)
+        {
+            if (string.IsNullOrWhiteSpace(vaultId))
+                return null;
+            var vaultPath = _vaultSettings.GetVaults().FirstOrDefault(v => v.Id == vaultId)?.Path;
+            if (string.IsNullOrEmpty(vaultPath))
+                return null;
+            return System.IO.Path.Combine(vaultPath, "cards");
+        }
+    }
+
+    // DTOs
+    public class GenerateRequest
+    {
+        public string NotePath { get; set; } = "";
+    }
+
+    public class BatchGenerateRequest
+    {
+        public string Directory { get; set; } = "";
+        public bool Recursive { get; set; } = true;
+    }
+
+
+    // 学习统计相关
+    public class StudyRequest
+    {
+        public string? CardFront { get; set; }
+        public string? CardBack { get; set; }
+        public string? Deck { get; set; }
+        public string? Result { get; set; } // remember, normal, forgot
+    }
+
+    public class StudyStats
+    {
+        public int Total { get; set; }
+        public int Remembered { get; set; }
+        public int Normal { get; set; }
+        public int Forgot { get; set; }
+        public List<StudyRecord>? History { get; set; }
+    }
+
+    public class StudyRecord
+    {
+        public string CardFront { get; set; } = "";
+        public string CardBack { get; set; } = "";
+        public string Deck { get; set; } = "";
+        public string Result { get; set; } = "";
+        public DateTime Time { get; set; }
+    }
+
+    public class StudyStatsResponse
+    {
+        public StudyStats? Today { get; set; }
+        public StudySummary? Summary { get; set; }
+        public List<DailyStats> DailyStats { get; set; } = new();
+    }
+
+    public class StudySummary
+    {
+        public int TotalCards { get; set; }
+        public int Remembered { get; set; }
+        public int Forgot { get; set; }
+        public double Accuracy { get; set; }
+        public int Streak { get; set; }
+    }
+
+    public class DailyStats
+    {
+        public string Date { get; set; } = "";
+        public int Total { get; set; }
+        public int Remembered { get; set; }
+        public int Forgot { get; set; }
+        public int Normal { get; set; }
+}
