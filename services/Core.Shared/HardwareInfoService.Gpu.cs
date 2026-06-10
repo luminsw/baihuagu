@@ -1,4 +1,5 @@
 using System.Diagnostics;
+using Microsoft.Extensions.Logging;
 using System.Runtime.InteropServices;
 using System.Text.RegularExpressions;
 using TaskRunner.Contracts.LocalModels;

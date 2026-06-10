@@ -1,3 +1,4 @@
+using Microsoft.Extensions.Logging;
 using TaskRunner.Contracts.Capability;
 using TaskRunner.Contracts.LocalModels;
 

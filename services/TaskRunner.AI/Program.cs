@@ -71,6 +71,8 @@ builder.Services.AddDistributedMemoryCache();
 builder.Services.AddSingleton<TaskRunner.Services.LocalAI.ILocalModelInference, TaskRunner.Services.LocalAI.LlamaSharpInference>();
 builder.Services.AddSingleton<TaskRunner.Services.LocalAI.ILocalModelInference, TaskRunner.Services.LocalAI.OnnxRuntimeGenAIInference>();
 
+
+
 // 健康检查
 builder.Services.AddHealthChecks()
     .AddCheck("self", () => Microsoft.Extensions.Diagnostics.HealthChecks.HealthCheckResult.Healthy());
