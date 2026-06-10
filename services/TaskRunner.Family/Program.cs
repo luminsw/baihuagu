@@ -169,7 +169,7 @@ builder.Services.AddDbContextFactory<TaskRunner.Data.AIDbContext>(options =>
 }, ServiceLifetime.Singleton);
 
 builder.Services.AddSingleton<TaskManager>();
-builder.Services.AddSingleton<AiSettingsService>();
+
 builder.Services.AddSingleton<LocalModelSettingsService>();
 builder.Services.AddSingleton<MigrationService>();
 builder.Services.AddSingleton<VaultSettingsService>();
@@ -224,7 +224,7 @@ builder.Services.AddHostedService(provider => provider.GetRequiredService<MDnsSe
 builder.Services.AddDataProtection();
 builder.Services.AddSingleton<TaskRunner.Core.Shared.Security.ApiKeyProtectionService>();
 builder.Services.AddSingleton<TaskRunner.Core.Shared.Security.DataEncryptionService>();
-builder.Services.AddSingleton<TaskRunner.Services.AiConfigService>();
+
 builder.Services.AddSingleton<TaskRunner.Services.RestoreService>();
 builder.Services.AddSingleton<TaskRunner.Services.BackupService>();
 builder.Services.AddSingleton<TaskRunner.Services.NotesMdCliService>();

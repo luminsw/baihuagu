@@ -1,4 +1,5 @@
 using Microsoft.Extensions.Configuration;
+using Microsoft.Extensions.Logging;
 using TaskRunner.Models;
 
 namespace TaskRunner.Services;
