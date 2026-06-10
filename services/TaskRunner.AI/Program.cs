@@ -206,20 +206,3 @@ catch (Exception ex)
     catch { }
     throw;
 }
-
-static string ResolveConfiguredListenUrl(IConfiguration configuration)
-{
-    var httpUrl = configuration["Kestrel:Endpoints:Http:Url"];
-    if (!string.IsNullOrWhiteSpace(httpUrl))
-        return httpUrl.Trim();
-
-    var urlsEnv = Environment.GetEnvironmentVariable("ASPNETCORE_URLS");
-    if (!string.IsNullOrWhiteSpace(urlsEnv))
-    {
-        var first = urlsEnv.Split(';', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries).FirstOrDefault();
-        if (!string.IsNullOrWhiteSpace(first))
-            return first;
-    }
-
-    return "http://localhost:8789";
-}
