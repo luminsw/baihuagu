@@ -6,7 +6,6 @@ using AnkiGen.Core;
 
 namespace TaskRunner.Services
 {
-    /// <summary>
 
     public partial class AnkiCardGenerator
     {
