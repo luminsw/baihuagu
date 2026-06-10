@@ -1202,7 +1202,7 @@ namespace WebUI.Services
             try
             {
                 using var quick = new CancellationTokenSource(QuickCallTimeout);
-                var response = await GetWithMetricsAsync("/api/ai/config/providers", quick.Token);
+                var response = await _aiHttpClient.GetAsync("/api/ai/config/providers", quick.Token);
                 response.EnsureSuccessStatusCode();
                 var result = await response.Content.ReadFromJsonAsync<List<AiConfigProvider>>(quick.Token);
                 if (result != null)
@@ -1239,7 +1239,7 @@ namespace WebUI.Services
             try
             {
                 using var quick = new CancellationTokenSource(QuickCallTimeout);
-                var response = await GetWithMetricsAsync($"/api/ai/config/providers/{Uri.EscapeDataString(providerId)}", quick.Token);
+                var response = await _aiHttpClient.GetAsync($"/api/ai/config/providers/{Uri.EscapeDataString(providerId)}", quick.Token);
                 if (response.StatusCode == System.Net.HttpStatusCode.NotFound)
                     return null;
                 response.EnsureSuccessStatusCode();
@@ -1259,7 +1259,7 @@ namespace WebUI.Services
                 using var quick = new CancellationTokenSource(QuickCallTimeout);
                 var json = JsonSerializer.Serialize(request);
                 var httpContent = new StringContent(json, Encoding.UTF8, "application/json");
-                var response = await PostWithMetricsAsync("/api/ai/config/providers", httpContent, quick.Token);
+                var response = await _aiHttpClient.PostAsync("/api/ai/config/providers", httpContent, quick.Token);
                 
                 if (response.IsSuccessStatusCode)
                 {
@@ -1291,7 +1291,7 @@ namespace WebUI.Services
             try
             {
                 using var quick = new CancellationTokenSource(QuickCallTimeout);
-                var response = await DeleteWithMetricsAsync($"/api/ai/config/providers/{Uri.EscapeDataString(providerId)}", quick.Token);
+                var response = await _aiHttpClient.DeleteAsync($"/api/ai/config/providers/{Uri.EscapeDataString(providerId)}", quick.Token);
                 return response.IsSuccessStatusCode;
             }
             catch (Exception ex)
@@ -1306,7 +1306,7 @@ namespace WebUI.Services
             try
             {
                 using var quick = new CancellationTokenSource(QuickCallTimeout);
-                var response = await GetWithMetricsAsync("/api/ai/config/env-help", quick.Token);
+                var response = await _aiHttpClient.GetAsync("/api/ai/config/env-help", quick.Token);
                 response.EnsureSuccessStatusCode();
                 return await response.Content.ReadFromJsonAsync<EnvConfigHelp>(quick.Token);
             }
@@ -1322,7 +1322,7 @@ namespace WebUI.Services
             try
             {
                 using var quick = new CancellationTokenSource(QuickCallTimeout);
-                var response = await GetWithMetricsAsync("/api/ai/config/presets", quick.Token);
+                var response = await _aiHttpClient.GetAsync("/api/ai/config/presets", quick.Token);
                 response.EnsureSuccessStatusCode();
                 var result = await response.Content.ReadFromJsonAsync<List<AiProviderPreset>>(quick.Token);
                 return result ?? new List<AiProviderPreset>();
