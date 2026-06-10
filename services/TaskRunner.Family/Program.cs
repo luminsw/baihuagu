@@ -169,6 +169,8 @@ builder.Services.AddDbContextFactory<TaskRunner.Data.AIDbContext>(options =>
 }, ServiceLifetime.Singleton);
 
 builder.Services.AddSingleton<TaskManager>();
+builder.Services.AddSingleton<AiSettingsService>();
+builder.Services.AddSingleton<AiConfigService>();
 
 builder.Services.AddSingleton<LocalModelSettingsService>();
 builder.Services.AddSingleton<MigrationService>();
