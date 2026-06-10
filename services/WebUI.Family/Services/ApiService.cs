@@ -593,7 +593,7 @@ namespace WebUI.Services
             var json = JsonSerializer.Serialize(payload);
             var httpContent = new StringContent(json, Encoding.UTF8, "application/json");
 
-            using var response = await _httpClient.SendAsync(
+            using var response = await _aiHttpClient.SendAsync(
                 new HttpRequestMessage(HttpMethod.Post, "/api/local-ai/chat/stream") { Content = httpContent },
                 HttpCompletionOption.ResponseHeadersRead,
                 cancellationToken);
@@ -649,7 +649,7 @@ namespace WebUI.Services
                     url += $"?directory={Uri.EscapeDataString(directory)}";
 
                 using var quick = new CancellationTokenSource(QuickCallTimeout);
-                var response = await GetWithFallbackAsync(url, quick.Token);
+                var response = await _aiHttpClient.GetAsync(url, quick.Token);
                 response.EnsureSuccessStatusCode();
                 var result = await response.Content.ReadFromJsonAsync<List<LocalModelInfo>>(quick.Token);
                 return result ?? new List<LocalModelInfo>();

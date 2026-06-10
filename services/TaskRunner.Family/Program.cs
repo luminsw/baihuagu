@@ -2,7 +2,7 @@ using TaskRunner.Core.Shared;
 using TaskRunner.Core.Shared.Security;
 using TaskRunner.Services;
 using TaskRunner.Core.Shared.Notifications;
-using TaskRunner.Services.LocalAI;
+
 using TaskRunner.Core.Shared.Hubs;
 using TaskRunner.Filters;
 using Microsoft.Extensions.Configuration;
@@ -179,8 +179,7 @@ builder.Services.AddSingleton<AiClientService>();
 builder.Services.AddSingleton<AnthropicAiClient>();
 builder.Services.AddSingleton<AiFunctionService>();
 builder.Services.AddSingleton<LocalAiAutoStarter>();
-builder.Services.AddSingleton<ILocalModelInference, LlamaSharpInference>();
-builder.Services.AddSingleton<ILocalModelInference, OnnxRuntimeGenAIInference>();
+
 builder.Services.AddSingleton<NoteParser>();
 builder.Services.AddSingleton<CardRepository>();
 builder.Services.AddSingleton<AtomNoteSplitter>();

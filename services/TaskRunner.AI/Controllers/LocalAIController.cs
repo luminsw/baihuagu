@@ -194,14 +194,5 @@ public class LocalAIController : ControllerBase
         return Ok(results);
     }
 
-    public class LocalChatRequest
-    {
-        public string Message { get; set; } = string.Empty;
-        public string ModelPath { get; set; } = string.Empty;
-        public string ModelType { get; set; } = "gguf";
-        public string? SystemPrompt { get; set; }
-        public List<ChatHistoryItem>? History { get; set; }
-    }
-
 
 }

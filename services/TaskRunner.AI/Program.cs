@@ -67,6 +67,10 @@ builder.Services.AddHttpClient();
 builder.Services.AddMemoryCache();
 builder.Services.AddDistributedMemoryCache();
 
+// 本地模型推理后端（GGUF / ONNX）
+builder.Services.AddSingleton<TaskRunner.Services.LocalAI.ILocalModelInference, TaskRunner.Services.LocalAI.LlamaSharpInference>();
+builder.Services.AddSingleton<TaskRunner.Services.LocalAI.ILocalModelInference, TaskRunner.Services.LocalAI.OnnxRuntimeGenAIInference>();
+
 // 健康检查
 builder.Services.AddHealthChecks()
     .AddCheck("self", () => Microsoft.Extensions.Diagnostics.HealthChecks.HealthCheckResult.Healthy());
