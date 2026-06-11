@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # macOS/Linux 开发启动脚本
-# 在两个独立终端中启动 Task Runner 和 WebUI
+# 在独立终端中启动 TaskRunner.AI、TaskRunner.Vault、TaskRunner.Family 和 WebUI
 
 set -euo pipefail
 
@@ -26,23 +26,43 @@ echo "清理编译服务器缓存..."
 dotnet build-server shutdown 2>/dev/null || true
 echo ""
 
-# 启动 Task Runner
-echo "[1/2] 启动 Task Runner (端口 8788)..."
-osascript -e "tell application \"Terminal\" to do script \"cd '$ROOT/services/TaskRunner.Family' && dotnet watch run --non-interactive\"" 2>/dev/null || \
-echo "请手动在终端运行: cd \"$ROOT/services/TaskRunner.Family\" && dotnet watch run --non-interactive"
+# 辅助函数：在终端中启动进程
+launch_in_terminal() {
+    local label="$1"
+    local dir="$2"
+    local port="$3"
+    local cmd="cd '$dir' && dotnet watch run --non-interactive --no-hot-reload --urls 'http://0.0.0.0:$port'"
+
+    echo "[$label] 启动 $label (端口 $port)..."
+    osascript -e "tell application \"Terminal\" to do script \"$cmd\"" 2>/dev/null || \
+        echo "  请手动在终端运行: cd \"$dir\" && dotnet watch run --non-interactive --no-hot-reload --urls 'http://0.0.0.0:$port'"
+}
+
+# 启动 TaskRunner.AI
+launch_in_terminal "TaskRunner.AI" "$ROOT/services/TaskRunner.AI" "8789"
+
+# 启动 TaskRunner.Vault
+launch_in_terminal "TaskRunner.Vault" "$ROOT/services/TaskRunner.Vault" "8790"
+
+# 启动 TaskRunner.Family
+launch_in_terminal "TaskRunner.Family" "$ROOT/services/TaskRunner.Family" "8788"
 
 # 启动 WebUI
-echo "[2/2] 启动 WebUI (端口 5177)..."
+echo "[WebUI] 启动 WebUI.Family (端口 5177)..."
 osascript -e "tell application \"Terminal\" to do script \"cd '$ROOT/services/WebUI.Family' && dotnet watch run --non-interactive\"" 2>/dev/null || \
-echo "请手动在终端运行: cd \"$ROOT/services/WebUI\" && dotnet watch run --non-interactive"
+    echo "  请手动在终端运行: cd \"$ROOT/services/WebUI.Family\" && dotnet watch run --non-interactive"
 
 echo ""
 echo "========================================"
 echo "服务启动中..."
 echo "========================================"
 echo ""
-echo "访问地址:"
-echo "  - Task Runner: http://localhost:8788"
-echo "  - WebUI:       http://localhost:5177"
+echo "后端服务:"
+echo "  - TaskRunner.AI    http://localhost:8789"
+echo "  - TaskRunner.Vault http://localhost:8790"
+echo "  - TaskRunner.Family http://localhost:8788"
+echo ""
+echo "前端界面:"
+echo "  - WebUI            http://localhost:5177"
 echo ""
 echo "提示: 使用 Ctrl+C 停止服务"

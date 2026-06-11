@@ -32,13 +32,21 @@ detect_services_to_build() {
 
     local build_taskrunner=false
     local build_webui=false
+    local build_ai=false
+    local build_vault=false
     build_nginx=false  # 全局变量，供调用方读取（不能 local，否则 $(...) subshell 捕获后丢失）
 
     while IFS= read -r file; do
         [[ -z "$file" ]] && continue
         case "$file" in
-            services/TaskRunner.Family/*|services/TaskRunner.Contracts/*|services/TaskRunner.Data/*|libs/*|libs/MobileContract/*|docker/Dockerfile.taskrunner|docker/Dockerfile.base-build|docker/Dockerfile.base-runtime)
+            services/TaskRunner.Family/*|services/Core.Shared/*|services/TaskRunner.Contracts/*|services/TaskRunner.Data/*|libs/*|libs/MobileContract/*|docker/Dockerfile.taskrunner|docker/Dockerfile.base-build|docker/Dockerfile.base-runtime)
                 build_taskrunner=true
+                ;;
+            services/TaskRunner.AI/*|services/Core.Shared/*|services/TaskRunner.Contracts/*|services/TaskRunner.Data/*|libs/*|libs/MobileContract/*|docker/Dockerfile.taskrunner.ai|docker/Dockerfile.base-build|docker/Dockerfile.base-runtime)
+                build_ai=true
+                ;;
+            services/TaskRunner.Vault/*|services/Core.Shared/*|services/TaskRunner.Contracts/*|services/TaskRunner.Data/*|libs/*|libs/MobileContract/*|docker/Dockerfile.vault|docker/Dockerfile.base-build|docker/Dockerfile.base-runtime)
+                build_vault=true
                 ;;
             services/WebUI.Family/*|services/TaskRunner.Contracts/*|services/TaskRunner.Data/*|libs/*|libs/MobileContract/*|docker/Dockerfile.webui|docker/Dockerfile.base-build|docker/Dockerfile.base-runtime)
                 build_webui=true
@@ -50,8 +58,8 @@ detect_services_to_build() {
         esac
     done <<< "$changed_files"
 
-    # 如果没有匹配到任何服务，但变更在仓库内，安全起见两个都构建
-    if [[ "$build_taskrunner" == false && "$build_webui" == false ]]; then
+    # 如果没有匹配到任何服务，但变更在仓库内，安全起见全部构建
+    if [[ "$build_taskrunner" == false && "$build_ai" == false && "$build_vault" == false && "$build_webui" == false ]]; then
         # 检查变更是否在仓库内（排除 docs/ 等）
         local has_code_change=false
         while IFS= read -r file; do
@@ -62,8 +70,10 @@ detect_services_to_build() {
         done <<< "$changed_files"
 
         if [[ "$has_code_change" == true ]]; then
-            echo "📋 检测到代码变更，但无法精确匹配服务，安全起见构建 taskrunner + webui" >&2
+            echo "📋 检测到代码变更，但无法精确匹配服务，安全起见构建全部服务" >&2
             build_taskrunner=true
+            build_ai=true
+            build_vault=true
             build_webui=true
         else
             echo "📋 变更不涉及核心服务（docs/scripts 等），跳过构建" >&2
@@ -74,6 +84,8 @@ detect_services_to_build() {
 
     local services=""
     [[ "$build_taskrunner" == true ]] && services="taskrunner"
+    [[ "$build_ai" == true ]] && services="${services:+$services }taskrunner-ai"
+    [[ "$build_vault" == true ]] && services="${services:+$services }taskrunner-vault"
     [[ "$build_webui" == true ]] && services="${services:+$services }webui"
     echo "$services"
 }
@@ -122,7 +134,7 @@ export GIT_BRANCH=$(cd "$PROJECT_ROOT" && git rev-parse --abbrev-ref HEAD 2>/dev
 # 判断需要构建哪些服务
 build_nginx=false  # 全局标记：nginx 是否需要重启
 if [[ "$1" == "--all" || "$2" == "--all" ]]; then
-    SERVICES="taskrunner webui"
+    SERVICES="taskrunner taskrunner-ai taskrunner-vault webui"
     log "🔨 强制构建所有服务: $SERVICES"
 else
     # 不使用 $(...) 捕获以避免 subshell 丢失 build_nginx 变量
@@ -161,7 +173,10 @@ fi
 # 等待健康检查
 log "🏥 等待健康检查..."
 for i in {1..30}; do
-    if curl -sf http://127.0.0.1:8788/health >/dev/null 2>&1 && curl -sf http://127.0.0.1:5177/ >/dev/null 2>&1; then
+    if curl -sf http://127.0.0.1:8788/health >/dev/null 2>&1 && \
+       curl -sf http://127.0.0.1:8789/health >/dev/null 2>&1 && \
+       curl -sf http://127.0.0.1:8790/health >/dev/null 2>&1 && \
+       curl -sf http://127.0.0.1:5177/ >/dev/null 2>&1; then
         log "✅ 服务已就绪 | http://localhost:5177"
         exit 0
     fi
