@@ -11,6 +11,8 @@ WORKDIR /src
 
 # 先复制项目文件以利用 Docker 缓存层
 COPY services/TaskRunner.Contracts/TaskRunner.Contracts.csproj services/TaskRunner.Contracts/
+COPY services/TaskRunner.Data/TaskRunner.Data.csproj services/TaskRunner.Data/
+COPY services/Core.Shared/TaskRunner.Core.Shared.csproj services/Core.Shared/
 COPY services/TaskRunner.Family/TaskRunner.Family.csproj services/TaskRunner.Family/
 COPY libs/MobileContract/MobileContract.csproj libs/MobileContract/
 COPY NuGet.config .
