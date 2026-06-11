@@ -52,28 +52,39 @@ public partial class VaultSettingsService
         var dbVaults = GetVaults().ToDictionary(v => v.Path, v => v);
         var fsVaults = new HashSet<string>();
 
-        foreach (var dir in Directory.EnumerateDirectories(rootPath))
+        // 递归查找所有包含 notes 或 cards 子目录的知识库
+        void ScanDirectory(string currentDir)
         {
-            var notesDir = Path.Combine(dir, "notes");
-            var cardsDir = Path.Combine(dir, "cards");
-            if (Directory.Exists(notesDir) || Directory.Exists(cardsDir))
+            foreach (var dir in Directory.EnumerateDirectories(currentDir))
             {
-                fsVaults.Add(dir);
-                if (!dbVaults.ContainsKey(dir))
+                var notesDir = Path.Combine(dir, "notes");
+                var cardsDir = Path.Combine(dir, "cards");
+                if (Directory.Exists(notesDir) || Directory.Exists(cardsDir))
                 {
-                    var name = Path.GetFileName(dir);
-                    try
+                    fsVaults.Add(dir);
+                    if (!dbVaults.ContainsKey(dir))
                     {
-                        AddVault(name, dir, "其他");
-                        added++;
+                        var name = Path.GetFileName(dir);
+                        try
+                        {
+                            AddVault(name, dir, "其他");
+                            added++;
+                        }
+                        catch (Exception ex)
+                        {
+                            _logger.LogWarning(ex, "同步知识库时跳过重复: {Path}", dir);
+                        }
                     }
-                    catch (Exception ex)
-                    {
-                        _logger.LogWarning(ex, "同步知识库时跳过重复: {Path}", dir);
-                    }
+                }
+                else
+                {
+                    // 继续递归检查子目录
+                    ScanDirectory(dir);
                 }
             }
         }
+
+        ScanDirectory(rootPath);
 
         foreach (var dbVault in dbVaults.Values)
         {
