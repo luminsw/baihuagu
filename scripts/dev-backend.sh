@@ -39,7 +39,7 @@ launch_in_terminal() {
 }
 
 # 启动 TaskRunner.AI
-launch_in_terminal "TaskRunner.AI" "$ROOT/services/TaskRunner.AI" "8789"
+launch_in_terminal "TaskRunner.AI" "$ROOT/services/TaskRunner.AI" "8791"
 
 # 启动 TaskRunner.Vault
 launch_in_terminal "TaskRunner.Vault" "$ROOT/services/TaskRunner.Vault" "8790"
@@ -58,7 +58,7 @@ echo "服务启动中..."
 echo "========================================"
 echo ""
 echo "后端服务:"
-echo "  - TaskRunner.AI    http://localhost:8789"
+echo "  - TaskRunner.AI    http://localhost:8791"
 echo "  - TaskRunner.Vault http://localhost:8790"
 echo "  - TaskRunner.Family http://localhost:8788"
 echo ""

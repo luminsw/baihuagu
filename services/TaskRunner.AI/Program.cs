@@ -13,7 +13,7 @@ var builder = WebApplication.CreateBuilder(args);
 var urls = builder.Configuration["urls"]                                   // dotnet run --urls
     ?? Environment.GetEnvironmentVariable("ASPNETCORE_URLS")
     ?? builder.Configuration["Kestrel:Endpoints:Http:Url"]
-    ?? "http://0.0.0.0:8789";
+    ?? "http://0.0.0.0:8791";
 builder.WebHost.UseUrls(urls);
 
 // 确保数据目录稳定

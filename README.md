@@ -40,6 +40,6 @@ cd services/WebUI.Family && dotnet run
 | 服务 | 端口 | 说明 |
 |------|------|------|
 | TaskRunner.Family | 8788 | 家庭/亲子功能（任务、成就、OpenClaw、设备配对） |
-| TaskRunner.AI | 8789 | AI 模型、聊天、配置管理 |
+| TaskRunner.AI | 8791 | AI 模型、聊天、配置管理 |
 | TaskRunner.Vault | 8790 | 知识库、同步、搜索、索引 |
 | WebUI.Family | 5177 | Blazor Server 管理后台 |

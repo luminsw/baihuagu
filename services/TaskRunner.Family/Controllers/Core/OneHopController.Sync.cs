@@ -48,7 +48,7 @@ public partial class OneHopController
                 var ipAddress = GetLocalIpAddress();
                 var hostName = Environment.MachineName;
                 var httpUrl = $"http://{ipAddress}:8788";
-                var httpsUrl = $"https://{ipAddress}:8789";
+                var httpsUrl = $"https://{ipAddress}:8792";
 
                 return Ok(new
                 {
@@ -82,7 +82,7 @@ public partial class OneHopController
                 var ipAddress = GetLocalIpAddress();
                 var hostName = Environment.MachineName;
                 var httpUrl = $"http://{ipAddress}:8788";
-                var httpsUrl = $"https://{ipAddress}:8789";
+                var httpsUrl = $"https://{ipAddress}:8792";
 
                 var qrData = new
                 {
@@ -117,7 +117,7 @@ public partial class OneHopController
                 return Ok(new
                 {
                     httpUrl = $"http://{GetLocalIpAddress()}:8788",
-                    httpsUrl = $"https://{GetLocalIpAddress()}:8789",
+                    httpsUrl = $"https://{GetLocalIpAddress()}:8792",
                     hostName = Environment.MachineName
                 });
             }

@@ -103,7 +103,7 @@ services/
 │                                                                   │
 │  ┌──────────────┐  ┌──────────────┐  ┌──────────────┐           │
 │  │ WebUI.Family │  │TaskRunner.AI │  │TaskRunner.Vault           │
-│  │    :5177     │  │    :8789     │  │    :8790     │           │
+│  │    :5177     │  │    :8791     │  │    :8790     │           │
 │  │ (Blazor SSR) │  │(ASP.NET Core)│  │(ASP.NET Core)│           │
 │  └──────┬───────┘  └──────┬───────┘  └──────┬───────┘           │
 │         │                 │                  │                   │
@@ -138,7 +138,7 @@ services/
 ```
 
 **说明：**
-- 家庭版为 **3 后端 + 1 前端** 架构：TaskRunner.Family (8788) + TaskRunner.AI (8789) + TaskRunner.Vault (8790) + WebUI.Family (5177)
+- 家庭版为 **3 后端 + 1 前端** 架构：TaskRunner.Family (8788) + TaskRunner.AI (8791) + TaskRunner.Vault (8790) + WebUI.Family (5177)
 - 数据库使用 SQLite（零配置、单文件、备份简单），Family 与 Vault 共享 `taskrunner.db`，AI 使用独立的 `ai.db`
 - Nginx 可选，用于提供统一入口和静态缓存
 - 移动端通过局域网 IP 连接 `:8788`，Family 自动将 Vault 域 API 转发到 `:8790`
@@ -179,7 +179,7 @@ services/
     ├──► Blazor SSR 渲染页面
     ├──► JS Interop 调用本地 API
     ├──► WebUI ──HTTP──► TaskRunner.Family:8788  (任务、成就、设备)
-    ├──► WebUI ──HTTP──► TaskRunner.AI:8789     (AI 配置、对话)
+    ├──► WebUI ──HTTP──► TaskRunner.AI:8791     (AI 配置、对话)
     └──► WebUI ──HTTP──► TaskRunner.Vault:8790  (知识库、搜索、同步)
 ```
 
@@ -198,7 +198,7 @@ services/
     "BaseUrl": "http://127.0.0.1:8788/"
   },
   "TaskRunnerAiApi": {
-    "BaseUrl": "http://127.0.0.1:8789/"
+    "BaseUrl": "http://127.0.0.1:8791/"
   },
   "TaskRunnerVaultApi": {
     "BaseUrl": "http://127.0.0.1:8790/"
@@ -220,7 +220,7 @@ services/
     "BaseUrl": "http://127.0.0.1:8788/"
   },
   "TaskRunnerAiApi": {
-    "BaseUrl": "http://127.0.0.1:8789/"
+    "BaseUrl": "http://127.0.0.1:8791/"
   },
   "TaskRunnerVaultApi": {
     "BaseUrl": "http://127.0.0.1:8790/"

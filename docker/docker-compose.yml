@@ -28,7 +28,7 @@ services:
       - TASKRUNNER_SKIP_MUTEX=true
       - ASPNETCORE_URLS=http://0.0.0.0:8788
       # OpenObserve 通过宿主机 localhost 访问
-      - OpenObserve__WebUrl=http://127.0.0.1:5080/
+      - OpenObserve__WebUrl=http://127.0.0.1:5082/
       - OpenObserve__Enabled=true
       # 知识库根路径（与宿主机实际路径保持一致）
       - TASKRUNNER_VAULT_ROOT=${VAULTS_DIR:-/home/lumin/Vaults}
@@ -74,9 +74,9 @@ services:
       - ASPNETCORE_URLS=http://0.0.0.0:5177
       # 通过宿主机 localhost 访问 TaskRunner（host 网络）
       - TaskRunnerApi__BaseUrl=http://127.0.0.1:8788/
-      - TaskRunnerAiApi__BaseUrl=http://127.0.0.1:8789/
+      - TaskRunnerAiApi__BaseUrl=http://127.0.0.1:8791/
       - TaskRunnerVaultApi__BaseUrl=http://127.0.0.1:8790/
-      - OpenObserve__WebUrl=http://127.0.0.1:5080/
+      - OpenObserve__WebUrl=http://127.0.0.1:5082/
       - OpenObserve__Enabled=true
       - ADMIN_PASSWORD_HASH=${ADMIN_PASSWORD_HASH:-}
       - ADMIN_IP_WHITELIST=${ADMIN_IP_WHITELIST:-}
@@ -114,7 +114,7 @@ services:
       webui:
         condition: service_healthy
     healthcheck:
-      test: ["CMD-SHELL", "curl -fs http://127.0.0.1:80/ || exit 1"]
+      test: ["CMD-SHELL", "curl -fs http://127.0.0.1:8080/ || exit 1"]
       interval: 30s
       timeout: 5s
       retries: 3
@@ -140,7 +140,7 @@ services:
     environment:
       - TASKRUNNER_DATA_DIR=/app/data
       - ASPNETCORE_URLS=http://0.0.0.0:8790
-      - OpenObserve__WebUrl=http://127.0.0.1:5080/
+      - OpenObserve__WebUrl=http://127.0.0.1:5082/
       - OpenObserve__Enabled=true
       - TASKRUNNER_VAULT_ROOT=${VAULTS_DIR:-/home/lumin/Vaults}
       - YJ_ENCRYPTION_KEY=${YJ_ENCRYPTION_KEY:-}
@@ -170,13 +170,13 @@ services:
       - ${VAULTS_DIR:-/home/lumin/Vaults}:${VAULTS_DIR:-/home/lumin/Vaults}
     environment:
       - TASKRUNNER_DATA_DIR=/app/data
-      - ASPNETCORE_URLS=http://0.0.0.0:8789
-      - OpenObserve__WebUrl=http://127.0.0.1:5080/
+      - ASPNETCORE_URLS=http://0.0.0.0:8791
+      - OpenObserve__WebUrl=http://127.0.0.1:5082/
       - OpenObserve__Enabled=true
       - TASKRUNNER_VAULT_ROOT=${VAULTS_DIR:-/home/lumin/Vaults}
       - YJ_ENCRYPTION_KEY=${YJ_ENCRYPTION_KEY:-}
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://127.0.0.1:8789/health"]
+      test: ["CMD", "curl", "-f", "http://127.0.0.1:8791/health"]
       interval: 30s
       timeout: 10s
       retries: 3
@@ -189,8 +189,8 @@ services:
     container_name: yj-family-openobserve
     restart: unless-stopped
     ports:
-      - "5080:5080"
-      - "5081:5081"
+      - "5082:5080"
+      - "5083:5081"
     volumes:
       - /opt/yj-family/data/openobserve:/data
     environment:

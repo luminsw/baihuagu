@@ -2,7 +2,7 @@
 
 > 当前架构已从单体后台拆分为 3 个独立后端服务：
 > - **TaskRunner.Family** (8788) — 家庭/亲子功能（任务、成就、OpenClaw、设备配对）
-> - **TaskRunner.AI** (8789) — AI 模型、聊天、配置管理
+> - **TaskRunner.AI** (8791) — AI 模型、聊天、配置管理
 > - **TaskRunner.Vault** (8790) — 知识库、同步、搜索、索引
 >
 > 3 个服务共用同一个 SQLite `taskrunner.db`（通过 `Core.Shared` 共享数据层）。
@@ -10,7 +10,7 @@
 ## 助手 / 自动化约定
 
 - **只要本仓库内 `dotnet build` 成功**，即应保证后台处于运行状态：
-  - TaskRunner.Family **8788**、TaskRunner.AI **8789**、TaskRunner.Vault **8790**、WebUI **5177**
+  - TaskRunner.Family **8788**、TaskRunner.AI **8791**、TaskRunner.Vault **8790**、WebUI **5177**
   - 若未监听，应在释放端口/处理文件锁后 **`dotnet watch run`** 拉起对应服务
 - **WebUI 与 TaskRunner 之间的共享数据类型和 API 接口定义必须放在 `TaskRunner.Contracts`**，两边禁止各自重复定义。新增或修改 API 契约时，先更新 Contracts，再让两边引用同一版本。
 - **共享业务服务（如 `VaultSettingsService`、`VaultNoteIndexer`）放在 `Core.Shared`**，`TaskRunner.Family` 与 `TaskRunner.Vault` 均通过引用 `Core.Shared` 使用，避免 HTTP 调用开销。
@@ -45,7 +45,7 @@
 
 # 或手动分别启动
 # 终端 1
-cd services/TaskRunner.AI && dotnet watch run --non-interactive --no-hot-reload --urls "http://0.0.0.0:8789"
+cd services/TaskRunner.AI && dotnet watch run --non-interactive --no-hot-reload --urls "http://0.0.0.0:8791"
 # 终端 2
 cd services/TaskRunner.Vault && dotnet watch run --non-interactive --no-hot-reload --urls "http://0.0.0.0:8790"
 # 终端 3
@@ -62,7 +62,7 @@ dotnet build services/DoctorNotes.Family.slnx -c Release
 | 服务 | 端口 | 说明 |
 |------|------|------|
 | TaskRunner.Family | 8788 | HTTP API（家庭/亲子功能） |
-| TaskRunner.AI | 8789 | HTTP API（AI 模型与配置） |
+| TaskRunner.AI | 8791 | HTTP API（AI 模型与配置） |
 | TaskRunner.Vault | 8790 | HTTP API（知识库、同步、搜索） |
 | WebUI | 5177 | HTTP Blazor Server |
 

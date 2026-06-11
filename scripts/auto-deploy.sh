@@ -174,7 +174,7 @@ fi
 log "🏥 等待健康检查..."
 for i in {1..30}; do
     if curl -sf http://127.0.0.1:8788/health >/dev/null 2>&1 && \
-       curl -sf http://127.0.0.1:8789/health >/dev/null 2>&1 && \
+       curl -sf http://127.0.0.1:8791/health >/dev/null 2>&1 && \
        curl -sf http://127.0.0.1:8790/health >/dev/null 2>&1 && \
        curl -sf http://127.0.0.1:5177/ >/dev/null 2>&1; then
         log "✅ 服务已就绪 | http://localhost:5177"

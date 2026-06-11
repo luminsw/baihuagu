@@ -6,7 +6,7 @@ import { test, expect } from '@playwright/test';
  */
 
 const apiPort = process.env.API_PORT || '8788';
-const oneHopPort = 8789;
+const oneHopPort = 8791;
 
 test.describe('移动端管理', () => {
 

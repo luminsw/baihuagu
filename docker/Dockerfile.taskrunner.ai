@@ -35,12 +35,12 @@ ARG GIT_BRANCH=unknown
 LABEL git.commit=$GIT_COMMIT
 LABEL git.branch=$GIT_BRANCH
 
-EXPOSE 8789
+EXPOSE 8791
 
-ENV ASPNETCORE_URLS=http://0.0.0.0:8789
+ENV ASPNETCORE_URLS=http://0.0.0.0:8791
 ENV TASKRUNNER_DATA_DIR=/app/data
 
 HEALTHCHECK --interval=30s --timeout=10s --start-period=40s --retries=3 \
-    CMD curl -f http://localhost:8789/health || exit 1
+    CMD curl -f http://localhost:8791/health || exit 1
 
 ENTRYPOINT ["dotnet", "TaskRunner.AI.dll"]

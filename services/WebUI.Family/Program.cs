@@ -195,7 +195,7 @@ builder.Services.AddHttpClient("TaskRunnerApi", client =>
     client.Timeout = TimeSpan.FromSeconds(30);
 });
 
-var taskRunnerAiBaseUrl = builder.Configuration["TaskRunnerAiApi:BaseUrl"] ?? "http://127.0.0.1:8789/";
+var taskRunnerAiBaseUrl = builder.Configuration["TaskRunnerAiApi:BaseUrl"] ?? "http://127.0.0.1:8791/";
 builder.Services.AddHttpClient("TaskRunnerAiApi", client =>
 {
     client.BaseAddress = new Uri(taskRunnerAiBaseUrl);

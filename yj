@@ -28,7 +28,7 @@ fi
 _detect_mode() {
     if docker ps --format '{{.Names}}' 2>/dev/null | grep -qE "yj-family-(webui|taskrunner|taskrunner-ai|taskrunner-vault|nginx)"; then
         echo "docker"
-    elif lsof -ti:8788 -sTCP:LISTEN &>/dev/null || lsof -ti:8789 -sTCP:LISTEN &>/dev/null || lsof -ti:8790 -sTCP:LISTEN &>/dev/null || lsof -ti:5177 -sTCP:LISTEN &>/dev/null; then
+    elif lsof -ti:8788 -sTCP:LISTEN &>/dev/null || lsof -ti:8791 -sTCP:LISTEN &>/dev/null || lsof -ti:8790 -sTCP:LISTEN &>/dev/null || lsof -ti:5177 -sTCP:LISTEN &>/dev/null; then
         echo "native"
     else
         echo "none"
@@ -41,7 +41,7 @@ _detect_all_modes() {
     if docker ps --format '{{.Names}}' 2>/dev/null | grep -qE "yj-family-(webui|taskrunner|taskrunner-ai|taskrunner-vault|nginx)"; then
         modes="docker"
     fi
-    if lsof -ti:8788 -sTCP:LISTEN &>/dev/null || lsof -ti:8789 -sTCP:LISTEN &>/dev/null || lsof -ti:8790 -sTCP:LISTEN &>/dev/null || lsof -ti:5177 -sTCP:LISTEN &>/dev/null; then
+    if lsof -ti:8788 -sTCP:LISTEN &>/dev/null || lsof -ti:8791 -sTCP:LISTEN &>/dev/null || lsof -ti:8790 -sTCP:LISTEN &>/dev/null || lsof -ti:5177 -sTCP:LISTEN &>/dev/null; then
         [ -n "$modes" ] && modes="$modes,native" || modes="native"
     fi
     echo "$modes"
@@ -289,8 +289,8 @@ cmd_start() {
     fi
 
     # 启动 TaskRunner.AI（如果未运行）
-    if ! lsof -ti:8789 -sTCP:LISTEN &> /dev/null 2>&1; then
-        echo "  → 启动 TaskRunner.AI (端口 8789)…"
+    if ! lsof -ti:8791 -sTCP:LISTEN &> /dev/null 2>&1; then
+        echo "  → 启动 TaskRunner.AI (端口 8791)…"
         nohup dotnet run --project "$YJ_ROOT/services/TaskRunner.AI" --no-launch-profile > /tmp/yj-taskrunner-ai.log 2>&1 &
     fi
 
@@ -327,7 +327,7 @@ cmd_start() {
 
     # 检查是否有 AI 配置（通过 API 查询）
     HAS_API_KEY=0
-    if curl -s http://localhost:8789/api/ai-config/providers 2>/dev/null | grep -q "id"; then
+    if curl -s http://localhost:8791/api/ai-config/providers 2>/dev/null | grep -q "id"; then
         HAS_API_KEY=1
     fi
 
@@ -350,7 +350,7 @@ cmd_start() {
         echo ""
         echo "后端服务："
         echo "  - TaskRunner.Family  http://localhost:8788"
-        echo "  - TaskRunner.AI      http://localhost:8789"
+        echo "  - TaskRunner.AI      http://localhost:8791"
         echo "  - TaskRunner.Vault   http://localhost:8790"
         echo ""
         echo "管理面板：运行 './yj dashboard' 打开 WebUI"
@@ -391,7 +391,7 @@ cmd_status() {
         nginx_status=$(docker ps --filter "name=yj-family-nginx" --format "{{.Status}}" 2>/dev/null || echo "未运行")
 
         printf "  %-20s %s\n" "TaskRunner (8788)" "$tr_status"
-        printf "  %-20s %s\n" "TaskRunner.AI (8789)" "$ai_status"
+        printf "  %-20s %s\n" "TaskRunner.AI (8791)" "$ai_status"
         printf "  %-20s %s\n" "TaskRunner.Vault (8790)" "$vault_status"
         printf "  %-20s %s\n" "WebUI (5177)" "$webui_status"
         printf "  %-20s %s\n" "nginx (80)" "$nginx_status"
@@ -403,7 +403,7 @@ cmd_status() {
         else
             echo "[✗] TaskRunner 健康检查失败"
         fi
-        if curl -s --max-time 2 http://localhost:8789/health > /dev/null 2>&1; then
+        if curl -s --max-time 2 http://localhost:8791/health > /dev/null 2>&1; then
             echo "[✓] TaskRunner.AI 健康检查通过"
         else
             echo "[✗] TaskRunner.AI 健康检查失败"
@@ -423,7 +423,7 @@ cmd_status() {
         echo ""
         local tr_pid ai_pid vault_pid webui_pid
         tr_pid=$(lsof -ti:8788 -sTCP:LISTEN 2>/dev/null || echo "")
-        ai_pid=$(lsof -ti:8789 -sTCP:LISTEN 2>/dev/null || echo "")
+        ai_pid=$(lsof -ti:8791 -sTCP:LISTEN 2>/dev/null || echo "")
         vault_pid=$(lsof -ti:8790 -sTCP:LISTEN 2>/dev/null || echo "")
         webui_pid=$(lsof -ti:5177 -sTCP:LISTEN 2>/dev/null || echo "")
 
@@ -434,9 +434,9 @@ cmd_status() {
         fi
 
         if [ -n "$ai_pid" ]; then
-            printf "  %-20s PID %s\n" "TaskRunner.AI (8789)" "$ai_pid"
+            printf "  %-20s PID %s\n" "TaskRunner.AI (8791)" "$ai_pid"
         else
-            printf "  %-20s %s\n" "TaskRunner.AI (8789)" "未运行"
+            printf "  %-20s %s\n" "TaskRunner.AI (8791)" "未运行"
         fi
 
         if [ -n "$vault_pid" ]; then
@@ -477,7 +477,7 @@ cmd_stop() {
     fi
 
     # 总是尝试停止裸机进程（即使检测到的模式不是 native，防止残留）
-    PID_AI=$(lsof -ti:8789 -sTCP:LISTEN 2>/dev/null || true)
+    PID_AI=$(lsof -ti:8791 -sTCP:LISTEN 2>/dev/null || true)
     if [ -n "$PID_AI" ]; then
         echo "[模式] 裸机进程 (TaskRunner.AI PID: $PID_AI)"
         kill "$PID_AI" 2>/dev/null && sleep 1
@@ -661,8 +661,8 @@ cmd_dashboard() {
         fi
 
         # 仅在容器未运行时，检查裸机进程（避免 Docker 与裸机共存）
-        if [ $webui_running -eq 0 ] && (lsof -ti:8788 -sTCP:LISTEN &>/dev/null || lsof -ti:8789 -sTCP:LISTEN &>/dev/null || lsof -ti:8790 -sTCP:LISTEN &>/dev/null || lsof -ti:5177 -sTCP:LISTEN &>/dev/null); then
-            echo "[!] 检测到裸机进程正在运行（端口 8788/8789/8790/5177）"
+        if [ $webui_running -eq 0 ] && (lsof -ti:8788 -sTCP:LISTEN &>/dev/null || lsof -ti:8791 -sTCP:LISTEN &>/dev/null || lsof -ti:8790 -sTCP:LISTEN &>/dev/null || lsof -ti:5177 -sTCP:LISTEN &>/dev/null); then
+            echo "[!] 检测到裸机进程正在运行（端口 8788/8791/8790/5177）"
             echo "    Family 版不支持同时运行 Docker 和裸机进程"
             echo "    请先停止裸机进程: ./yj stop"
             echo "    或直接使用裸机模式: ./yj start"
@@ -784,9 +784,9 @@ cmd_dashboard() {
             fi
 
             # 启动 TaskRunner.AI（如果未运行）
-            local ai_url="http://localhost:8789/health"
+            local ai_url="http://localhost:8791/health"
             if ! curl -s --max-time 2 "$ai_url" > /dev/null 2>&1; then
-                echo "  → 启动 TaskRunner.AI (端口 8789)…"
+                echo "  → 启动 TaskRunner.AI (端口 8791)…"
                 nohup dotnet run --project "$YJ_ROOT/services/TaskRunner.AI" --no-launch-profile > /tmp/yj-taskrunner-ai.log 2>&1 &
             fi
 

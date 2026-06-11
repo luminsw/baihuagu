@@ -195,7 +195,7 @@ done
 
 AI_CODE="000"
 for i in {1..10}; do
-    AI_CODE=$(ssh ${SSH_OPTS} "${SERVER}" "curl -s -o /dev/null -w '%{http_code}' --max-time 5 http://127.0.0.1:8789/health" 2>/dev/null || echo "000")
+    AI_CODE=$(ssh ${SSH_OPTS} "${SERVER}" "curl -s -o /dev/null -w '%{http_code}' --max-time 5 http://127.0.0.1:8791/health" 2>/dev/null || echo "000")
     if [[ "$AI_CODE" == "200" ]]; then break; fi
     sleep 1
 done
@@ -241,11 +241,11 @@ ssh ${SSH_OPTS} "${SERVER}" "rm -f ${REMOTE_SRC_DIR}/yj-family-src.tar.gz"
 echo "========================================"
 echo "Family Docker 化部署成功！"
 echo "  TaskRunner.Family: http://127.0.0.1:8788 正常 (HTTP $TASKRUNNER_CODE)"
-echo "  TaskRunner.AI:     http://127.0.0.1:8789 正常 (HTTP $AI_CODE)"
+echo "  TaskRunner.AI:     http://127.0.0.1:8791 正常 (HTTP $AI_CODE)"
 echo "  TaskRunner.Vault:  http://127.0.0.1:8790 正常 (HTTP $VAULT_CODE)"
 echo "  WebUI:             http://127.0.0.1:5177 正常 (HTTP $WEBUI_CODE)"
 echo "  Nginx:             80 端口 (HTTP 反向代理)"
-echo "  OpenObserve:       http://127.0.0.1:5080"
+echo "  OpenObserve:       http://127.0.0.1:5082"
 echo ""
 echo "数据目录: ${REMOTE_DATA_DIR}"
 echo "日志目录: ${REMOTE_LOGS_DIR}"
