@@ -34,7 +34,7 @@ public class VaultStatusService
     {
         try
         {
-            var client = _httpClientFactory.CreateClient("TaskRunnerApi");
+            var client = _httpClientFactory.CreateClient("TaskRunnerVaultApi");
             return await client.GetFromJsonAsync<VaultsResponse>("api/settings/vaults") ?? new VaultsResponse();
         }
         catch (Exception ex)
