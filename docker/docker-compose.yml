@@ -41,6 +41,9 @@ services:
       - ADMIN_PASSWORD_HASH=${ADMIN_PASSWORD_HASH:-}
       # 移动端 HMAC 签名密钥（配对后自动生成，通常无需手动配置）
       - MobileAuth__SharedSecret=${MOBILE_AUTH_SECRET:-}
+    depends_on:
+      taskrunner-vault:
+        condition: service_healthy
     healthcheck:
       test: ["CMD", "curl", "-f", "http://127.0.0.1:8788/health"]
       interval: 30s
