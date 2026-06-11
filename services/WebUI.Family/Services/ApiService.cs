@@ -46,6 +46,10 @@ namespace WebUI.Services
         Task<ChatResponse> ChatAsync(string message, CancellationToken cancellationToken = default);
         IAsyncEnumerable<string> StreamChatAsync(string message, string providerId, string model, List<(bool IsUser, string Content)>? history = null, CancellationToken cancellationToken = default);
         IAsyncEnumerable<ChatStreamEvent> StreamChatWithEventsAsync(string message, string providerId, string model, List<(bool IsUser, string Content)>? history = null, string? sessionId = null, CancellationToken cancellationToken = default);
+
+        // 直接调用 TaskRunner.AI（纯 AI，无 RAG/记忆/Function Calling）
+        Task<ChatResponse> ChatDirectAsync(string message, string? providerId = null, string? model = null, CancellationToken cancellationToken = default);
+        IAsyncEnumerable<string> StreamChatDirectAsync(string message, string? providerId = null, string? model = null, List<(bool IsUser, string Content)>? history = null, CancellationToken cancellationToken = default);
         IAsyncEnumerable<string> StreamLocalChatAsync(string message, string modelPath, string modelType, List<(bool IsUser, string Content)>? history = null, CancellationToken cancellationToken = default);
         IAsyncEnumerable<string> StreamChatWithVaultAsync(string message, string model, List<(bool IsUser, string Content)>? history = null, CancellationToken cancellationToken = default);
         Task<List<LocalModelInfo>> ScanLocalModelsAsync(string? directory = null);
@@ -811,6 +815,90 @@ namespace WebUI.Services
                     else if (currentEvent == "done")
                     {
                         yield return new ChatStreamEvent { Type = "done" };
+                        yield break;
+                    }
+                    else if (currentEvent == "error")
+                    {
+                        throw new InvalidOperationException($"AI 流式响应错误: {data}");
+                    }
+                }
+                else if (string.IsNullOrEmpty(line))
+                {
+                    currentEvent = null;
+                }
+            }
+        }
+
+        public async Task<ChatResponse> ChatDirectAsync(string message, string? providerId = null, string? model = null, CancellationToken cancellationToken = default)
+        {
+            try
+            {
+                var payload = new Dictionary<string, object?> { ["message"] = message };
+                if (!string.IsNullOrWhiteSpace(providerId)) payload["providerId"] = providerId;
+                if (!string.IsNullOrWhiteSpace(model)) payload["model"] = model;
+
+                var json = JsonSerializer.Serialize(payload);
+                var httpContent = new StringContent(json, Encoding.UTF8, "application/json");
+                var response = await _aiHttpClient.PostAsync("/api/ai/chat/completion", httpContent, cancellationToken);
+                response.EnsureSuccessStatusCode();
+                return await response.Content.ReadFromJsonAsync<ChatResponse>(cancellationToken: cancellationToken) ?? new ChatResponse();
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "直接 AI 聊天请求失败");
+                return new ChatResponse { Success = false, Message = $"聊天失败：{ex.Message}" };
+            }
+        }
+
+        public async IAsyncEnumerable<string> StreamChatDirectAsync(
+            string message,
+            string? providerId = null,
+            string? model = null,
+            List<(bool IsUser, string Content)>? history = null,
+            [EnumeratorCancellation] CancellationToken cancellationToken = default)
+        {
+            var payload = new Dictionary<string, object?> { ["message"] = message };
+            if (!string.IsNullOrWhiteSpace(providerId)) payload["providerId"] = providerId;
+            if (!string.IsNullOrWhiteSpace(model)) payload["model"] = model;
+            if (history != null && history.Count > 0)
+                payload["history"] = history.Select(h => new { role = h.IsUser ? "user" : "assistant", content = h.Content }).ToList();
+
+            var json = JsonSerializer.Serialize(payload);
+            var httpContent = new StringContent(json, Encoding.UTF8, "application/json");
+
+            using var response = await _aiHttpClient.SendAsync(
+                new HttpRequestMessage(HttpMethod.Post, "/api/ai/chat/stream") { Content = httpContent },
+                HttpCompletionOption.ResponseHeadersRead,
+                cancellationToken);
+
+            response.EnsureSuccessStatusCode();
+
+            var stream = await response.Content.ReadAsStreamAsync(cancellationToken);
+            using var reader = new StreamReader(stream, Encoding.UTF8);
+
+            string? currentEvent = null;
+            while (!cancellationToken.IsCancellationRequested)
+            {
+                var line = await reader.ReadLineAsync(cancellationToken);
+                if (line == null) break;
+
+                if (line.StartsWith("event: "))
+                {
+                    currentEvent = line.Substring(7).Trim();
+                }
+                else if (line.StartsWith("data: "))
+                {
+                    var data = line.Substring(6);
+                    if (currentEvent == "delta")
+                    {
+                        var text = TryExtractContent(data);
+                        if (!string.IsNullOrEmpty(text))
+                        {
+                            yield return text;
+                        }
+                    }
+                    else if (currentEvent == "done")
+                    {
                         yield break;
                     }
                     else if (currentEvent == "error")
