@@ -28,7 +28,7 @@ fi
 _detect_mode() {
     if docker ps --format '{{.Names}}' 2>/dev/null | grep -qE "yj-family-(webui|taskrunner|taskrunner-ai|taskrunner-vault|nginx)"; then
         echo "docker"
-    elif lsof -ti:8788 -sTCP:LISTEN &>/dev/null || lsof -ti:5177 -sTCP:LISTEN &>/dev/null; then
+    elif lsof -ti:8788 -sTCP:LISTEN &>/dev/null || lsof -ti:8789 -sTCP:LISTEN &>/dev/null || lsof -ti:8790 -sTCP:LISTEN &>/dev/null || lsof -ti:5177 -sTCP:LISTEN &>/dev/null; then
         echo "native"
     else
         echo "none"
@@ -41,7 +41,7 @@ _detect_all_modes() {
     if docker ps --format '{{.Names}}' 2>/dev/null | grep -qE "yj-family-(webui|taskrunner|taskrunner-ai|taskrunner-vault|nginx)"; then
         modes="docker"
     fi
-    if lsof -ti:8788 -sTCP:LISTEN &>/dev/null || lsof -ti:5177 -sTCP:LISTEN &>/dev/null; then
+    if lsof -ti:8788 -sTCP:LISTEN &>/dev/null || lsof -ti:8789 -sTCP:LISTEN &>/dev/null || lsof -ti:8790 -sTCP:LISTEN &>/dev/null || lsof -ti:5177 -sTCP:LISTEN &>/dev/null; then
         [ -n "$modes" ] && modes="$modes,native" || modes="native"
     fi
     echo "$modes"
@@ -63,7 +63,7 @@ Commands:
   status             查看服务运行状态
   stop               停止后台服务
   restart            重启后台服务
-  logs [service]     查看日志（taskrunner/webui/nginx）
+  logs [service]     查看日志（taskrunner/taskrunner-ai/taskrunner-vault/webui/nginx）
   open               打开 Web 管理界面
   dashboard          一键打开管理面板（自动授权）
   help               显示帮助
@@ -401,14 +401,28 @@ cmd_status() {
     elif [ "$mode" = "native" ]; then
         echo "[模式] 裸机进程"
         echo ""
-        local tr_pid webui_pid
+        local tr_pid ai_pid vault_pid webui_pid
         tr_pid=$(lsof -ti:8788 -sTCP:LISTEN 2>/dev/null || echo "")
+        ai_pid=$(lsof -ti:8789 -sTCP:LISTEN 2>/dev/null || echo "")
+        vault_pid=$(lsof -ti:8790 -sTCP:LISTEN 2>/dev/null || echo "")
         webui_pid=$(lsof -ti:5177 -sTCP:LISTEN 2>/dev/null || echo "")
 
         if [ -n "$tr_pid" ]; then
             printf "  %-20s PID %s\n" "TaskRunner (8788)" "$tr_pid"
         else
             printf "  %-20s %s\n" "TaskRunner (8788)" "未运行"
+        fi
+
+        if [ -n "$ai_pid" ]; then
+            printf "  %-20s PID %s\n" "TaskRunner.AI (8789)" "$ai_pid"
+        else
+            printf "  %-20s %s\n" "TaskRunner.AI (8789)" "未运行"
+        fi
+
+        if [ -n "$vault_pid" ]; then
+            printf "  %-20s PID %s\n" "TaskRunner.Vault (8790)" "$vault_pid"
+        else
+            printf "  %-20s %s\n" "TaskRunner.Vault (8790)" "未运行"
         fi
 
         if [ -n "$webui_pid" ]; then
@@ -443,6 +457,24 @@ cmd_stop() {
     fi
 
     # 总是尝试停止裸机进程（即使检测到的模式不是 native，防止残留）
+    PID_AI=$(lsof -ti:8789 -sTCP:LISTEN 2>/dev/null || true)
+    if [ -n "$PID_AI" ]; then
+        echo "[模式] 裸机进程 (TaskRunner.AI PID: $PID_AI)"
+        kill "$PID_AI" 2>/dev/null && sleep 1
+        kill -9 "$PID_AI" 2>/dev/null || true
+        echo "[✓] 已停止 TaskRunner.AI（PID: $PID_AI）"
+        stopped=1
+    fi
+
+    PID_VAULT=$(lsof -ti:8790 -sTCP:LISTEN 2>/dev/null || true)
+    if [ -n "$PID_VAULT" ]; then
+        echo "[模式] 裸机进程 (TaskRunner.Vault PID: $PID_VAULT)"
+        kill "$PID_VAULT" 2>/dev/null && sleep 1
+        kill -9 "$PID_VAULT" 2>/dev/null || true
+        echo "[✓] 已停止 TaskRunner.Vault（PID: $PID_VAULT）"
+        stopped=1
+    fi
+
     PID=$(lsof -ti:8788 -sTCP:LISTEN 2>/dev/null || true)
     if [ -n "$PID" ]; then
         echo "[模式] 裸机进程 (TaskRunner PID: $PID)"
@@ -535,12 +567,24 @@ cmd_logs() {
             taskrunner|tr)
                 tail -f /tmp/yj-taskrunner-family.log 2>/dev/null || tail -f /tmp/yj-service.log 2>/dev/null
                 ;;
+            ai|taskrunner-ai)
+                tail -f /tmp/yj-taskrunner-ai.log 2>/dev/null
+                ;;
+            vault|taskrunner-vault)
+                tail -f /tmp/yj-taskrunner-vault.log 2>/dev/null
+                ;;
             webui|wuf)
                 tail -f /tmp/yj-webui-family.log 2>/dev/null
                 ;;
             all|*)
                 echo "=== TaskRunner ==="
                 tail -n 50 /tmp/yj-taskrunner-family.log 2>/dev/null || tail -n 50 /tmp/yj-service.log 2>/dev/null
+                echo ""
+                echo "=== TaskRunner.AI ==="
+                tail -n 50 /tmp/yj-taskrunner-ai.log 2>/dev/null
+                echo ""
+                echo "=== TaskRunner.Vault ==="
+                tail -n 50 /tmp/yj-taskrunner-vault.log 2>/dev/null
                 echo ""
                 echo "=== WebUI ==="
                 tail -n 50 /tmp/yj-webui-family.log 2>/dev/null
@@ -719,7 +763,21 @@ cmd_dashboard() {
                 exit 1
             fi
 
-            # 启动 TaskRunner（如果未运行）
+            # 启动 TaskRunner.AI（如果未运行）
+            local ai_url="http://localhost:8789/health"
+            if ! curl -s --max-time 2 "$ai_url" > /dev/null 2>&1; then
+                echo "  → 启动 TaskRunner.AI (端口 8789)…"
+                nohup dotnet run --project "$YJ_ROOT/services/TaskRunner.AI" --no-launch-profile > /tmp/yj-taskrunner-ai.log 2>&1 &
+            fi
+
+            # 启动 TaskRunner.Vault（如果未运行）
+            local vault_url="http://localhost:8790/health"
+            if ! curl -s --max-time 2 "$vault_url" > /dev/null 2>&1; then
+                echo "  → 启动 TaskRunner.Vault (端口 8790)…"
+                nohup dotnet run --project "$YJ_ROOT/services/TaskRunner.Vault" --no-launch-profile > /tmp/yj-taskrunner-vault.log 2>&1 &
+            fi
+
+            # 启动 TaskRunner.Family（如果未运行）
             if ! curl -s --max-time 2 "$taskrunner_url" > /dev/null 2>&1; then
                 echo "  → 启动 TaskRunner.Family (端口 $taskrunner_port)…"
                 nohup dotnet run --project "$YJ_ROOT/services/TaskRunner.Family" --no-launch-profile > /tmp/yj-taskrunner-family.log 2>&1 &
@@ -729,12 +787,14 @@ cmd_dashboard() {
             echo "  → 启动 WebUI.Family (端口 $port)…"
             nohup dotnet run --project "$YJ_ROOT/services/WebUI.Family" --no-launch-profile > /tmp/yj-webui-family.log 2>&1 &
 
-            # 等待服务就绪（最多 30 秒）
+            # 等待服务就绪（最多 60 秒）
             echo "  → 等待服务就绪…"
             local wait_count=0
-            while [ $wait_count -lt 30 ]; do
+            while [ $wait_count -lt 60 ]; do
                 sleep 1
-                if curl -s --max-time 2 "$health_url" > /dev/null 2>&1; then
+                if curl -s --max-time 2 "$health_url" > /dev/null 2>&1 && \
+                   curl -s --max-time 2 "$ai_url" > /dev/null 2>&1 && \
+                   curl -s --max-time 2 "$vault_url" > /dev/null 2>&1; then
                     echo "[✓] 服务已就绪"
                     break
                 fi
@@ -745,8 +805,10 @@ cmd_dashboard() {
             done
 
             if ! curl -s --max-time 2 "$health_url" > /dev/null 2>&1; then
-                echo "[✗] 服务启动超时（30秒）"
+                echo "[✗] 服务启动超时（60秒）"
                 echo "请查看日志："
+                echo "  cat /tmp/yj-taskrunner-ai.log"
+                echo "  cat /tmp/yj-taskrunner-vault.log"
                 echo "  cat /tmp/yj-taskrunner-family.log"
                 echo "  cat /tmp/yj-webui-family.log"
                 exit 1
