@@ -383,12 +383,16 @@ cmd_status() {
     if [ "$mode" = "docker" ]; then
         echo "[模式] Docker 容器"
         echo ""
-        local tr_status webui_status nginx_status
+        local tr_status ai_status vault_status webui_status nginx_status
         tr_status=$(docker ps --filter "name=yj-family-taskrunner" --format "{{.Status}}" 2>/dev/null || echo "未运行")
+        ai_status=$(docker ps --filter "name=yj-family-taskrunner-ai" --format "{{.Status}}" 2>/dev/null || echo "未运行")
+        vault_status=$(docker ps --filter "name=yj-family-taskrunner-vault" --format "{{.Status}}" 2>/dev/null || echo "未运行")
         webui_status=$(docker ps --filter "name=yj-family-webui" --format "{{.Status}}" 2>/dev/null || echo "未运行")
         nginx_status=$(docker ps --filter "name=yj-family-nginx" --format "{{.Status}}" 2>/dev/null || echo "未运行")
 
         printf "  %-20s %s\n" "TaskRunner (8788)" "$tr_status"
+        printf "  %-20s %s\n" "TaskRunner.AI (8789)" "$ai_status"
+        printf "  %-20s %s\n" "TaskRunner.Vault (8790)" "$vault_status"
         printf "  %-20s %s\n" "WebUI (5177)" "$webui_status"
         printf "  %-20s %s\n" "nginx (80)" "$nginx_status"
 
@@ -657,8 +661,8 @@ cmd_dashboard() {
         fi
 
         # 仅在容器未运行时，检查裸机进程（避免 Docker 与裸机共存）
-        if [ $webui_running -eq 0 ] && (lsof -ti:8788 -sTCP:LISTEN &>/dev/null || lsof -ti:5177 -sTCP:LISTEN &>/dev/null); then
-            echo "[!] 检测到裸机进程正在运行（端口 8788/5177）"
+        if [ $webui_running -eq 0 ] && (lsof -ti:8788 -sTCP:LISTEN &>/dev/null || lsof -ti:8789 -sTCP:LISTEN &>/dev/null || lsof -ti:8790 -sTCP:LISTEN &>/dev/null || lsof -ti:5177 -sTCP:LISTEN &>/dev/null); then
+            echo "[!] 检测到裸机进程正在运行（端口 8788/8789/8790/5177）"
             echo "    Family 版不支持同时运行 Docker 和裸机进程"
             echo "    请先停止裸机进程: ./yj stop"
             echo "    或直接使用裸机模式: ./yj start"
@@ -672,7 +676,7 @@ cmd_dashboard() {
             echo "[ℹ] 强制重建模式"
         elif ! docker images yj-family/webui:latest --format '{{.ID}}' | grep -q .; then
             need_build=1
-        elif _needs_rebuild "yj-family/webui:latest" || _needs_rebuild "yj-family/taskrunner:latest"; then
+        elif _needs_rebuild "yj-family/webui:latest" || _needs_rebuild "yj-family/taskrunner:latest" || _needs_rebuild "yj-family/taskrunner-ai:latest" || _needs_rebuild "yj-family/taskrunner-vault:latest"; then
             need_build=1
         fi
 
