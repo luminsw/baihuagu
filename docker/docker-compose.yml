@@ -104,6 +104,10 @@ services:
     depends_on:
       taskrunner:
         condition: service_healthy
+      taskrunner-ai:
+        condition: service_healthy
+      taskrunner-vault:
+        condition: service_healthy
       webui:
         condition: service_healthy
     healthcheck:

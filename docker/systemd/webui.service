@@ -1,6 +1,6 @@
 [Unit]
-Description=WebUI Cloud
-After=network.target taskrunner.service
+Description=WebUI Family
+After=network.target taskrunner.service taskrunner-ai.service taskrunner-vault.service
 
 [Service]
 Type=simple
@@ -11,8 +11,8 @@ Environment=ASPNETCORE_URLS=http://0.0.0.0:5177
 ExecStart=/usr/bin/dotnet WebUI.Family.dll --urls http://0.0.0.0:5177
 Restart=always
 RestartSec=5
-StandardOutput=append:/opt/yj/logs/webui.log
-StandardError=append:/opt/yj/logs/webui.log
+StandardOutput=append:/opt/yj-family/logs/webui.log
+StandardError=append:/opt/yj-family/logs/webui.log
 
 [Install]
 WantedBy=multi-user.target

@@ -117,7 +117,7 @@ ssh ${SSH_OPTS} "${SERVER}" bash -s "${REMOTE_SRC_DIR}" "${REMOTE_COMPOSE_DIR}" 
         # 构建镜像（nginx 使用官方镜像，无需构建）
         echo "      构建 Docker 镜像（首次构建可能需要 5-10 分钟）..."
         cd "${SRC_DIR}/family/docker"
-        docker compose build taskrunner webui --no-cache 2>&1 | tail -20
+        docker compose build taskrunner taskrunner-ai taskrunner-vault webui --no-cache 2>&1 | tail -20
     fi
 REMOTE_SCRIPT
 
@@ -144,11 +144,14 @@ ssh ${SSH_OPTS} "${SERVER}" bash -s "${REMOTE_SRC_DIR}" << 'REMOTE_SCRIPT'
     SRC_DIR="$1"
 
     # 停止旧版 systemd 服务（如果存在）
-    systemctl stop taskrunner webui 2>/dev/null || true
-    systemctl disable taskrunner webui 2>/dev/null || true
+    systemctl stop taskrunner taskrunner-ai taskrunner-vault webui 2>/dev/null || true
+    systemctl disable taskrunner taskrunner-ai taskrunner-vault webui 2>/dev/null || true
 
     # 确保数据目录权限正确
-    mkdir -p /opt/yj-family/data /opt/yj-family/logs /opt/yj-family/config/taskrunner /opt/yj-family/config/webui /opt/yj-family/config/nginx /opt/yj-family/data/openobserve
+    mkdir -p /opt/yj-family/data /opt/yj-family/logs \
+        /opt/yj-family/config/taskrunner /opt/yj-family/config/taskrunner-ai /opt/yj-family/config/taskrunner-vault \
+        /opt/yj-family/config/webui /opt/yj-family/config/nginx \
+        /opt/yj-family/data/openobserve
 
     # 启动容器
     cd "${SRC_DIR}/family/docker"
@@ -164,14 +167,16 @@ HEALTH_OK=0
 for i in {1..45}; do
     sleep 3
     TASKRUNNER_HEALTH=$(ssh ${SSH_OPTS} "${SERVER}" "docker inspect --format='{{.State.Health.Status}}' yj-family-taskrunner 2>/dev/null || echo 'unknown'")
+    AI_HEALTH=$(ssh ${SSH_OPTS} "${SERVER}" "docker inspect --format='{{.State.Health.Status}}' yj-family-taskrunner-ai 2>/dev/null || echo 'unknown'")
+    VAULT_HEALTH=$(ssh ${SSH_OPTS} "${SERVER}" "docker inspect --format='{{.State.Health.Status}}' yj-family-taskrunner-vault 2>/dev/null || echo 'unknown'")
     WEBUI_HEALTH=$(ssh ${SSH_OPTS} "${SERVER}" "docker inspect --format='{{.State.Health.Status}}' yj-family-webui 2>/dev/null || echo 'unknown'")
     NGINX_HEALTH=$(ssh ${SSH_OPTS} "${SERVER}" "docker inspect --format='{{.State.Health.Status}}' yj-family-nginx 2>/dev/null || echo 'unknown'")
 
-    if [[ "$TASKRUNNER_HEALTH" == "healthy" && "$WEBUI_HEALTH" == "healthy" && "$NGINX_HEALTH" == "healthy" ]]; then
+    if [[ "$TASKRUNNER_HEALTH" == "healthy" && "$AI_HEALTH" == "healthy" && "$VAULT_HEALTH" == "healthy" && "$WEBUI_HEALTH" == "healthy" && "$NGINX_HEALTH" == "healthy" ]]; then
         HEALTH_OK=1
         break
     fi
-    echo "      等待健康检查... TaskRunner=$TASKRUNNER_HEALTH WebUI=$WEBUI_HEALTH Nginx=$NGINX_HEALTH ($i/45)"
+    echo "      等待健康检查... TR=$TASKRUNNER_HEALTH AI=$AI_HEALTH Vault=$VAULT_HEALTH WUF=$WEBUI_HEALTH Nginx=$NGINX_HEALTH ($i/45)"
 done
 
 if [[ "$HEALTH_OK" -eq 0 ]]; then
@@ -188,6 +193,20 @@ for i in {1..10}; do
     sleep 1
 done
 
+AI_CODE="000"
+for i in {1..10}; do
+    AI_CODE=$(ssh ${SSH_OPTS} "${SERVER}" "curl -s -o /dev/null -w '%{http_code}' --max-time 5 http://127.0.0.1:8789/health" 2>/dev/null || echo "000")
+    if [[ "$AI_CODE" == "200" ]]; then break; fi
+    sleep 1
+done
+
+VAULT_CODE="000"
+for i in {1..10}; do
+    VAULT_CODE=$(ssh ${SSH_OPTS} "${SERVER}" "curl -s -o /dev/null -w '%{http_code}' --max-time 5 http://127.0.0.1:8790/health" 2>/dev/null || echo "000")
+    if [[ "$VAULT_CODE" == "200" ]]; then break; fi
+    sleep 1
+done
+
 WEBUI_CODE="000"
 for i in {1..10}; do
     WEBUI_CODE=$(ssh ${SSH_OPTS} "${SERVER}" "curl -s -o /dev/null -w '%{http_code}' --max-time 5 http://127.0.0.1:5177/" 2>/dev/null || echo "000")
@@ -197,6 +216,16 @@ done
 
 if [[ "$TASKRUNNER_CODE" != "200" ]]; then
     echo "ERROR: TaskRunner HTTP 检查失败 (status=$TASKRUNNER_CODE)"
+    exit 1
+fi
+
+if [[ "$AI_CODE" != "200" ]]; then
+    echo "ERROR: TaskRunner.AI HTTP 检查失败 (status=$AI_CODE)"
+    exit 1
+fi
+
+if [[ "$VAULT_CODE" != "200" ]]; then
+    echo "ERROR: TaskRunner.Vault HTTP 检查失败 (status=$VAULT_CODE)"
     exit 1
 fi
 
@@ -211,10 +240,12 @@ ssh ${SSH_OPTS} "${SERVER}" "rm -f ${REMOTE_SRC_DIR}/yj-family-src.tar.gz"
 
 echo "========================================"
 echo "Family Docker 化部署成功！"
-echo "  TaskRunner:  127.0.0.1:8788 正常 (HTTP $TASKRUNNER_CODE)"
-echo "  WebUI:       127.0.0.1:5177 正常 (HTTP $WEBUI_CODE)"
-echo "  Nginx:       80 端口 (HTTP 反向代理)"
-echo "  OpenObserve: 127.0.0.1:5080"
+echo "  TaskRunner.Family: http://127.0.0.1:8788 正常 (HTTP $TASKRUNNER_CODE)"
+echo "  TaskRunner.AI:     http://127.0.0.1:8789 正常 (HTTP $AI_CODE)"
+echo "  TaskRunner.Vault:  http://127.0.0.1:8790 正常 (HTTP $VAULT_CODE)"
+echo "  WebUI:             http://127.0.0.1:5177 正常 (HTTP $WEBUI_CODE)"
+echo "  Nginx:             80 端口 (HTTP 反向代理)"
+echo "  OpenObserve:       http://127.0.0.1:5080"
 echo ""
 echo "数据目录: ${REMOTE_DATA_DIR}"
 echo "日志目录: ${REMOTE_LOGS_DIR}"

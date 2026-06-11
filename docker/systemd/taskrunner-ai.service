@@ -1,0 +1,17 @@
+[Unit]
+Description=TaskRunner.AI Family
+After=network.target
+
+[Service]
+Type=simple
+WorkingDirectory=/opt/yj-family/TaskRunner.AI
+EnvironmentFile=/etc/systemd/system/taskrunner-ai.env
+Environment=TASKRUNNER_DATA_DIR=/opt/yj-family/data
+ExecStart=/usr/bin/dotnet TaskRunner.AI.dll --urls http://0.0.0.0:8789
+Restart=always
+RestartSec=5
+StandardOutput=append:/opt/yj-family/logs/taskrunner-ai.log
+StandardError=append:/opt/yj-family/logs/taskrunner-ai.log
+
+[Install]
+WantedBy=multi-user.target
