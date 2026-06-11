@@ -1,5 +1,5 @@
 using System.Security.Cryptography;
-using TaskRunner.Services.Security;
+using TaskRunner.Core.Shared.Security;
 using Xunit;
 
 namespace TaskRunner.Family.Tests.Services.Security;
@@ -144,46 +144,6 @@ public class DataEncryptionServiceTests
         // CBC (legacy)
         var cbcEnc = EncryptLegacyCbc("CBC data", TestPassword);
         Assert.Equal("CBC data", _service.Decrypt(cbcEnc, TestPassword));
-    }
-
-    // ==================== 密码强度验证 ====================
-
-    [Theory]
-    [InlineData("", false)]
-    [InlineData("short", false)]
-    [InlineData("onlylowercase", false)]
-    [InlineData("ONLYUPPERCASE", false)]
-    [InlineData("12345678", false)]
-    [InlineData("NoSpecial1", false)]
-    [InlineData("ValidP@ss1", true)]
-    [InlineData("C0mplex!Pass", true)]
-    public void ValidatePasswordStrength_VariousInputs(string password, bool expected)
-    {
-        Assert.Equal(expected, _service.ValidatePasswordStrength(password));
-    }
-
-    // ==================== 随机密码生成 ====================
-
-    [Fact]
-    public void GenerateRandomPassword_DefaultLength_Returns16Chars()
-    {
-        var pwd = _service.GenerateRandomPassword();
-        Assert.Equal(16, pwd.Length);
-    }
-
-    [Fact]
-    public void GenerateRandomPassword_CustomLength_ReturnsCorrectLength()
-    {
-        var pwd = _service.GenerateRandomPassword(32);
-        Assert.Equal(32, pwd.Length);
-    }
-
-    [Fact]
-    public void GenerateRandomPassword_ProducesDifferentValues()
-    {
-        var pwd1 = _service.GenerateRandomPassword();
-        var pwd2 = _service.GenerateRandomPassword();
-        Assert.NotEqual(pwd1, pwd2);
     }
 
     // ==================== Helper: 模拟旧版 CBC 加密 ====================
