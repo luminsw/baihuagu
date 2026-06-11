@@ -11,7 +11,7 @@ namespace TaskRunner.Controllers;
 /// </summary>
 [ApiController]
 [Route("api/debug")]
-public class DebugController : ControllerBase
+public partial class DebugController : ControllerBase
 {
     private readonly IDbContextFactory<AppDbContext> _dbContextFactory;
     private readonly Services.DeviceQuotaService _quotaService;
@@ -25,20 +25,6 @@ public class DebugController : ControllerBase
         _dbContextFactory = dbContextFactory;
         _quotaService = quotaService;
         _logger = logger;
-    }
-
-    private bool IsAuthorized()
-    {
-        // 本地请求直接放行
-        var remoteIp = HttpContext.Connection.RemoteIpAddress;
-        if (remoteIp != null && (System.Net.IPAddress.IsLoopback(remoteIp)
-            || remoteIp.ToString() == "127.0.0.1"
-            || remoteIp.ToString() == "::1"))
-        {
-            return true;
-        }
-
-        return false;
     }
 
     /// <summary>

@@ -9,7 +9,7 @@ namespace TaskRunner.Controllers;
 /// </summary>
 [ApiController]
 [Route("api/achievements")]
-public class AchievementsController : ControllerBase
+public partial class AchievementsController : ControllerBase
 {
     private readonly LearnerService _learnerService;
     private readonly AchievementEngine _achievementEngine;
@@ -151,55 +151,5 @@ public class AchievementsController : ControllerBase
     /// </summary>
     [HttpGet("dashboard")]
     public async Task<ActionResult<DashboardDataDto>> GetDashboard([FromQuery] string? vaultId = null)
-    {
-        var data = await _leaderboardService.GetDashboardAsync(vaultId);
-        var dto = new DashboardDataDto
-        {
-            FamilyStats = data.FamilyStats.Select(s => new FamilyMemberStatDto
-            {
-                LearnerId = s.LearnerId,
-                Name = s.Name,
-                AvatarEmoji = s.AvatarEmoji,
-                Color = s.Color,
-                WeekTotal = s.WeekTotal,
-                Accuracy = Math.Round(s.Accuracy, 0),
-                Streak = s.Streak,
-                TotalCards = s.TotalCards
-            }).ToList(),
-            WeeklyTrend = data.WeeklyTrend.Select(t => new DailyTrendDto { Date = t.Date, Count = t.Count }).ToList(),
-            RecentAchievements = data.RecentAchievements.Select(a => new RecentAchievementDto
-            {
-                LearnerName = a.LearnerName,
-                AvatarEmoji = a.AvatarEmoji,
-                Title = a.Title,
-                Icon = a.Icon,
-                Tier = a.Tier,
-                UnlockedAt = a.UnlockedAt
-            }).ToList(),
-            ResultDistribution = new ResultDistributionDto
-            {
-                Remember = data.ResultDistribution.Remember,
-                Hard = data.ResultDistribution.Hard,
-                Forgot = data.ResultDistribution.Forgot
-            }
-        };
-        return Ok(dto);
-    }
-
-    private static List<LeaderboardEntryDto> ToDtos(List<LeaderboardEntry> entries)
-    {
-        for (int i = 0; i < entries.Count; i++) entries[i].Rank = i + 1;
-        return entries.Select(e => new LeaderboardEntryDto
-        {
-            LearnerId = e.LearnerId,
-            LearnerName = e.LearnerName,
-            AvatarEmoji = e.AvatarEmoji,
-            Color = e.Color,
-            CardsStudied = e.CardsStudied,
-            Accuracy = Math.Round(e.Accuracy, 1),
-            Score = e.Score,
-            Streak = e.Streak,
-            Rank = e.Rank
-        }).ToList();
-    }
+        => Ok(await HandleGetDashboardAsync(vaultId));
 }

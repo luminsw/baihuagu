@@ -10,7 +10,7 @@ namespace TaskRunner.Controllers
     /// </summary>
     [ApiController]
     [Route("api/pairing")]
-    public class PairingController : ControllerBase
+    public partial class PairingController : ControllerBase
     {
         private readonly PairingService _pairingService;
         private readonly ServerAddressService _serverAddressService;
@@ -34,25 +34,7 @@ namespace TaskRunner.Controllers
         /// </summary>
         [HttpGet("qrcode")]
         public ActionResult<object> GetQRCode()
-        {
-            // 获取配置的服务器地址
-            var (url, hostName) = _serverAddressService.GetQrCodeAddresses();
-            
-            var (baseUrl, name, qrCodeData) = _pairingService.GenerateQRCodeContent(
-                url, hostName, _oneHopService.DeviceId);
-            
-            _logger.LogInformation("生成二维码: Url={Url}, HostName={HostName}", 
-                url, hostName);
-            
-            return Ok(new
-            {
-                url = baseUrl,
-                hostName = name,
-                serverId = _oneHopService.DeviceId,
-                deviceId = _oneHopService.DeviceId,
-                qrCodeData = qrCodeData
-            });
-        }
+            => HandleGetQRCode();
     }
 
     /// <summary>
