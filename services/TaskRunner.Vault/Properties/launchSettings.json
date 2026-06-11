@@ -1,0 +1,13 @@
+{
+  "profiles": {
+    "TaskRunner.Vault": {
+      "commandName": "Project",
+      "dotnetRunMessages": true,
+      "launchBrowser": false,
+      "environmentVariables": {
+        "ASPNETCORE_ENVIRONMENT": "Development",
+        "TASKRUNNER_DATA_DIR": "data"
+      }
+    }
+  }
+}

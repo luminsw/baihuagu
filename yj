@@ -26,7 +26,7 @@ fi
 
 # 检测当前运行模式：docker 或 native（可同时存在）
 _detect_mode() {
-    if docker ps --format '{{.Names}}' 2>/dev/null | grep -qE "yj-family-(webui|taskrunner|nginx)"; then
+    if docker ps --format '{{.Names}}' 2>/dev/null | grep -qE "yj-family-(webui|taskrunner|taskrunner-ai|taskrunner-vault|nginx)"; then
         echo "docker"
     elif lsof -ti:8788 -sTCP:LISTEN &>/dev/null || lsof -ti:5177 -sTCP:LISTEN &>/dev/null; then
         echo "native"
@@ -38,7 +38,7 @@ _detect_mode() {
 # 检测所有活跃的运行模式（返回逗号分隔列表，如 "docker,native"）
 _detect_all_modes() {
     local modes=""
-    if docker ps --format '{{.Names}}' 2>/dev/null | grep -qE "yj-family-(webui|taskrunner|nginx)"; then
+    if docker ps --format '{{.Names}}' 2>/dev/null | grep -qE "yj-family-(webui|taskrunner|taskrunner-ai|taskrunner-vault|nginx)"; then
         modes="docker"
     fi
     if lsof -ti:8788 -sTCP:LISTEN &>/dev/null || lsof -ti:5177 -sTCP:LISTEN &>/dev/null; then
@@ -274,7 +274,7 @@ cmd_start() {
     echo "正在启动百花谷服务..."
 
     # 检查 Docker 容器是否已在运行（避免裸机与 Docker 共存）
-    if docker ps --format '{{.Names}}' 2>/dev/null | grep -qE "yj-family-(webui|taskrunner|nginx)"; then
+    if docker ps --format '{{.Names}}' 2>/dev/null | grep -qE "yj-family-(webui|taskrunner|taskrunner-ai|taskrunner-vault|nginx)"; then
         echo "[!] 检测到 Docker 容器正在运行"
         echo "    Family 版不支持同时运行 Docker 和裸机进程"
         echo "    请先停止 Docker 容器: ./yj stop"
@@ -383,6 +383,16 @@ cmd_status() {
         else
             echo "[✗] TaskRunner 健康检查失败"
         fi
+        if curl -s --max-time 2 http://localhost:8789/health > /dev/null 2>&1; then
+            echo "[✓] TaskRunner.AI 健康检查通过"
+        else
+            echo "[✗] TaskRunner.AI 健康检查失败"
+        fi
+        if curl -s --max-time 2 http://localhost:8790/health > /dev/null 2>&1; then
+            echo "[✓] TaskRunner.Vault 健康检查通过"
+        else
+            echo "[✗] TaskRunner.Vault 健康检查失败"
+        fi
         if curl -s --max-time 2 http://localhost:5177/health > /dev/null 2>&1; then
             echo "[✓] WebUI 健康检查通过"
         else
@@ -418,7 +428,7 @@ cmd_stop() {
     modes=$(_detect_all_modes)
 
     # 总是尝试停止 Docker（即使检测到的模式不是 docker，防止残留）
-    if docker ps --format '{{.Names}}' 2>/dev/null | grep -qE "yj-family-(webui|taskrunner|nginx)"; then
+    if docker ps --format '{{.Names}}' 2>/dev/null | grep -qE "yj-family-(webui|taskrunner|taskrunner-ai|taskrunner-vault|nginx)"; then
         echo "[模式] Docker 容器"
         cd "$YJ_ROOT/docker"
         if docker compose down --remove-orphans >/dev/null 2>&1; then
@@ -468,10 +478,10 @@ cmd_restart() {
     if [ "$mode" = "docker" ]; then
         echo "[模式] Docker 容器"
         cd "$YJ_ROOT/docker"
-        local services="taskrunner webui nginx"
+        local services="taskrunner taskrunner-ai taskrunner-vault webui nginx"
         # 检测是否需要重建（代码有变更才 --build）
         local build_flag=""
-        if _needs_rebuild "yj-family/taskrunner:latest" || _needs_rebuild "yj-family/webui:latest"; then
+        if _needs_rebuild "yj-family/taskrunner:latest" || _needs_rebuild "yj-family/taskrunner-ai:latest" || _needs_rebuild "yj-family/taskrunner-vault:latest" || _needs_rebuild "yj-family/webui:latest"; then
             echo "[…] 检测到源码更新，重新构建…"
             build_flag="--build"
         fi
@@ -500,9 +510,21 @@ cmd_logs() {
             nginx)
                 docker logs -f --tail 100 yj-family-nginx 2>&1
                 ;;
+            ai|taskrunner-ai)
+                docker logs -f --tail 100 yj-family-taskrunner-ai 2>&1
+                ;;
+            vault|taskrunner-vault)
+                docker logs -f --tail 100 yj-family-taskrunner-vault 2>&1
+                ;;
             all|*)
                 echo "=== TaskRunner ==="
                 docker logs --tail 50 yj-family-taskrunner 2>&1
+                echo ""
+                echo "=== TaskRunner.AI ==="
+                docker logs --tail 50 yj-family-taskrunner-ai 2>&1
+                echo ""
+                echo "=== TaskRunner.Vault ==="
+                docker logs --tail 50 yj-family-taskrunner-vault 2>&1
                 echo ""
                 echo "=== WebUI ==="
                 docker logs --tail 50 yj-family-webui 2>&1
@@ -651,7 +673,7 @@ cmd_dashboard() {
             if echo "$up_output" | grep -qiE "conflict|already in use"; then
                 echo "  → 检测到容器冲突，执行完整清理后重试…"
                 docker compose down --remove-orphans > /dev/null 2>&1 || true
-                docker rm -f yj-family-taskrunner yj-family-webui yj-family-nginx 2>/dev/null || true
+                docker rm -f yj-family-taskrunner yj-family-taskrunner-ai yj-family-taskrunner-vault yj-family-webui yj-family-nginx 2>/dev/null || true
                 docker compose up -d $build_flag --remove-orphans 2>&1 | grep -v "^$" || true
             else
                 echo "$up_output" | grep -v "^$" || true
@@ -677,6 +699,8 @@ cmd_dashboard() {
                 echo "请查看容器日志："
                 echo "  docker logs yj-family-webui"
                 echo "  docker logs yj-family-taskrunner"
+                echo "  docker logs yj-family-taskrunner-ai"
+                echo "  docker logs yj-family-taskrunner-vault"
                 exit 1
             fi
         fi

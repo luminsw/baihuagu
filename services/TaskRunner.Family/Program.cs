@@ -284,7 +284,7 @@ builder.Services.AddHostedService<TaskCleanupService>();
 builder.Services.AddHostedService<DeviceDailySyncCleanupService>();
 builder.Services.AddHostedService<ObsidianWarmupHostedService>();
 builder.Services.AddHostedService<OneHopManager>();
-builder.Services.AddHostedService<VaultIndexSchedulerService>();
+// VaultIndexSchedulerService 已在 TaskRunner.Vault 中注册，避免两个进程同时重建索引
 builder.Services.AddHostedService<BackupSchedulerService>();
 builder.Services.AddHostedService<LocalModelsCacheWarmupService>();
 
@@ -583,6 +583,81 @@ app.Use(async (context, next) =>
 });
 
 app.UseAuthorization();
+
+// 将移动端同步 API 转发到 TaskRunner.Vault（8790）
+// VaultController/SyncController 已迁移到独立服务，但移动端仍通过 8788 发现服务器
+app.Use(async (context, next) =>
+{
+    var path = context.Request.Path.Value ?? "";
+    // 精确匹配已迁移到 Vault 服务的移动端 API 路径
+    var vaultPaths = new[]
+    {
+        "/mg/manifest", "/mg/file", "/mg/file_chunk", "/mg/cards",
+        "/mg/vaults", "/mg/auth/config", "/mg/verify-token", "/mg/note-count",
+        "/api/sync/",
+        "/vault/manifest", "/vault/file", "/vault/file_chunk",
+        "/mobile-vaults/push"
+    };
+    if (vaultPaths.Any(p => path.StartsWith(p)))
+    {
+        var vaultBase = Environment.GetEnvironmentVariable("TASKRUNNER_VAULT_URL") ?? "http://127.0.0.1:8790";
+        var targetUrl = vaultBase.TrimEnd('/') + path + context.Request.QueryString;
+        try
+        {
+            using var client = new HttpClient { Timeout = TimeSpan.FromMinutes(5) };
+            using var request = new HttpRequestMessage(new HttpMethod(context.Request.Method), targetUrl);
+
+            // 复制请求头（跳过由 HttpClient 自动管理的内容长度/主机头）
+            foreach (var header in context.Request.Headers)
+            {
+                if (header.Key.Equals("Host", StringComparison.OrdinalIgnoreCase) ||
+                    header.Key.Equals("Content-Length", StringComparison.OrdinalIgnoreCase))
+                    continue;
+                request.Headers.TryAddWithoutValidation(header.Key, header.Value.ToArray());
+            }
+
+            // 复制请求体
+            if (context.Request.ContentLength > 0 ||
+                (context.Request.Headers.ContentLength.HasValue && context.Request.Headers.ContentLength.Value > 0))
+            {
+                request.Content = new StreamContent(context.Request.Body);
+                if (context.Request.Headers.ContentType.Any())
+                {
+                    request.Content.Headers.ContentType =
+                        System.Net.Http.Headers.MediaTypeHeaderValue.Parse(context.Request.Headers.ContentType!);
+                }
+            }
+
+            using var response = await client.SendAsync(request, HttpCompletionOption.ResponseHeadersRead, context.RequestAborted);
+            context.Response.StatusCode = (int)response.StatusCode;
+
+            foreach (var header in response.Headers)
+            {
+                context.Response.Headers[header.Key] = header.Value.ToArray();
+            }
+            foreach (var header in response.Content.Headers)
+            {
+                if (header.Key.Equals("Content-Length", StringComparison.OrdinalIgnoreCase))
+                    continue;
+                context.Response.Headers[header.Key] = header.Value.ToArray();
+            }
+
+            await response.Content.CopyToAsync(context.Response.Body);
+            return;
+        }
+        catch (HttpRequestException ex)
+        {
+            var logger = context.RequestServices.GetRequiredService<ILogger<Program>>();
+            logger.LogError(ex, "转发移动端请求到 Vault 服务失败: {TargetUrl}", targetUrl);
+            context.Response.StatusCode = 503;
+            await context.Response.WriteAsJsonAsync(new { error = "Vault 服务不可用" });
+            return;
+        }
+    }
+
+    await next();
+});
+
 app.MapControllers();
 
 // 添加一个简单的测试端点

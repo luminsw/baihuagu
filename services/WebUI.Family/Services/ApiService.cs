@@ -195,6 +195,7 @@ namespace WebUI.Services
 
         private readonly HttpClient _httpClient;
         private readonly HttpClient _aiHttpClient;
+        private readonly HttpClient _vaultHttpClient;
         private readonly SettingsService _settingsService;
         private readonly ILogger<ApiService> _logger;
         private readonly ApiCallMetricsService? _metricsService;
@@ -207,6 +208,7 @@ namespace WebUI.Services
             _logger = logger;
             _httpClient = httpClientFactory.CreateClient("TaskRunnerApi");
             _aiHttpClient = httpClientFactory.CreateClient("TaskRunnerAiApi");
+            _vaultHttpClient = httpClientFactory.CreateClient("TaskRunnerVaultApi");
             
             // 延迟获取服务避免循环依赖
             _metricsService = serviceProvider.GetService<ApiCallMetricsService>();
@@ -464,7 +466,7 @@ namespace WebUI.Services
             try
             {
                 using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(10));
-                var response = await GetWithMetricsAsync($"/api/search?q={Uri.EscapeDataString(query)}&vaultId={Uri.EscapeDataString(vaultId)}", cts.Token);
+                var response = await _vaultHttpClient.GetAsync($"/api/search?q={Uri.EscapeDataString(query)}&vaultId={Uri.EscapeDataString(vaultId)}", cts.Token);
                 response.EnsureSuccessStatusCode();
                 var result = await response.Content.ReadFromJsonAsync<SearchResponse>(cts.Token);
                 return result ?? new SearchResponse();
@@ -486,7 +488,7 @@ namespace WebUI.Services
             try
             {
                 using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(5));
-                var response = await GetWithMetricsAsync($"/api/search/index-status?vaultId={Uri.EscapeDataString(vaultId)}", cts.Token);
+                var response = await _vaultHttpClient.GetAsync($"/api/search/index-status?vaultId={Uri.EscapeDataString(vaultId)}", cts.Token);
                 response.EnsureSuccessStatusCode();
                 var result = await response.Content.ReadFromJsonAsync<IndexStatusDto>(cts.Token);
                 return result ?? new IndexStatusDto();
@@ -505,7 +507,7 @@ namespace WebUI.Services
                 using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(300));
                 using var linked = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken, cts.Token);
                 var body = new { vaultId };
-                var response = await _httpClient.PostAsJsonAsync("/api/search/reindex", body, linked.Token);
+                var response = await _vaultHttpClient.PostAsJsonAsync("/api/search/reindex", body, linked.Token);
                 return response.IsSuccessStatusCode;
             }
             catch (OperationCanceledException)
@@ -1095,7 +1097,7 @@ namespace WebUI.Services
             {
                 using var quick = new CancellationTokenSource(QuickCallTimeout);
                 var escaped = EscapeVaultPath(path);
-                var response = await GetWithMetricsAsync($"/vault/read/{escaped}?vaultId={Uri.EscapeDataString(vaultId)}", quick.Token);
+                var response = await _vaultHttpClient.GetAsync($"/vault/read/{escaped}?vaultId={Uri.EscapeDataString(vaultId)}", quick.Token);
                 response.EnsureSuccessStatusCode();
                 return await response.Content.ReadFromJsonAsync<VaultNoteResponse>(quick.Token);
             }
@@ -1112,7 +1114,7 @@ namespace WebUI.Services
             {
                 using var quick = new CancellationTokenSource(QuickCallTimeout);
                 var query = string.IsNullOrEmpty(path) ? "" : $"?path={Uri.EscapeDataString(path)}";
-                var response = await GetWithMetricsAsync($"/api/vaults/{vaultId}/browse{query}", quick.Token);
+                var response = await _vaultHttpClient.GetAsync($"/api/vaults/{vaultId}/browse{query}", quick.Token);
                 if (!response.IsSuccessStatusCode)
                     return null;
                 return await response.Content.ReadFromJsonAsync<VaultBrowseResponse>(quick.Token);
@@ -1133,7 +1135,7 @@ namespace WebUI.Services
                 var body = new { content = content };
                 var json = JsonSerializer.Serialize(body);
                 var httpContent = new StringContent(json, Encoding.UTF8, "application/json");
-                var response = await PostWithMetricsAsync($"/vault/write/{escaped}?vaultId={Uri.EscapeDataString(vaultId)}", httpContent, quick.Token);
+                var response = await _vaultHttpClient.PostAsync($"/vault/write/{escaped}?vaultId={Uri.EscapeDataString(vaultId)}", httpContent, quick.Token);
                 return response.IsSuccessStatusCode;
             }
             catch (Exception ex)
@@ -1167,7 +1169,7 @@ namespace WebUI.Services
             try
             {
                 using var quick = new CancellationTokenSource(QuickCallTimeout);
-                var response = await GetWithMetricsAsync("/api/settings/vault-root", quick.Token);
+                var response = await _vaultHttpClient.GetAsync("/api/settings/vault-root", quick.Token);
                 if (!response.IsSuccessStatusCode)
                     return null;
                 var payload = await response.Content.ReadFromJsonAsync<VaultRootResponse>(quick.Token);
@@ -1188,7 +1190,7 @@ namespace WebUI.Services
                 var payload = new { vaultPath = vaultPath };
                 var json = JsonSerializer.Serialize(payload);
                 var httpContent = new StringContent(json, Encoding.UTF8, "application/json");
-                var response = await PostWithMetricsAsync("/api/settings/vault-root", httpContent, quick.Token);
+                var response = await _vaultHttpClient.PostAsync("/api/settings/vault-root", httpContent, quick.Token);
                 return response.IsSuccessStatusCode;
             }
             catch (Exception ex)
@@ -1578,7 +1580,7 @@ namespace WebUI.Services
             try
             {
                 using var quick = new CancellationTokenSource(QuickCallTimeout);
-                var response = await GetWithMetricsAsync($"/vault/note-count?vaultId={Uri.EscapeDataString(vaultId)}", quick.Token);
+                var response = await _vaultHttpClient.GetAsync($"/vault/note-count?vaultId={Uri.EscapeDataString(vaultId)}", quick.Token);
                 response.EnsureSuccessStatusCode();
                 return await response.Content.ReadFromJsonAsync<int>(quick.Token);
             }

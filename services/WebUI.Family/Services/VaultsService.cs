@@ -31,7 +31,7 @@ public class VaultsService
 
         try
         {
-            var client = _httpClientFactory.CreateClient("TaskRunnerApi");
+            var client = _httpClientFactory.CreateClient("TaskRunnerVaultApi");
             var response = await client.GetFromJsonAsync<VaultsResponse>("api/settings/vaults");
             _cachedVaults = response ?? new VaultsResponse();
             _lastFetch = DateTime.UtcNow;
@@ -51,7 +51,7 @@ public class VaultsService
     {
         try
         {
-            var client = _httpClientFactory.CreateClient("TaskRunnerApi");
+            var client = _httpClientFactory.CreateClient("TaskRunnerVaultApi");
             var response = await client.PostAsJsonAsync("api/settings/vaults", new { name, path, industry });
 
             if (response.IsSuccessStatusCode)
@@ -78,7 +78,7 @@ public class VaultsService
     {
         try
         {
-            var client = _httpClientFactory.CreateClient("TaskRunnerApi");
+            var client = _httpClientFactory.CreateClient("TaskRunnerVaultApi");
             var response = await client.PutAsJsonAsync($"api/settings/vaults/{vaultId}", new { name = newName });
             
             if (response.IsSuccessStatusCode)
@@ -104,7 +104,7 @@ public class VaultsService
     {
         try
         {
-            var client = _httpClientFactory.CreateClient("TaskRunnerApi");
+            var client = _httpClientFactory.CreateClient("TaskRunnerVaultApi");
             var response = await client.PutAsJsonAsync($"api/settings/vaults/{vaultId}", new { tags = tags });
 
             if (response.IsSuccessStatusCode)
@@ -130,7 +130,7 @@ public class VaultsService
     {
         try
         {
-            var client = _httpClientFactory.CreateClient("TaskRunnerApi");
+            var client = _httpClientFactory.CreateClient("TaskRunnerVaultApi");
             var response = await client.PutAsJsonAsync($"api/settings/vaults/{vaultId}", new { industry = industry });
 
             if (response.IsSuccessStatusCode)
@@ -156,7 +156,7 @@ public class VaultsService
     {
         try
         {
-            var client = _httpClientFactory.CreateClient("TaskRunnerApi");
+            var client = _httpClientFactory.CreateClient("TaskRunnerVaultApi");
             var response = await client.DeleteAsync($"api/settings/vaults/{vaultId}");
 
             if (response.IsSuccessStatusCode)
@@ -182,7 +182,7 @@ public class VaultsService
     {
         try
         {
-            var client = _httpClientFactory.CreateClient("TaskRunnerApi");
+            var client = _httpClientFactory.CreateClient("TaskRunnerVaultApi");
             var response = await client.GetFromJsonAsync<VaultsResponse>("api/settings/vaults/trash");
             return response ?? new VaultsResponse();
         }
@@ -200,7 +200,7 @@ public class VaultsService
     {
         try
         {
-            var client = _httpClientFactory.CreateClient("TaskRunnerApi");
+            var client = _httpClientFactory.CreateClient("TaskRunnerVaultApi");
             var response = await client.PostAsync($"api/settings/vaults/{vaultId}/restore", null);
 
             if (response.IsSuccessStatusCode)
@@ -226,7 +226,7 @@ public class VaultsService
     {
         try
         {
-            var client = _httpClientFactory.CreateClient("TaskRunnerApi");
+            var client = _httpClientFactory.CreateClient("TaskRunnerVaultApi");
             var response = await client.PostAsync("api/settings/vaults/trash/empty", null);
 
             if (response.IsSuccessStatusCode)
@@ -252,7 +252,7 @@ public class VaultsService
     {
         try
         {
-            var client = _httpClientFactory.CreateClient("TaskRunnerApi");
+            var client = _httpClientFactory.CreateClient("TaskRunnerVaultApi");
             using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(5));
             var response = await client.PostAsync("api/obsidian/open-current-vault", null, cts.Token);
             
@@ -284,7 +284,7 @@ public class VaultsService
     {
         try
         {
-            var client = _httpClientFactory.CreateClient("TaskRunnerApi");
+            var client = _httpClientFactory.CreateClient("TaskRunnerVaultApi");
             using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(5));
             var response = await client.PostAsJsonAsync("api/obsidian/open", new { path }, cts.Token);
             
@@ -324,7 +324,7 @@ public class VaultsService
     {
         try
         {
-            var client = _httpClientFactory.CreateClient("TaskRunnerApi");
+            var client = _httpClientFactory.CreateClient("TaskRunnerVaultApi");
             var response = await client.PostAsync("api/settings/vaults/sync", null);
 
             if (response.IsSuccessStatusCode)
@@ -351,7 +351,7 @@ public class VaultsService
     {
         try
         {
-            var client = _httpClientFactory.CreateClient("TaskRunnerApi");
+            var client = _httpClientFactory.CreateClient("TaskRunnerVaultApi");
             var response = await client.GetFromJsonAsync<VaultRootPathPreferenceResponse>("api/settings/vault-root-path-preference");
             return response?.VaultRootPath ?? "";
         }

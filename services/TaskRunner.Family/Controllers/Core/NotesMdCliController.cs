@@ -1,4 +1,5 @@
 using Microsoft.AspNetCore.Mvc;
+using TaskRunner.Contracts.Vaults;
 using TaskRunner.Services;
 
 namespace TaskRunner.Controllers
@@ -34,7 +35,7 @@ namespace TaskRunner.Controllers
         /// 添加单个 vault 到 notesmd-cli。
         /// </summary>
         [HttpPost("add-vault")]
-        public ActionResult<object> AddVault([FromBody] AddVaultRequest request)
+        public ActionResult<object> AddVault([FromBody] TaskRunner.Contracts.Vaults.AddVaultRequest request)
         {
             if (string.IsNullOrWhiteSpace(request?.Path))
             {

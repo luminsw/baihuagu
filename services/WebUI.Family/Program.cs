@@ -202,6 +202,13 @@ builder.Services.AddHttpClient("TaskRunnerAiApi", client =>
     client.Timeout = TimeSpan.FromSeconds(30);
 });
 
+var taskRunnerVaultBaseUrl = builder.Configuration["TaskRunnerVaultApi:BaseUrl"] ?? "http://127.0.0.1:8790/";
+builder.Services.AddHttpClient("TaskRunnerVaultApi", client =>
+{
+    client.BaseAddress = new Uri(taskRunnerVaultBaseUrl);
+    client.Timeout = TimeSpan.FromSeconds(30);
+});
+
 builder.Services.AddScoped(sp => sp.GetRequiredService<IHttpClientFactory>().CreateClient("TaskRunnerApi"));
 
 // Add HttpContextAccessor for accessing HttpContext in Blazor components
