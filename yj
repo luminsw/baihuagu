@@ -288,6 +288,18 @@ cmd_start() {
         return
     fi
 
+    # 启动 TaskRunner.AI（如果未运行）
+    if ! lsof -ti:8789 -sTCP:LISTEN &> /dev/null 2>&1; then
+        echo "  → 启动 TaskRunner.AI (端口 8789)…"
+        nohup dotnet run --project "$YJ_ROOT/services/TaskRunner.AI" --no-launch-profile > /tmp/yj-taskrunner-ai.log 2>&1 &
+    fi
+
+    # 启动 TaskRunner.Vault（如果未运行）
+    if ! lsof -ti:8790 -sTCP:LISTEN &> /dev/null 2>&1; then
+        echo "  → 启动 TaskRunner.Vault (端口 8790)…"
+        nohup dotnet run --project "$YJ_ROOT/services/TaskRunner.Vault" --no-launch-profile > /tmp/yj-taskrunner-vault.log 2>&1 &
+    fi
+
     # 检查运行环境
     if [ "$IS_SELF_CONTAINED" -eq 0 ]; then
         if ! command -v dotnet &> /dev/null; then
@@ -315,7 +327,7 @@ cmd_start() {
 
     # 检查是否有 AI 配置（通过 API 查询）
     HAS_API_KEY=0
-    if curl -s http://localhost:8788/api/ai-config/providers 2>/dev/null | grep -q "id"; then
+    if curl -s http://localhost:8789/api/ai-config/providers 2>/dev/null | grep -q "id"; then
         HAS_API_KEY=1
     fi
 
@@ -336,9 +348,12 @@ cmd_start() {
     if lsof -ti:8788 -sTCP:LISTEN &> /dev/null 2>&1; then
         echo "[✓] 服务已启动！"
         echo ""
-        echo "访问地址："
-        echo "  - Web 界面: http://localhost:8788"
-        echo "  - 状态检查: http://localhost:8788/health"
+        echo "后端服务："
+        echo "  - TaskRunner.Family  http://localhost:8788"
+        echo "  - TaskRunner.AI      http://localhost:8789"
+        echo "  - TaskRunner.Vault   http://localhost:8790"
+        echo ""
+        echo "管理面板：运行 './yj dashboard' 打开 WebUI"
         echo ""
         
         if [ "$HAS_API_KEY" -eq 0 ]; then
@@ -352,10 +367,11 @@ cmd_start() {
 
 EOF
         fi
-        
-        echo "提示：运行 './yj' 或 './yj dashboard' 打开管理面板"
     else
-        echo "[✗] 服务启动失败，请检查日志: /tmp/yj-service.log"
+        echo "[✗] 服务启动失败，请检查日志:"
+        echo "  cat /tmp/yj-taskrunner-ai.log"
+        echo "  cat /tmp/yj-taskrunner-vault.log"
+        echo "  cat /tmp/yj-service.log"
     fi
 }
 
