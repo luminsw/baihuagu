@@ -11,27 +11,21 @@ public class StartupOrchestratorHostedService : IHostedService
 {
     private readonly IDbContextFactory<AppDbContext> _dbContextFactory;
     private readonly IDbContextFactory<FamilyDbContext> _familyDbContextFactory;
-    private readonly IDbContextFactory<AIDbContext> _aiDbContextFactory;
     private readonly VaultSettingsService _vaultSettings;
     private readonly LocalModelSettingsService _localModelSettings;
-    private readonly MigrationService _migrationService;
     private readonly ILogger<StartupOrchestratorHostedService> _logger;
 
     public StartupOrchestratorHostedService(
         IDbContextFactory<AppDbContext> dbContextFactory,
         IDbContextFactory<FamilyDbContext> familyDbContextFactory,
-        IDbContextFactory<AIDbContext> aiDbContextFactory,
         VaultSettingsService vaultSettings,
         LocalModelSettingsService localModelSettings,
-        MigrationService migrationService,
         ILogger<StartupOrchestratorHostedService> logger)
     {
         _dbContextFactory = dbContextFactory;
         _familyDbContextFactory = familyDbContextFactory;
-        _aiDbContextFactory = aiDbContextFactory;
         _vaultSettings = vaultSettings;
         _localModelSettings = localModelSettings;
-        _migrationService = migrationService;
         _logger = logger;
     }
 
@@ -71,12 +65,7 @@ public class StartupOrchestratorHostedService : IHostedService
         using var familyDb = _familyDbContextFactory.CreateDbContext();
         MigrateDatabase(familyDb, "Family");
 
-        // 迁移 AI 数据库
-        using var aiDb = _aiDbContextFactory.CreateDbContext();
-        MigrateDatabase(aiDb, "AI");
-
-        // 密钥迁移：检测并修复因加密密钥变化导致的 API Key 无法解密问题
-        _migrationService.MigrateApiKeysIfNeeded(aiDb);
+        // AI 数据库迁移已移交 TaskRunner.AI（见 services/TaskRunner.AI/Program.cs）
     }
 
     private void MigrateDatabase(DbContext dbContext, string domainName)

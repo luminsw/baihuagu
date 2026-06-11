@@ -72,6 +72,7 @@ builder.Services.AddDistributedMemoryCache();
 // AI 配置与客户端基础设施（共享自 Core.Shared）
 builder.Services.AddSingleton<AiSettingsService>();
 builder.Services.AddSingleton<AiConfigService>();
+builder.Services.AddSingleton<MigrationService>();
 builder.Services.AddAiClientServices();
 
 // 本地模型推理后端（GGUF / ONNX）
@@ -186,7 +187,7 @@ app.Use(async (context, next) =>
 app.UseAuthorization();
 app.MapControllers();
 
-// 执行 AI 数据库迁移
+// 执行 AI 数据库迁移与 API Key 加密密钥迁移
 var logger = app.Services.GetRequiredService<ILogger<Program>>();
 try
 {
@@ -194,6 +195,9 @@ try
     var aiDb = scope.ServiceProvider.GetRequiredService<TaskRunner.Data.AIDbContext>();
     aiDb.Database.Migrate();
     logger.LogInformation("AI 数据库迁移完成");
+
+    var migrationService = scope.ServiceProvider.GetRequiredService<MigrationService>();
+    migrationService.MigrateApiKeysIfNeeded(aiDb);
 }
 catch (Exception ex)
 {

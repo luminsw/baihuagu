@@ -1,3 +1,4 @@
+using Microsoft.Extensions.Logging;
 using TaskRunner.Data;
 
 namespace TaskRunner.Services;
