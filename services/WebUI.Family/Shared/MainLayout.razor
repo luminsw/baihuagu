@@ -336,7 +336,7 @@
         {
             // 直接调用 TaskRunner API 检测 AI 配置状态
             using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(10));
-            var client = HttpClientFactory.CreateClient("TaskRunnerApi");
+            var client = HttpClientFactory.CreateClient("TaskRunnerAiApi");
             Logger.LogInformation("[MainLayout] Calling API: {BaseAddress}api/ai/config/providers", client.BaseAddress);
             var response = await client.GetAsync("api/ai/config/providers", cts.Token);
             Logger.LogInformation("[MainLayout] API response: {StatusCode}", response.StatusCode);

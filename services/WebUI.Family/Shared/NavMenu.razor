@@ -41,7 +41,7 @@
             try
             {
                 using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(10));
-                var client = HttpClientFactory.CreateClient("TaskRunnerApi");
+                var client = HttpClientFactory.CreateClient("TaskRunnerAiApi");
                 var response = await client.GetAsync("api/ai/config/providers", cts.Token);
                 if (response.IsSuccessStatusCode)
                 {
