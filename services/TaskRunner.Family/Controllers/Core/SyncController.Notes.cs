@@ -1,0 +1,211 @@
+using TaskRunner.Core.Shared;
+using Microsoft.AspNetCore.Mvc;
+using TaskRunner.Services;
+
+namespace TaskRunner.Controllers
+{
+    public partial class SyncController : ControllerBase
+    {
+        /// <summary>
+        /// 更新笔记（带冲突检测）
+        /// </summary>
+        [HttpPut("notes")]
+        public ActionResult<ConflictResolution> UpdateNote([FromQuery] string vaultId, [FromBody] NoteUpdateRequest request)
+        {
+            var vaultPath = ResolveVaultPath(vaultId);
+            if (string.IsNullOrEmpty(vaultPath))
+                return BadRequest(new { error = "必须指定有效的知识库" });
+
+            if (!System.IO.Directory.Exists(vaultPath))
+            {
+                return BadRequest(new ConflictResolution
+                {
+                    Path = request.Path,
+                    Status = "error",
+                    Message = "知识库路径无效"
+                });
+            }
+
+            var result = UpdateNoteInternal(vaultPath, request);
+            return Ok(result);
+        }
+
+        /// <summary>
+        /// 批量更新笔记（带冲突检测）
+        /// </summary>
+        [HttpPut("notes/batch")]
+        public ActionResult<List<ConflictResolution>> BatchUpdateNotes([FromQuery] string vaultId, [FromBody] List<NoteUpdateRequest> requests)
+        {
+            var vaultPath = ResolveVaultPath(vaultId);
+            if (string.IsNullOrEmpty(vaultPath))
+                return BadRequest(new { error = "必须指定有效的知识库" });
+
+            var results = new List<ConflictResolution>();
+
+            foreach (var request in requests)
+            {
+                var result = UpdateNoteInternal(vaultPath, request);
+                results.Add(result);
+            }
+
+            return Ok(results);
+        }
+
+        /// <summary>
+        /// 内部方法：获取笔记列表
+        /// </summary>
+        private List<NoteMetadata> GetNotesInternal(string vaultPath, long? since = null)
+        {
+            if (string.IsNullOrEmpty(vaultPath) || !System.IO.Directory.Exists(vaultPath))
+            {
+                _logger.LogWarning("知识库路径无效：{Path}", vaultPath);
+                return new List<NoteMetadata>();
+            }
+
+            try
+            {
+                var notes = new List<NoteMetadata>();
+                var files = System.IO.Directory.GetFiles(vaultPath, "*.md", System.IO.SearchOption.AllDirectories);
+                
+                foreach (var file in files)
+                {
+                    try
+                    {
+                        var fileName = System.IO.Path.GetFileName(file);
+                        if (fileName.Equals("README.md", StringComparison.OrdinalIgnoreCase))
+                            continue;
+
+                        var relativePath = file.Substring(vaultPath.Length).TrimStart('/').Replace(".md", "");
+                        var title = System.IO.Path.GetFileNameWithoutExtension(file);
+                        var modified = System.IO.File.GetLastWriteTime(file);
+                        var size = new System.IO.FileInfo(file).Length;
+                        var hash = CalculateFileHash(file);
+
+                        notes.Add(new NoteMetadata
+                        {
+                            Path = relativePath,
+                            Title = title,
+                            Modified = modified,
+                            Size = size,
+                            Hash = hash
+                        });
+                    }
+                    catch (Exception ex)
+                    {
+                        _logger.LogDebug(ex, "读取文件元数据失败：{File}", file);
+                    }
+                }
+
+                _logger.LogInformation("返回笔记列表：{Count} 条", notes.Count);
+                return notes;
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "获取笔记列表失败");
+                throw;
+            }
+        }
+
+        /// <summary>
+        /// 内部方法：获取任务列表
+        /// </summary>
+        private List<TaskInfo> GetTasksInternal(long? since = null)
+        {
+            try
+            {
+                var tasks = _taskManager.GetAllTasks();
+                
+                if (since.HasValue)
+                {
+                    var sinceTime = DateTimeOffset.FromUnixTimeSeconds(since.Value).UtcDateTime;
+                    tasks = tasks.Where(t => t.CreatedAt.ToUniversalTime() > sinceTime).ToList();
+                }
+
+                return tasks;
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "获取任务列表失败");
+                throw;
+            }
+        }
+        
+        private TimeSpan GetUptime()
+        {
+            return TimeSpan.FromHours(1);
+        }
+
+        private string? ResolveVaultPath(string vaultId)
+        {
+            if (string.IsNullOrEmpty(vaultId))
+                return null;
+            return _vaultSettings.GetVaults().FirstOrDefault(v => v.Id == vaultId)?.Path;
+        }
+
+        private ConflictResolution UpdateNoteInternal(string vaultPath, NoteUpdateRequest request)
+        {
+            try
+            {
+                var fullPath = System.IO.Path.Combine(vaultPath, request.Path + ".md");
+                var directory = System.IO.Path.GetDirectoryName(fullPath);
+                
+                if (!string.IsNullOrEmpty(directory) && !System.IO.Directory.Exists(directory))
+                {
+                    System.IO.Directory.CreateDirectory(directory);
+                }
+
+                if (System.IO.File.Exists(fullPath))
+                {
+                    var serverHash = CalculateFileHash(fullPath);
+                    var serverModified = System.IO.File.GetLastWriteTime(fullPath);
+
+                    if (!string.IsNullOrEmpty(request.Hash))
+                    {
+                        if (serverHash != request.Hash)
+                        {
+                            return new ConflictResolution
+                            {
+                                Path = request.Path,
+                                Status = "conflict",
+                                Message = "文件已被其他设备修改",
+                                ServerModified = serverModified,
+                                ClientModified = request.Modified
+                            };
+                        }
+                    }
+                }
+
+                System.IO.File.WriteAllText(fullPath, request.Content);
+                System.IO.File.SetLastWriteTime(fullPath, request.Modified);
+
+                return new ConflictResolution
+                {
+                    Path = request.Path,
+                    Status = "success",
+                    Message = "笔记更新成功"
+                };
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "更新笔记失败：{Path}", request.Path);
+                return new ConflictResolution
+                {
+                    Path = request.Path,
+                    Status = "error",
+                    Message = $"更新失败：{ex.Message}"
+                };
+            }
+        }
+
+        /// <summary>
+        /// 计算文件哈希值（用于冲突检测）
+        /// </summary>
+        private string CalculateFileHash(string filePath)
+        {
+            using var stream = System.IO.File.OpenRead(filePath);
+            using var sha256 = System.Security.Cryptography.SHA256.Create();
+            var hashBytes = sha256.ComputeHash(stream);
+            return Convert.ToBase64String(hashBytes);
+        }
+    }
+}
