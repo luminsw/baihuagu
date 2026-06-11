@@ -73,6 +73,9 @@ builder.Services.AddDistributedMemoryCache();
 builder.Services.AddSingleton<AiSettingsService>();
 builder.Services.AddSingleton<AiConfigService>();
 builder.Services.AddSingleton<MigrationService>();
+builder.Services.AddSingleton<TaskRunner.Core.Shared.Notifications.WebUINotificationService>();
+builder.Services.AddSingleton<TaskRunner.Services.HardwareInfoService>();
+builder.Services.AddSingleton<TaskRunner.Services.CapabilityService>();
 builder.Services.AddAiClientServices();
 
 // 本地模型推理后端（GGUF / ONNX）
