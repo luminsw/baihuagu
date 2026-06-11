@@ -97,29 +97,38 @@ services/
 ### 3.3 家庭版部署拓扑（Home Server）
 
 ```
-┌──────────────────────────────────────────────────────┐
-│                    Home Server                        │
-│  (Raspberry Pi / NUC / 旧笔记本 / WSL)                │
-│                                                      │
-│  ┌─────────────────┐    ┌─────────────────┐         │
-│  │  WebUI.Family   │    │ TaskRunner.Family│        │
-│  │    :5177        │    │     :8788        │        │
-│  │  (Blazor SSR)   │    │  (ASP.NET Core)  │        │
-│  └────────┬────────┘    └────────┬────────┘         │
-│           │                      │                   │
-│           └──────────┬───────────┘                   │
-│                      │                               │
-│           ┌──────────▼───────────┐                   │
-│           │   SQLite / LiteDB    │                   │
-│           │   (本地文件数据库)    │                   │
-│           └──────────────────────┘                   │
-│                                                      │
-│  ┌─────────────────────────────────────────────┐    │
-│  │  Nginx (可选)                                │    │
-│  │  - 端口 80 → 反向代理到 WebUI.Family:5177    │    │
-│  │  - 静态文件缓存                              │    │
-│  └─────────────────────────────────────────────┘    │
-└──────────────────────────────────────────────────────┘
+┌──────────────────────────────────────────────────────────────────┐
+│                         Home Server                               │
+│  (Raspberry Pi / NUC / 旧笔记本 / WSL)                             │
+│                                                                   │
+│  ┌──────────────┐  ┌──────────────┐  ┌──────────────┐           │
+│  │ WebUI.Family │  │TaskRunner.AI │  │TaskRunner.Vault           │
+│  │    :5177     │  │    :8789     │  │    :8790     │           │
+│  │ (Blazor SSR) │  │(ASP.NET Core)│  │(ASP.NET Core)│           │
+│  └──────┬───────┘  └──────┬───────┘  └──────┬───────┘           │
+│         │                 │                  │                   │
+│         │    ┌────────────┴──────────────────┘                   │
+│         │    │                                                    │
+│         │    ▼                                                    │
+│         │  ┌─────────────────┐                                    │
+│         └──┤ TaskRunner.Family│                                   │
+│            │     :8788        │                                   │
+│            │  (ASP.NET Core)  │                                   │
+│            └────────┬─────────┘                                   │
+│                     │                                             │
+│            ┌────────▼─────────┐                                   │
+│            │  SQLite (共享)   │                                   │
+│            │  taskrunner.db   │                                   │
+│            │  ai.db           │                                   │
+│            └──────────────────┘                                   │
+│                                                                   │
+│  ┌─────────────────────────────────────────────────────────┐     │
+│  │  Nginx (可选)                                            │     │
+│  │  - 端口 80 → 反向代理到 WebUI.Family:5177                │     │
+│  │  - /api/search/ → TaskRunner.Vault:8790                  │     │
+│  │  - /vault/ → TaskRunner.Vault:8790                       │     │
+│  └─────────────────────────────────────────────────────────┘     │
+└──────────────────────────────────────────────────────────────────┘
                               │
                               ▼
                     ┌─────────────────┐
@@ -129,10 +138,11 @@ services/
 ```
 
 **说明：**
-- 家庭版为**单体双进程**（WebUI + TaskRunner），通过本地 HTTP 通信
-- 数据库使用 SQLite（零配置、单文件、备份简单）
+- 家庭版为 **3 后端 + 1 前端** 架构：TaskRunner.Family (8788) + TaskRunner.AI (8789) + TaskRunner.Vault (8790) + WebUI.Family (5177)
+- 数据库使用 SQLite（零配置、单文件、备份简单），Family 与 Vault 共享 `taskrunner.db`，AI 使用独立的 `ai.db`
 - Nginx 可选，用于提供统一入口和静态缓存
-- 移动端通过局域网 IP 连接，使用 mDNS/Bonjour 自动发现
+- 移动端通过局域网 IP 连接 `:8788`，Family 自动将 Vault 域 API 转发到 `:8790`
+- 移动端代码无需任何改动
 
 ## 4. 技术选型
 
@@ -168,7 +178,9 @@ services/
     │
     ├──► Blazor SSR 渲染页面
     ├──► JS Interop 调用本地 API
-    └──► WebUI ──HTTP──► TaskRunner.Family:8788
+    ├──► WebUI ──HTTP──► TaskRunner.Family:8788  (任务、成就、设备)
+    ├──► WebUI ──HTTP──► TaskRunner.AI:8789     (AI 配置、对话)
+    └──► WebUI ──HTTP──► TaskRunner.Vault:8790  (知识库、搜索、同步)
 ```
 
 ## 6. 配置策略
@@ -185,8 +197,11 @@ services/
   "TaskRunnerApi": {
     "BaseUrl": "http://127.0.0.1:8788/"
   },
-  "Database": {
-    "Path": "/home/family/data/app.db"
+  "TaskRunnerAiApi": {
+    "BaseUrl": "http://127.0.0.1:8789/"
+  },
+  "TaskRunnerVaultApi": {
+    "BaseUrl": "http://127.0.0.1:8790/"
   },
   "AllowedHosts": "*"
 }
@@ -203,6 +218,12 @@ services/
   },
   "TaskRunnerApi": {
     "BaseUrl": "http://127.0.0.1:8788/"
+  },
+  "TaskRunnerAiApi": {
+    "BaseUrl": "http://127.0.0.1:8789/"
+  },
+  "TaskRunnerVaultApi": {
+    "BaseUrl": "http://127.0.0.1:8790/"
   },
   "BasePath": "/admin/",
   "AllowedHosts": "*"

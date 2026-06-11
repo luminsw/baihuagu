@@ -6,16 +6,16 @@
 
 | 存储位置 | 数据内容 | 读写方 | 设计依据 |
 |----------|----------|--------|----------|
-| **SQLite** `Vaults` | 知识库（名称、路径、活跃状态） | TaskRunner | 多条记录，需查询关联 |
-| **SQLite** `AiProviderSettings` | AI 提供商配置（加密 API Key、模型列表） | TaskRunner | 多条记录，需排序/筛选 |
-| **SQLite** `Tasks` | 任务历史（类型、状态、进度、输入输出） | TaskRunner | 持续增长的结构化数据 |
-| **SQLite** `AuthorizedDevices` | 授权设备（令牌、状态、IP） | TaskRunner | 多条记录，需按 DeviceId 查询 |
-| **SQLite** `ServerAddressSettings` | 服务器地址（移动端连接用） | TaskRunner | 结构化实体，需持久化 |
-| **JSON** `vault.root.path.json` | 知识库根路径偏好 | TaskRunner | 单值系统级设置，无需查询 |
+| **SQLite** `Vaults` | 知识库（名称、路径、活跃状态） | TaskRunner.Vault | 多条记录，需查询关联 |
+| **SQLite** `AiProviderSettings` | AI 提供商配置（加密 API Key、模型列表） | TaskRunner.AI | 多条记录，需排序/筛选 |
+| **SQLite** `Tasks` | 任务历史（类型、状态、进度、输入输出） | TaskRunner.Family | 持续增长的结构化数据 |
+| **SQLite** `AuthorizedDevices` | 授权设备（令牌、状态、IP） | TaskRunner.Family | 多条记录，需按 DeviceId 查询 |
+| **SQLite** `ServerAddressSettings` | 服务器地址（移动端连接用） | TaskRunner.Family | 结构化实体，需持久化 |
+| **JSON** `vault.root.path.json` | 知识库根路径偏好 | TaskRunner.Vault | 单值系统级设置，无需查询 |
 | **JSON** `webui.settings.json` | WebUI 设置（BackendUrl、AI Key/Url/Model） | WebUI | 前端本地配置，不依赖后端启动 |
 | **JSON** `user_preferences.json` | 用户偏好（字体大小、主题、自动保存） | WebUI | 纯 UI 偏好，后端无需感知 |
-| **环境变量** | 数据目录、AI 超时/重试、嵌入服务 URL 等 | TaskRunner | 部署级配置，优先级最高 |
-| **appsettings.json** | AI 默认 URL/Model、VaultPath 等默认值 | TaskRunner | 开发/部署初始值，被环境变量覆盖 |
+| **环境变量** | 数据目录、AI 超时/重试、嵌入服务 URL 等 | 全部服务 | 部署级配置，优先级最高 |
+| **appsettings.json** | AI 默认 URL/Model、VaultPath 等默认值 | 各服务自身 | 开发/部署初始值，被环境变量覆盖 |
 
 ## 存储位置判断原则
 
@@ -38,14 +38,10 @@
 | 环境变量 | 用途 | 默认值 |
 |----------|------|--------|
 | `TASKRUNNER_DATA_DIR` | SQLite 数据库文件目录 | `{BaseDirectory}/data` |
-| `TASK_RUNNER_VAULT_ROOT` | 知识库根路径（无活跃 Vault 时的回退） | 空 |
-| `TASK_RUNNER_AI_API_URL` | AI API 基础 URL | appsettings 中的 `AiBaseUrl` |
-| `TASK_RUNNER_AI_REQUEST_TIMEOUT_MINUTES` | AI 请求超时（分钟） | 5 |
-| `TASK_RUNNER_AI_REQUEST_MAX_ATTEMPTS` | AI 请求最大重试次数 | 3 |
-| `TASK_RUNNER_AI_REQUEST_INITIAL_BACKOFF_MS` | 重试初始退避时间（ms） | 1000 |
-| `TASK_RUNNER_AI_REQUEST_MAX_BACKOFF_MS` | 重试最大退避时间（ms） | 30000 |
-| `TASK_RUNNER_EMBEDDING_URL` | 语义嵌入服务 URL | 空 |
-| `TASK_RUNNER_EMBEDDING_MODEL` | 语义嵌入模型名称 | 空 |
+| `TASKRUNNER_DATA_DIR` | SQLite 数据库文件目录 | `{BaseDirectory}/data` |
+| `TASKRUNNER_VAULT_ROOT` | 知识库根路径（Docker 中挂载到容器） | `/home/lumin/Vaults` |
+| `ASPNETCORE_URLS` | 服务监听地址 | `http://0.0.0.0:8788` / `8789` / `8790` |
+| `YJ_ENCRYPTION_KEY` | API Key 加密密钥（可选，优先于自动生成） | 空 |
 
 ## 数据库表结构
 
