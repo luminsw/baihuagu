@@ -72,7 +72,7 @@ public partial class OneHopController
                     // 创建新的待授权请求，让用户在 WebUI 中手动确认授权（而非直接拒绝）
                     _logger.LogWarning("Device id mismatch: name={DeviceName} existingId={ExistingId} requestId={RequestId}, creating new pair request",
                         deviceName, deviceByName.DeviceId, request.DeviceId);
-                    var pairRequest2 = _deviceService.SubmitLanDiscoveryRequest(deviceName, ipAddress);
+                    var pairRequest2 = _deviceService.SubmitLanDiscoveryRequest(deviceName, ipAddress, request.DeviceId);
                     return Ok(new
                     {
                         message = "设备标识已变更，请在 WebUI 中重新授权",
@@ -86,7 +86,7 @@ public partial class OneHopController
                 }
 
                 // 自动创建局域网发现待授权请求（无需扫码）
-                var pairRequest = _deviceService.SubmitLanDiscoveryRequest(deviceName, ipAddress);
+                var pairRequest = _deviceService.SubmitLanDiscoveryRequest(deviceName, ipAddress, request.DeviceId);
 
                 return Ok(new
                 {

@@ -463,7 +463,7 @@ namespace TaskRunner.Services
                                     var authorized = _deviceService?.GetAuthorizedDeviceByName(deviceName);
                                     if (authorized == null)
                                     {
-                                        _deviceService?.SubmitLanDiscoveryRequest(deviceName, ipAddress);
+                                        _deviceService?.SubmitLanDiscoveryRequest(deviceName, ipAddress, deviceId);
                                     }
                                     else
                                     {

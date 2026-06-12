@@ -616,6 +616,32 @@ app.Use(async (context, next) =>
                 request.Headers.TryAddWithoutValidation(header.Key, header.Value.ToArray());
             }
 
+            // 为 Vault 的 FamilySyncAuthorizationStrategy 附加 Bearer Token：
+            // Family 已完成 HMAC 签名验证，按来源 IP 找到已授权设备，把其 AccessToken 转发给 Vault。
+            if (!request.Headers.Contains("Authorization"))
+            {
+                try
+                {
+                    var deviceService = context.RequestServices.GetService<DeviceService>();
+                    var remoteIp = context.Connection.RemoteIpAddress?.ToString();
+                    if (!string.IsNullOrEmpty(remoteIp) && deviceService != null)
+                    {
+                        var authorizedDevice = deviceService.GetAuthorizedDevices()
+                            .FirstOrDefault(d => remoteIp.Equals(d.IpAddress, StringComparison.OrdinalIgnoreCase));
+                        if (authorizedDevice != null && !string.IsNullOrEmpty(authorizedDevice.AccessToken))
+                        {
+                            request.Headers.Authorization =
+                                new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", authorizedDevice.AccessToken);
+                        }
+                    }
+                }
+                catch (Exception ex)
+                {
+                    var logger = context.RequestServices.GetService<ILogger<Program>>();
+                    logger?.LogWarning(ex, "为 Vault 转发请求附加 Bearer Token 失败");
+                }
+            }
+
             // 复制请求体
             if (context.Request.ContentLength > 0 ||
                 (context.Request.Headers.ContentLength.HasValue && context.Request.Headers.ContentLength.Value > 0))
@@ -633,11 +659,15 @@ app.Use(async (context, next) =>
 
             foreach (var header in response.Headers)
             {
+                // Transfer-Encoding 由 Kestrel 自行管理，复制上游值会导致重复 chunked 编码
+                if (header.Key.Equals("Transfer-Encoding", StringComparison.OrdinalIgnoreCase))
+                    continue;
                 context.Response.Headers[header.Key] = header.Value.ToArray();
             }
             foreach (var header in response.Content.Headers)
             {
-                if (header.Key.Equals("Content-Length", StringComparison.OrdinalIgnoreCase))
+                if (header.Key.Equals("Content-Length", StringComparison.OrdinalIgnoreCase) ||
+                    header.Key.Equals("Transfer-Encoding", StringComparison.OrdinalIgnoreCase))
                     continue;
                 context.Response.Headers[header.Key] = header.Value.ToArray();
             }

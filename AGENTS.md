@@ -69,4 +69,8 @@ dotnet build services/DoctorNotes.Family.slnx -c Release
 ## 移动端兼容
 
 移动端（鸿蒙/安卓）通过 `http://<server>:8788` 发现服务器并调用 API。
-`TaskRunner.Family` 在 8788 上保留了一个**转发中间件**，将移动端调用的 Vault 域 API 路径（如 `/mg/manifest`、`/mg/file`、`/api/sync/notes` 等）透明转发到 `TaskRunner.Vault`（8790）。因此 **移动端代码无需任何改动**。
+`TaskRunner.Family` 在 8788 上保留了一个**转发中间件**，将移动端调用的 Vault 域 API 路径（如 `/mg/manifest`、`/mg/file`、`/mg/cards`、`/mg/vaults` 等）透明转发到 `TaskRunner.Vault`（8790）。因此 **移动端代码无需任何改动**。
+
+授权与认证：
+- 局域网发现/配对阶段通过 HMAC 签名（共享 `sharedSecret`）校验设备身份。
+- 转发到 `TaskRunner.Vault` 时，`TaskRunner.Family` 会为已授权设备自动附加 `Authorization: Bearer <accessToken>`，Vault 侧校验 Bearer Token 或本机回环请求。

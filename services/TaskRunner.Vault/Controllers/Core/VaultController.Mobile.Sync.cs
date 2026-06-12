@@ -163,8 +163,8 @@ public partial class VaultController
 
     private class MobileCardItem
     {
-        public string Front { get; set; } = "";
-        public string Back { get; set; } = "";
+        public JsonElement Front { get; set; }
+        public JsonElement Back { get; set; }
         public string Deck { get; set; } = "";
         public List<string> Tags { get; set; } = new();
         public string Source { get; set; } = "";

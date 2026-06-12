@@ -51,6 +51,8 @@ namespace TaskRunner.Core.Shared;
         public string PairCode { get; set; } = string.Empty;
         public DateTime RequestTime { get; set; }
         public string? IpAddress { get; set; }
+        /// <summary>移动端真实设备标识（如 ANDROID_ID），授权时写入 AuthorizedDevice</summary>
+        public string DeviceId { get; set; } = string.Empty;
     }
 
     /// <summary>
@@ -130,7 +132,7 @@ namespace TaskRunner.Core.Shared;
             return pairCode.Trim() == _pairCode;
         }
 
-        public PairRequestInfo SubmitPairRequest(string deviceName, string pairCode, string? ipAddress = null, string? requestId = null)
+        public PairRequestInfo SubmitPairRequest(string deviceName, string pairCode, string? ipAddress = null, string? requestId = null, string? deviceId = null)
         {
             // 如果指定了 requestId（如 challenge），检查是否已存在
             if (!string.IsNullOrEmpty(requestId) && _pendingRequests.ContainsKey(requestId))
@@ -156,7 +158,8 @@ namespace TaskRunner.Core.Shared;
                 DeviceName = deviceName,
                 PairCode = pairCode,
                 RequestTime = DateTime.UtcNow,
-                IpAddress = ipAddress
+                IpAddress = ipAddress,
+                DeviceId = deviceId ?? ""
             };
 
             _pendingRequests[request.RequestId] = request;
@@ -177,7 +180,7 @@ namespace TaskRunner.Core.Shared;
         /// <summary>
         /// 局域网自动发现请求：无需配对码，直接创建待授权请求
         /// </summary>
-        public PairRequestInfo SubmitLanDiscoveryRequest(string deviceName, string? ipAddress = null)
+        public PairRequestInfo SubmitLanDiscoveryRequest(string deviceName, string? ipAddress = null, string? deviceId = null)
         {
             lock (_lanDiscoveryLock)
             {
@@ -197,7 +200,8 @@ namespace TaskRunner.Core.Shared;
                     DeviceName = deviceName,
                     PairCode = "LAN", // 标记为局域网发现，不参与配对码验证
                     RequestTime = DateTime.UtcNow,
-                    IpAddress = ipAddress
+                    IpAddress = ipAddress,
+                    DeviceId = deviceId ?? ""
                 };
 
                 _pendingRequests[request.RequestId] = request;
@@ -256,18 +260,28 @@ namespace TaskRunner.Core.Shared;
                 .FirstOrDefault(d => d.DeviceName == request.DeviceName && d.Status == "Authorized");
             if (existingAuthorized != null)
             {
+                // 如果配对请求携带了真实 DeviceId，且与现有记录不一致，更新为最新标识
+                if (!string.IsNullOrEmpty(request.DeviceId) && existingAuthorized.DeviceId != request.DeviceId)
+                {
+                    _logger.LogInformation("设备 {DeviceName} 已授权，更新 DeviceId: {OldDeviceId} -> {NewDeviceId}",
+                        request.DeviceName, existingAuthorized.DeviceId, request.DeviceId);
+                    existingAuthorized.DeviceId = request.DeviceId;
+                    existingAuthorized.IpAddress = request.IpAddress ?? existingAuthorized.IpAddress;
+                    existingAuthorized.UpdatedAt = DateTime.UtcNow;
+                    dbContext.SaveChanges();
+                }
+
                 _requestResults[requestId] = "authorized";
-                _logger.LogInformation("设备 {DeviceName} 已授权，复用现有令牌", request.DeviceName);
                 _ = NotifyDeviceStatusChangedAsync("authorized", request.DeviceName, requestId);
                 return (true, existingAuthorized.AccessToken, null);
             }
 
-            var deviceId = Guid.NewGuid().ToString("N");
+            var newDeviceId = string.IsNullOrEmpty(request.DeviceId) ? Guid.NewGuid().ToString("N") : request.DeviceId;
             var accessToken = Guid.NewGuid().ToString("N");
 
             dbContext.AuthorizedDevices.Add(new AuthorizedDevice
             {
-                DeviceId = deviceId,
+                DeviceId = newDeviceId,
                 DeviceName = request.DeviceName,
                 AccessToken = accessToken,
                 Status = "Authorized",
@@ -278,7 +292,7 @@ namespace TaskRunner.Core.Shared;
             
             _requestResults[requestId] = "authorized";
             
-            _logger.LogInformation("设备已授权: {DeviceName}, DeviceId: {DeviceId}", request.DeviceName, deviceId);
+            _logger.LogInformation("设备已授权: {DeviceName}, DeviceId: {DeviceId}", request.DeviceName, newDeviceId);
             
             _ = NotifyDeviceStatusChangedAsync("authorized", request.DeviceName, requestId);
             

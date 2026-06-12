@@ -1,6 +1,7 @@
 using TaskRunner.Core.Shared;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
+using System.Net;
 
 namespace TaskRunner.Services.Strategies;
 
@@ -49,11 +50,20 @@ public class FamilySyncAuthorizationStrategy : ISyncAuthorizationStrategy
         }
 
         // Family 版局域网环境：如果请求来自已授权设备的 IP，也允许同步
-        var remoteIp = httpContext.Connection.RemoteIpAddress?.ToString();
-        if (!string.IsNullOrEmpty(remoteIp))
+        var remoteIp = httpContext.Connection.RemoteIpAddress;
+        if (remoteIp != null)
         {
+            // 来自本机的请求视为已由 TaskRunner.Family 完成 HMAC/Bearer 验证后转发，直接放行
+            if (IPAddress.IsLoopback(remoteIp) ||
+                remoteIp.ToString() == "127.0.0.1" ||
+                remoteIp.ToString() == "::1")
+            {
+                return true;
+            }
+
+            var remoteIpString = remoteIp.ToString();
             var authorizedDevices = _deviceService.GetAuthorizedDevices();
-            if (authorizedDevices.Any(d => remoteIp.Equals(d.IpAddress, StringComparison.OrdinalIgnoreCase)))
+            if (authorizedDevices.Any(d => remoteIpString.Equals(d.IpAddress, StringComparison.OrdinalIgnoreCase)))
             {
                 return true;
             }
