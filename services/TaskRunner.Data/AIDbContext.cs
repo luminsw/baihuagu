@@ -41,7 +41,7 @@ public class AIDbContext : DbContext
     private static string GetDefaultDbPath()
     {
         string dataDir;
-        var envDir = Environment.GetEnvironmentVariable("TASKRUNNER_DATA_DIR");
+        var envDir = Environment.GetEnvironmentVariable("YJ_DATA_DIR");
         if (!string.IsNullOrEmpty(envDir))
         {
             dataDir = envDir;

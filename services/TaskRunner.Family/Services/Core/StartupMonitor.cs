@@ -21,7 +21,7 @@ namespace TaskRunner.Services
             RestartCount = 0;
             RestartHistory = new List<DateTime>();
             // 使用数据目录而非应用目录，避免非 root 用户无写权限
-            var dataDir = Environment.GetEnvironmentVariable("TASKRUNNER_DATA_DIR") ?? AppDomain.CurrentDomain.BaseDirectory;
+            var dataDir = Environment.GetEnvironmentVariable("YJ_DATA_DIR") ?? AppDomain.CurrentDomain.BaseDirectory;
             LogFilePath = Path.Combine(dataDir, "startup.log");
         }
         

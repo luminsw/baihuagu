@@ -6,11 +6,11 @@ namespace TaskRunner.Services;
 public static class AppPaths
 {
     /// <summary>
-    /// 获取配置文件目录，优先使用 TASKRUNNER_DATA_DIR 环境变量，避免发布时丢失
+    /// 获取配置文件目录，优先使用 YJ_DATA_DIR 环境变量，避免发布时丢失
     /// </summary>
     public static string GetConfigDirectory()
     {
-        var dataDir = Environment.GetEnvironmentVariable("TASKRUNNER_DATA_DIR");
+        var dataDir = Environment.GetEnvironmentVariable("YJ_DATA_DIR");
         if (!string.IsNullOrWhiteSpace(dataDir))
         {
             Directory.CreateDirectory(dataDir);

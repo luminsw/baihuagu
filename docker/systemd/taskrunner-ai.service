@@ -6,7 +6,7 @@ After=network.target
 Type=simple
 WorkingDirectory=/opt/yj-family/TaskRunner.AI
 EnvironmentFile=/etc/systemd/system/taskrunner-ai.env
-Environment=TASKRUNNER_DATA_DIR=/opt/yj-family/data
+Environment=YJ_DATA_DIR=/opt/yj-family/data
 ExecStart=/usr/bin/dotnet TaskRunner.AI.dll --urls http://0.0.0.0:8791
 Restart=always
 RestartSec=5

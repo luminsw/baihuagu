@@ -66,18 +66,18 @@ if (!skipMutex)
 // 无需额外调用 AddEnvironmentVariables()，CreateBuilder 已默认加载。
 
 // 确保数据目录稳定（不在编译输出目录中，避免 dotnet run 时数据被清理）
-if (string.IsNullOrEmpty(Environment.GetEnvironmentVariable("TASKRUNNER_DATA_DIR")))
+if (string.IsNullOrEmpty(Environment.GetEnvironmentVariable("YJ_DATA_DIR")))
 {
     // Linux 环境下统一使用 /opt/yj-family/data，与 Docker 保持同一份数据
     if (OperatingSystem.IsLinux())
     {
         var sharedDataDir = "/opt/yj-family/data";
         Directory.CreateDirectory(sharedDataDir);
-        Environment.SetEnvironmentVariable("TASKRUNNER_DATA_DIR", sharedDataDir);
+        Environment.SetEnvironmentVariable("YJ_DATA_DIR", sharedDataDir);
     }
     else
     {
-        Environment.SetEnvironmentVariable("TASKRUNNER_DATA_DIR",
+        Environment.SetEnvironmentVariable("YJ_DATA_DIR",
             Path.Combine(builder.Environment.ContentRootPath, "data"));
     }
 }

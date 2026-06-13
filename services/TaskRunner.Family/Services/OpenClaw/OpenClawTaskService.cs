@@ -36,7 +36,7 @@ public class OpenClawTaskService : IOpenClawTaskService
         _httpClientFactory = httpClientFactory;
         _taskManager = taskManager;
         _logger = logger;
-        var dataDir = Environment.GetEnvironmentVariable("TASKRUNNER_DATA_DIR")
+        var dataDir = Environment.GetEnvironmentVariable("YJ_DATA_DIR")
             ?? Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "data");
         _reportsDir = Path.Combine(dataDir, "openclaw-reports");
         Directory.CreateDirectory(_reportsDir);

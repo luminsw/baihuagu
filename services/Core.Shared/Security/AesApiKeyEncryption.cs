@@ -35,7 +35,7 @@ public static class AesApiKeyEncryption
     {
         get
         {
-            var dataDir = Environment.GetEnvironmentVariable("TASKRUNNER_DATA_DIR") ?? "/app/data";
+            var dataDir = Environment.GetEnvironmentVariable("YJ_DATA_DIR") ?? "/app/data";
             return Path.Combine(dataDir, ".yj-key");
         }
     }

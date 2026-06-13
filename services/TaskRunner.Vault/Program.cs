@@ -19,17 +19,17 @@ var urls = builder.Configuration["urls"]
 builder.WebHost.UseUrls(urls);
 
 // 确保数据目录稳定
-if (string.IsNullOrEmpty(Environment.GetEnvironmentVariable("TASKRUNNER_DATA_DIR")))
+if (string.IsNullOrEmpty(Environment.GetEnvironmentVariable("YJ_DATA_DIR")))
 {
     if (OperatingSystem.IsLinux())
     {
         var sharedDataDir = "/opt/yj-family/data";
         Directory.CreateDirectory(sharedDataDir);
-        Environment.SetEnvironmentVariable("TASKRUNNER_DATA_DIR", sharedDataDir);
+        Environment.SetEnvironmentVariable("YJ_DATA_DIR", sharedDataDir);
     }
     else
     {
-        Environment.SetEnvironmentVariable("TASKRUNNER_DATA_DIR",
+        Environment.SetEnvironmentVariable("YJ_DATA_DIR",
             Path.Combine(builder.Environment.ContentRootPath, "data"));
     }
 }

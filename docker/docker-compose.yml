@@ -24,7 +24,7 @@ services:
       # 知识库根路径（通过 TASKRUNNER_VAULT_ROOT 环境变量指定）
       - ${VAULTS_DIR:-/home/lumin/Vaults}:${VAULTS_DIR:-/home/lumin/Vaults}
     environment:
-      - TASKRUNNER_DATA_DIR=/app/data
+      - YJ_DATA_DIR=/app/data
       - TASKRUNNER_SKIP_MUTEX=true
       - ASPNETCORE_URLS=http://0.0.0.0:8788
       # OpenObserve 通过宿主机 localhost 访问
@@ -138,7 +138,7 @@ services:
       - /opt/yj-family/config/taskrunner-vault:/app/config:ro
       - ${VAULTS_DIR:-/home/lumin/Vaults}:${VAULTS_DIR:-/home/lumin/Vaults}
     environment:
-      - TASKRUNNER_DATA_DIR=/app/data
+      - YJ_DATA_DIR=/app/data
       - ASPNETCORE_URLS=http://0.0.0.0:8790
       - OpenObserve__WebUrl=http://127.0.0.1:5082/
       - OpenObserve__Enabled=true
@@ -169,7 +169,7 @@ services:
       - /opt/yj-family/config/taskrunner-ai:/app/config:ro
       - ${VAULTS_DIR:-/home/lumin/Vaults}:${VAULTS_DIR:-/home/lumin/Vaults}
     environment:
-      - TASKRUNNER_DATA_DIR=/app/data
+      - YJ_DATA_DIR=/app/data
       - ASPNETCORE_URLS=http://0.0.0.0:8791
       - OpenObserve__WebUrl=http://127.0.0.1:5082/
       - OpenObserve__Enabled=true
