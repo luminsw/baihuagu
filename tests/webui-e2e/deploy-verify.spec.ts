@@ -42,7 +42,7 @@ test.describe('Family 版部署验证', () => {
   });
 
   test('OpenObserve 可访问（如果启用）', async ({ request }) => {
-    const resp = await request.get('http://127.0.0.1:5080/api/status', { maxRedirects: 5 }).catch(() => null);
+    const resp = await request.get('http://127.0.0.1:5082/api/status', { maxRedirects: 5 }).catch(() => null);
     // OpenObserve 是可选的，404 或连接失败不算错误
     if (resp) {
       expect([200, 401, 404]).toContain(resp.status());

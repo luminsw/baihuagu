@@ -374,7 +374,7 @@ builder.Logging.AddSerilog(serilogConfig.CreateLogger(), dispose: true);
 builder.Services.AddSingleton<LogSinkConfigService>(logSinkConfig);
 
 var openobserveEnabled = builder.Configuration.GetValue<bool?>("OpenObserve:Enabled") ?? true;
-var ooBaseUrl = ooConfig.WebUrl?.TrimEnd('/') ?? "http://localhost:5080/openobserve";
+var ooBaseUrl = ooConfig.WebUrl?.TrimEnd('/') ?? "http://localhost:5082/openobserve";
 
 // 注册业务指标（单例，全局共享）
 builder.Services.AddSingleton<ServiceMetrics>();
