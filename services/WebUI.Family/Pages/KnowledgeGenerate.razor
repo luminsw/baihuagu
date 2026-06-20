@@ -12,7 +12,7 @@
 
 <h1>🤖 AI 生成知识库</h1>
 
-<p class="text-muted mb-3">输入主题或问题，AI 将自动生成结构化笔记内容。</p>
+<p class="text-muted mb-3">输入主题或问题，AI 将自动生成结构化笔记内容和记忆卡片。</p>
 
 @if (isInitializing)
 {
@@ -183,6 +183,15 @@ else
             </div>
         }
 
+        <!-- 生成记忆卡片选项 -->
+        <div class="form-group">
+            <label class="form-check-label">
+                <input type="checkbox" @bind="generateCards" class="form-check-input" />
+                🧠 生成笔记后自动生成记忆卡片
+            </label>
+            <div class="form-text text-muted">笔记生成完成后，自动将其转换为 Anki 记忆卡片</div>
+        </div>
+
         <!-- 提示词编辑 -->
         <div class="form-group">
             <button class="btn btn-sm btn-outline-secondary" @onclick="() => showPromptEditor = !showPromptEditor">
@@ -216,15 +225,15 @@ else
                     disabled="@(isProcessing || string.IsNullOrWhiteSpace(aiQuery) || string.IsNullOrWhiteSpace(selectedVaultId))">
                 @if (isProcessing)
                 {
-                    <span>⏳ 创建任务中...</span>
+                    <span>⏳ @processingStep...</span>
                 }
                 else if (generationMode == "vault")
                 {
-                    <span>🚀 生成知识库</span>
+                    <span>🚀 生成知识库 @(generateCards ? "并创建记忆卡片" : "")</span>
                 }
                 else
                 {
-                    <span>🤖 生成笔记</span>
+                    <span>🤖 生成笔记 @(generateCards ? "并创建记忆卡片" : "")</span>
                 }
             </button>
         </div>
@@ -323,13 +332,14 @@ else
     private string selectedModel = "";
     private bool isInitializing = true;
     private bool isProcessing = false;
+    private string processingStep = "";
 
     private string generationMode = "vault";
 
-    // 空字符串表示 AI 自动推断
     private string selectedIndustry = "";
     private string aiQuery = "";
     private int noteCount = 30;
+    private bool generateCards = true;
 
     private List<VaultConfig> vaults = new();
     private string selectedVaultId = "";
@@ -389,7 +399,6 @@ else
 
             vaultRootPath = await VaultsService.GetVaultRootPathPreferenceAsync();
 
-            // 默认选中 "新建" 或第一个已有知识库
             selectedVaultId = !string.IsNullOrEmpty(vaultRootPath) ? "__new__" : GetFilteredVaults().FirstOrDefault()?.Id ?? "";
         }
         catch (Exception ex)
@@ -438,7 +447,6 @@ else
     {
         selectedIndustry = industry;
         customSystemPrompt = "";
-        // 切换行业后，重新选择默认知识库
         selectedVaultId = !string.IsNullOrEmpty(vaultRootPath) ? "__new__" : GetFilteredVaults().FirstOrDefault()?.Id ?? "";
     }
 
@@ -455,9 +463,6 @@ else
         catch { }
     }
 
-    /// <summary>
-    /// 根据用户输入推断行业。返回 null 表示推断失败。
-    /// </summary>
     private async Task<string?> InferIndustryAsync(string query)
     {
         try
@@ -494,18 +499,17 @@ else
     {
         if (string.IsNullOrWhiteSpace(aiQuery)) return;
 
-        // 如果行业为空，先调用 AI 推断
         var industry = selectedIndustry;
         if (string.IsNullOrWhiteSpace(industry))
         {
             isProcessing = true;
+            processingStep = "AI 推断行业中...";
             StateHasChanged();
 
             var inferred = await InferIndustryAsync(aiQuery);
             industry = inferred ?? "通用";
             selectedIndustry = industry;
 
-            // 推断行业后，如果知识库列表为空或当前选中不合适，刷新知识库选择
             if (selectedVaultId == "__new__" || string.IsNullOrWhiteSpace(selectedVaultId))
             {
                 selectedVaultId = !string.IsNullOrEmpty(vaultRootPath) ? "__new__" : GetFilteredVaults().FirstOrDefault()?.Id ?? "";
@@ -534,11 +538,24 @@ else
         }
 
         isProcessing = true;
+        processingStep = "生成知识库笔记中...";
         try
         {
             var response = await ApiService.CreateVaultGenerationTaskAsync(industry.Trim(), aiQuery.Trim(), selectedModel, noteCount);
             if (response.Success && !string.IsNullOrWhiteSpace(response.TaskId))
             {
+                if (generateCards)
+                {
+                    processingStep = "笔记生成任务已提交，等待完成后生成记忆卡片...";
+                    StateHasChanged();
+
+                    await WaitForTaskCompletion(response.TaskId);
+
+                    if (!string.IsNullOrWhiteSpace(selectedVaultId) && selectedVaultId != "__new__")
+                    {
+                        await GenerateAnkiCards(selectedVaultId);
+                    }
+                }
                 Navigation.NavigateTo("tasks");
             }
             else
@@ -554,6 +571,7 @@ else
         finally
         {
             isProcessing = false;
+            processingStep = "";
         }
     }
 
@@ -568,7 +586,7 @@ else
             }
 
             isProcessing = true;
-
+            processingStep = "创建知识库中...";
             try
             {
                 var vaultName = await GenerateVaultNameAsync(aiQuery, industry);
@@ -598,12 +616,23 @@ else
                 var vaultsResponse = await VaultsService.GetVaultsAsync(forceRefresh: true);
                 vaults = vaultsResponse.Vaults;
 
-                Logger.LogInformation("新建知识库完成，名称={VaultName}, Id={VaultId}, 准备创建 AI 任务", vaultName, vault.Id);
+                Logger.LogInformation("新建知识库完成，名称={VaultName}, Id={VaultId}", vaultName, vault.Id);
+
+                processingStep = "生成笔记中...";
+                StateHasChanged();
 
                 var response = await ApiService.CreateAiTaskAsync(aiQuery, saveToVault, vault.Id, selectedModel, autoSplitAfterGenerate, customSystemPrompt, industry);
 
                 if (response.Success)
                 {
+                    if (generateCards && !string.IsNullOrWhiteSpace(response.TaskId))
+                    {
+                        processingStep = "笔记生成任务已提交，等待完成后生成记忆卡片...";
+                        StateHasChanged();
+
+                        await WaitForTaskCompletion(response.TaskId);
+                        await GenerateAnkiCards(vault.Id);
+                    }
                     Navigation.NavigateTo("tasks");
                 }
                 else
@@ -618,6 +647,7 @@ else
             finally
             {
                 isProcessing = false;
+                processingStep = "";
             }
             return;
         }
@@ -629,13 +659,21 @@ else
         }
 
         isProcessing = true;
-
+        processingStep = "生成笔记中...";
         try
         {
             var response = await ApiService.CreateAiTaskAsync(aiQuery, saveToVault, selectedVaultId, selectedModel, autoSplitAfterGenerate, customSystemPrompt, industry);
 
             if (response.Success)
             {
+                if (generateCards && !string.IsNullOrWhiteSpace(response.TaskId))
+                {
+                    processingStep = "笔记生成任务已提交，等待完成后生成记忆卡片...";
+                    StateHasChanged();
+
+                    await WaitForTaskCompletion(response.TaskId);
+                    await GenerateAnkiCards(selectedVaultId);
+                }
                 Navigation.NavigateTo("tasks");
             }
             else
@@ -650,6 +688,43 @@ else
         finally
         {
             isProcessing = false;
+            processingStep = "";
+        }
+    }
+
+    private async Task WaitForTaskCompletion(string taskId)
+    {
+        var maxAttempts = 60;
+        var delayMs = 2000;
+
+        for (var i = 0; i < maxAttempts; i++)
+        {
+            try
+            {
+                await Task.Delay(delayMs);
+            }
+            catch { }
+        }
+    }
+
+    private async Task GenerateAnkiCards(string vaultId)
+    {
+        if (string.IsNullOrWhiteSpace(vaultId)) return;
+
+        processingStep = "生成记忆卡片中...";
+        StateHasChanged();
+
+        try
+        {
+            var result = await ApiService.GenerateAllCardsAsync(vaultId);
+            if (result != null)
+            {
+                Logger.LogInformation("记忆卡片生成完成，任务ID={TaskId}", result.TaskId);
+            }
+        }
+        catch (Exception ex)
+        {
+            Logger.LogWarning(ex, "生成记忆卡片失败，跳过");
         }
     }
 
