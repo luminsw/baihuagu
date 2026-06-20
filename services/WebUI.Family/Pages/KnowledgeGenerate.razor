@@ -3,6 +3,7 @@
 @using Microsoft.AspNetCore.Components.Web
 @inject NavigationManager Navigation
 @inject WebUI.Services.IApiService ApiService
+@inject WebUI.Services.VaultsService VaultsService
 @inject Microsoft.Extensions.Logging.ILogger<KnowledgeGenerate> Logger
 @inject Microsoft.JSInterop.IJSRuntime JS
 @using Microsoft.JSInterop
@@ -11,7 +12,7 @@
 
 <h1>🤖 AI 生成知识库</h1>
 
-<p class="text-muted mb-3">输入行业和关键词，AI 将自动生成完整的知识库（名称 → 大纲 → 笔记内容）。</p>
+<p class="text-muted mb-3">选择行业和 AI 模型，自动生成完整的知识库或原子笔记。</p>
 
 @if (isInitializing)
 {
@@ -24,76 +25,216 @@
 }
 else
 {
-    <div class="generate-section">
-        <div class="form-group">
-            <label for="industry">🏷️ 行业</label>
-            <input type="text" id="industry" @bind="industry" class="form-control" placeholder="例如：医学、计算机、机械..." />
+    <!-- 行业选择 -->
+    @if (GetAvailableIndustries().Count > 0)
+    {
+        <div class="industry-selector mb-3">
+            <label class="form-label text-nowrap" style="font-size:0.9em">🏷️ 选择行业：</label>
+            <div class="btn-group" role="group">
+                @foreach (var industry in GetAvailableIndustries())
+                {
+                    <button class="btn @(selectedIndustry == industry ? "btn-primary" : "btn-outline-primary")"
+                            @onclick="() => OnIndustryChanged(industry)">
+                        @industry
+                    </button>
+                }
+            </div>
         </div>
+    }
 
-        <div class="form-group">
-            <label for="keyword">🎯 关键词 / 主题</label>
-            <input type="text" id="keyword" @bind="keyword" class="form-control" placeholder="例如：Python编程、中医诊断学..." />
+    <!-- AI 模型选择 -->
+    @if (aiProviders.Count > 0)
+    {
+        <div class="form-group mb-3">
+            <label>🤖 AI 模型</label>
+            <div class="ai-model-selector">
+                @foreach (var provider in aiProviders)
+                {
+                    <div style="font-size: 0.85rem; color: #666; margin-bottom: 0.25rem;">
+                        @provider.Name @(provider.IsMain ? "(主)" : "")
+                    </div>
+                    <div class="model-options">
+                        @foreach (var model in provider.Models)
+                        {
+                            var modelName = model.Name;
+                            var displayName = modelName.Split('/').LastOrDefault() ?? modelName;
+                            <button type="button"
+                                    class="model-option @(selectedModel == modelName ? "selected" : "")"
+                                    @onclick="() => SelectModel(modelName)"
+                                    title="@modelName">
+                                @displayName
+                                @if (model.IsPaid)
+                                {
+                                    <span class="tag tag-paid" style="margin-left: 0.3rem;">付费</span>
+                                }
+                                @if (model.IsMain)
+                                {
+                                    <span class="tag tag-default" style="margin-left: 0.3rem;">默认</span>
+                                }
+                            </button>
+                        }
+                    </div>
+                }
+            </div>
         </div>
+    }
 
-        <div class="form-group">
-            <label for="noteCount">📝 笔记数量（1-50）</label>
-            <input type="number" id="noteCount" @bind="noteCount" class="form-control" min="1" max="50" />
-        </div>
+    <!-- 模式切换 -->
+    <div class="nav nav-tabs mb-3">
+        <button class="nav-link @(activeTab == "vault" ? "active" : "")" @onclick='() => activeTab = "vault"'>📚 生成知识库</button>
+        <button class="nav-link @(activeTab == "note" ? "active" : "")" @onclick='() => activeTab = "note"'>📝 生成笔记</button>
+    </div>
 
-        @if (aiProviders.Count > 0)
-        {
+    @if (activeTab == "vault")
+    {
+        <div class="generate-section">
             <div class="form-group">
-                <label>🤖 AI 模型</label>
-                <div class="ai-model-selector" style="padding: 0.5rem; background: #f5f8fa; border-radius: 4px; border: 1px solid #e8eef2;">
-                    @foreach (var provider in aiProviders)
+                <label for="keyword">🎯 关键词 / 主题</label>
+                <input type="text" id="keyword" @bind="keyword" class="form-control" placeholder="例如：Python编程、中医诊断学..." />
+            </div>
+            <div class="form-group">
+                <label for="noteCount">📝 笔记数量（1-50）</label>
+                <input type="number" id="noteCount" @bind="noteCount" class="form-control" min="1" max="50" />
+            </div>
+            <div class="form-actions">
+                <button @onclick="GenerateVault" class="btn btn-primary btn-lg" disabled="@isGenerating">
+                    @if (isGenerating)
                     {
-                        <div style="font-size: 0.85rem; color: #666; margin-bottom: 0.25rem;">
-                            @provider.Name @(provider.IsMain ? "(主)" : "")
-                        </div>
-                        <div class="model-options" style="display: flex; flex-wrap: wrap; gap: 0.5rem; margin-bottom: 0.75rem;">
-                            @foreach (var model in provider.Models)
-                            {
-                                var modelName = model.Name;
-                                var displayName = modelName.Split('/').LastOrDefault() ?? modelName;
-                                <button type="button"
-                                        class="model-option @(selectedModel == modelName ? "selected" : "")"
-                                        @onclick="() => SelectModel(modelName)"
-                                        title="@modelName">
-                                    @displayName
-                                    @if (model.IsPaid)
-                                    {
-                                        <span class="tag tag-paid" style="margin-left: 0.3rem;">付费</span>
-                                    }
-                                    @if (model.IsMain)
-                                    {
-                                        <span class="tag tag-default" style="margin-left: 0.3rem;">默认</span>
-                                    }
-                                </button>
-                            }
-                        </div>
+                        <span>⏳ 创建任务中...</span>
+                    }
+                    else
+                    {
+                        <span>🚀 生成知识库</span>
+                    }
+                </button>
+            </div>
+        </div>
+    }
+    else
+    {
+        <div class="generate-section">
+            <!-- 知识库选择 -->
+            <div class="vault-selector mb-3">
+                <div class="d-flex align-items-center gap-2">
+                    <label class="form-label mb-0 text-nowrap" style="font-size:0.9em">📚 目标知识库：</label>
+                    <select class="form-select form-select-sm" value="@selectedVaultId" @onchange="OnVaultSelectionChanged" style="max-width:300px">
+                        @foreach (var vault in GetFilteredVaults())
+                        {
+                            <option value="@vault.Id">@vault.Name</option>
+                        }
+                        @if (!string.IsNullOrEmpty(vaultRootPath))
+                        {
+                            <option value="__new__">✨ 新建（AI 自动命名）</option>
+                        }
+                    </select>
+                    @if (!string.IsNullOrEmpty(selectedVaultId) && selectedVaultId != "__new__")
+                    {
+                        var selectedVault = GetFilteredVaults().FirstOrDefault(v => v.Id == selectedVaultId);
+                        @if (selectedVault?.Tags?.Any() == true)
+                        {
+                            <div class="d-flex flex-wrap gap-1 align-items-center">
+                                @foreach (var tag in selectedVault.Tags)
+                                {
+                                    <span class="badge bg-info text-dark" style="font-size: 0.7em;">@tag</span>
+                                }
+                            </div>
+                        }
                     }
                 </div>
+                @if (!string.IsNullOrEmpty(vaultRootPath))
+                {
+                    <small class="text-muted mt-1 d-block">
+                        📂 知识库根路径：<code>@vaultRootPath</code>
+                        @if (selectedVaultId == "__new__")
+                        {
+                            <span class="ms-2 text-info">— 新知识库将在此路径下创建子目录</span>
+                        }
+                    </small>
+                }
+                else if (GetFilteredVaults().Count == 0)
+                {
+                    <div class="alert alert-warning mt-2">
+                        当前行业暂无知识库，请先<a href="vaults" class="alert-link">配置知识库</a>或<a href="vaults" class="alert-link">设置知识库根路径</a>。
+                    </div>
+                }
             </div>
-        }
 
-        <div class="form-actions">
-            <button @onclick="GenerateVault"
-                    class="btn btn-primary btn-lg"
-                    disabled="@isGenerating">
-                @if (isGenerating)
-                {
-                    <span>⏳ 创建任务中...</span>
-                }
-                else
-                {
-                    <span>🚀 生成知识库</span>
-                }
-            </button>
+            @if (selectedVaultId == "__new__")
+            {
+                <div class="new-vault-hint alert alert-info mb-3">
+                    <strong>✨ 新建知识库模式</strong>
+                </div>
+            }
+
+            <div class="form-group">
+                <label for="aiQuery">想要了解什么？</label>
+                <textarea id="aiQuery"
+                          @bind="aiQuery"
+                          @bind:event="oninput"
+                          class="form-control"
+                          rows="4"
+                          placeholder="输入一个问题，AI 将生成结构化的原子笔记..."></textarea>
+            </div>
+
+            <div class="form-group">
+                <button class="btn btn-sm btn-outline-secondary" @onclick="() => showPromptEditor = !showPromptEditor">
+                    @(showPromptEditor ? "🔼 收起提示词" : "✏️ 编辑提示词")
+                </button>
+            </div>
+
+            @if (showPromptEditor)
+            {
+                <div class="form-group">
+                    <label>系统提示词</label>
+                    <textarea class="form-control"
+                              @bind="customSystemPrompt"
+                              rows="6"
+                              placeholder="留空则使用默认提示词..."></textarea>
+                    <div class="form-text">
+                        @if (string.IsNullOrWhiteSpace(customSystemPrompt))
+                        {
+                            <span class="text-muted">使用默认提示词</span>
+                        }
+                        else
+                        {
+                            <span class="text-info">（已自定义）</span>
+                        }
+                    </div>
+                </div>
+            }
+
+            <div class="form-actions">
+                <button @onclick="CreateAiTask"
+                        class="btn btn-primary btn-lg"
+                        disabled="@(isCreatingTask || string.IsNullOrWhiteSpace(aiQuery) || string.IsNullOrWhiteSpace(selectedVaultId))">
+                    @if (isCreatingTask)
+                    {
+                        <span>⏳ 创建任务中...</span>
+                    }
+                    else
+                    {
+                        <span>🤖 生成笔记</span>
+                    }
+                </button>
+            </div>
         </div>
+    }
+
+    <!-- 记忆卡片入口 -->
+    <div class="mt-3">
+        <a href="cards" class="btn btn-outline-info">
+            <span>🧠 记忆卡片</span>
+        </a>
     </div>
 }
 
 <style>
+    .industry-selector {
+        display: flex;
+        align-items: center;
+        gap: 0.75rem;
+        flex-wrap: wrap;
+    }
     .generate-section {
         background: #f5f8fa;
         border: 1px solid #e8eef2;
@@ -113,6 +254,12 @@ else
     }
     .form-actions {
         margin-top: 1.5rem;
+    }
+    .ai-model-selector {
+        padding: 0.5rem;
+        background: #f5f8fa;
+        border-radius: 4px;
+        border: 1px solid #e8eef2;
     }
     .model-options {
         display: flex;
@@ -156,6 +303,15 @@ else
         color: #6a5a3a;
         border: 1px solid #d4a574;
     }
+    .vault-selector code {
+        font-size: 0.85em;
+        background: #e8eef2;
+        padding: 0.15rem 0.4rem;
+        border-radius: 3px;
+    }
+    .new-vault-hint {
+        padding: 0.75rem 1rem;
+    }
 </style>
 
 @code {
@@ -163,10 +319,24 @@ else
     private string selectedModel = "";
     private bool isInitializing = true;
     private bool isGenerating = false;
+    private bool isCreatingTask = false;
 
-    private string industry = "";
+    private string activeTab = "vault";
+
+    private string selectedIndustry = "";
     private string keyword = "";
     private int noteCount = 30;
+
+    // Note generation state (from KnowledgeBuild)
+    private List<VaultConfig> vaults = new();
+    private string selectedVaultId = "";
+    private string vaultRootPath = "";
+    private int aiTimeoutSeconds = 90;
+    private string aiQuery = "";
+    private bool saveToVault = true;
+    private bool autoSplitAfterGenerate = true;
+    private string customSystemPrompt = "";
+    private bool showPromptEditor = false;
 
     protected override async Task OnAfterRenderAsync(bool firstRender)
     {
@@ -174,7 +344,11 @@ else
 
         try
         {
-            await LoadAiProviders();
+            var loadProvidersTask = LoadAiProviders();
+            var loadVaultsTask = LoadVaults();
+            var loadPlatformTask = LoadAiTimeoutConfig();
+
+            await Task.WhenAll(loadProvidersTask, loadVaultsTask, loadPlatformTask);
         }
         catch (Exception ex)
         {
@@ -184,6 +358,44 @@ else
         {
             isInitializing = false;
             StateHasChanged();
+        }
+    }
+
+    private List<string> GetAvailableIndustries()
+    {
+        var predefined = new List<string> { "中医", "计算机", "通用" };
+        var fromVaults = vaults.Select(v => v.Industry)
+                               .Where(i => !string.IsNullOrWhiteSpace(i))
+                               .Distinct();
+        return predefined.Concat(fromVaults)
+                         .Distinct()
+                         .OrderBy(i => i)
+                         .ToList();
+    }
+
+    private List<VaultConfig> GetFilteredVaults() =>
+        string.IsNullOrWhiteSpace(selectedIndustry)
+            ? vaults
+            : vaults.Where(v => v.Industry == selectedIndustry).ToList();
+
+    private async Task LoadVaults()
+    {
+        try
+        {
+            var vaultsResponse = await VaultsService.GetVaultsAsync();
+            vaults = vaultsResponse.Vaults;
+
+            var industries = GetAvailableIndustries();
+            selectedIndustry = industries.FirstOrDefault() ?? "";
+
+            vaultRootPath = await VaultsService.GetVaultRootPathPreferenceAsync();
+
+            selectedVaultId = !string.IsNullOrEmpty(vaultRootPath) ? "__new__" : GetFilteredVaults().FirstOrDefault()?.Id ?? "";
+        }
+        catch (Exception ex)
+        {
+            Logger.LogWarning(ex, "加载知识库列表失败");
+            vaults = new List<VaultConfig>();
         }
     }
 
@@ -212,11 +424,36 @@ else
         selectedModel = modelName;
     }
 
+    private void OnVaultSelectionChanged(ChangeEventArgs e)
+    {
+        selectedVaultId = e.Value?.ToString() ?? "";
+    }
+
+    private void OnIndustryChanged(string industry)
+    {
+        selectedIndustry = industry;
+        customSystemPrompt = "";
+        selectedVaultId = !string.IsNullOrEmpty(vaultRootPath) ? "__new__" : GetFilteredVaults().FirstOrDefault()?.Id ?? "";
+    }
+
+    private async Task LoadAiTimeoutConfig()
+    {
+        try
+        {
+            var platformInfo = await ApiService.GetPlatformAsync();
+            if (platformInfo != null && platformInfo.AiRequestTimeoutMinutes > 0)
+            {
+                aiTimeoutSeconds = 30;
+            }
+        }
+        catch { /* 使用默认值 */ }
+    }
+
     private async Task GenerateVault()
     {
-        if (string.IsNullOrWhiteSpace(industry))
+        if (string.IsNullOrWhiteSpace(selectedIndustry))
         {
-            await JS.InvokeVoidAsync("alert", "请输入行业");
+            await JS.InvokeVoidAsync("alert", "请选择或输入行业");
             return;
         }
         if (string.IsNullOrWhiteSpace(keyword))
@@ -233,7 +470,7 @@ else
         isGenerating = true;
         try
         {
-            var response = await ApiService.CreateVaultGenerationTaskAsync(industry.Trim(), keyword.Trim(), selectedModel, noteCount);
+            var response = await ApiService.CreateVaultGenerationTaskAsync(selectedIndustry.Trim(), keyword.Trim(), selectedModel, noteCount);
             if (response.Success && !string.IsNullOrWhiteSpace(response.TaskId))
             {
                 Navigation.NavigateTo("tasks");
@@ -252,5 +489,152 @@ else
         {
             isGenerating = false;
         }
+    }
+
+    private async Task CreateAiTask()
+    {
+        if (string.IsNullOrWhiteSpace(aiQuery)) return;
+
+        if (selectedVaultId == "__new__")
+        {
+            if (string.IsNullOrEmpty(vaultRootPath))
+            {
+                await JS.InvokeVoidAsync("alert", "请先在知识库管理页设置知识库根路径");
+                return;
+            }
+
+            isCreatingTask = true;
+
+            try
+            {
+                var vaultName = await GenerateVaultNameAsync(aiQuery);
+                if (string.IsNullOrWhiteSpace(vaultName))
+                {
+                    Logger.LogWarning("无法生成知识库名称");
+                    await JS.InvokeVoidAsync("alert", "无法生成知识库名称，请检查 AI 配置或重新输入问题");
+                    return;
+                }
+
+                var industry = selectedIndustry;
+                var vaultPath = System.IO.Path.Combine(vaultRootPath, "local", industry, vaultName);
+                var (success, vault, error) = await VaultsService.AddVaultAsync(vaultName, vaultPath, industry);
+                if (!success || vault == null)
+                {
+                    await JS.InvokeVoidAsync("alert", $"创建知识库失败：{error}");
+                    return;
+                }
+
+                if (string.IsNullOrWhiteSpace(vault.Id))
+                {
+                    Logger.LogError("AddVaultAsync 返回了无效的 vault.Id");
+                    await JS.InvokeVoidAsync("alert", "创建知识库成功但返回了无效的 ID，请刷新页面重试");
+                    return;
+                }
+
+                selectedVaultId = vault.Id;
+                var vaultsResponse = await VaultsService.GetVaultsAsync(forceRefresh: true);
+                vaults = vaultsResponse.Vaults;
+
+                Logger.LogInformation("新建知识库完成，名称={VaultName}, Id={VaultId}, 准备创建 AI 任务", vaultName, vault.Id);
+
+                var response = await ApiService.CreateAiTaskAsync(aiQuery, saveToVault, vault.Id, selectedModel, autoSplitAfterGenerate, customSystemPrompt, selectedIndustry);
+
+                if (response.Success)
+                {
+                    Navigation.NavigateTo("tasks");
+                }
+                else
+                {
+                    await JS.InvokeVoidAsync("alert", $"创建任务失败：{response.Message}");
+                }
+            }
+            catch (Exception ex)
+            {
+                await JS.InvokeVoidAsync("alert", $"创建失败：{ex.Message}");
+            }
+            finally
+            {
+                isCreatingTask = false;
+            }
+            return;
+        }
+
+        if (string.IsNullOrWhiteSpace(selectedVaultId))
+        {
+            await JS.InvokeVoidAsync("alert", "请先选择知识库");
+            return;
+        }
+
+        isCreatingTask = true;
+
+        try
+        {
+            var response = await ApiService.CreateAiTaskAsync(aiQuery, saveToVault, selectedVaultId, selectedModel, autoSplitAfterGenerate, customSystemPrompt, selectedIndustry);
+
+            if (response.Success)
+            {
+                Navigation.NavigateTo("tasks");
+            }
+            else
+            {
+                await JS.InvokeVoidAsync("alert", $"创建任务失败：{response.Message}");
+            }
+        }
+        catch (Exception ex)
+        {
+            await JS.InvokeVoidAsync("alert", $"创建任务失败：{ex.Message}");
+        }
+        finally
+        {
+            isCreatingTask = false;
+        }
+    }
+
+    private async Task<string?> GenerateVaultNameAsync(string query)
+    {
+        try
+        {
+            var prompt = $"根据以下{selectedIndustry}问题，生成一个简短的中文知识库名称（2-6个字，不要包含标点符号，只返回名称本身）：\n\n问题：{query}";
+            using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(aiTimeoutSeconds));
+            var response = await ApiService.ChatAsync(prompt, cts.Token);
+            if (response.Success && !string.IsNullOrWhiteSpace(response.Reply))
+            {
+                var lines = response.Reply.Split(new[] { '\n', '\r' }, StringSplitOptions.RemoveEmptyEntries)
+                    .Where(l => !l.TrimStart().StartsWith(">"))
+                    .ToList();
+
+                var rawName = string.Join("", lines).Trim();
+
+                var name = rawName
+                    .Replace("\"", "").Replace("'", "").Replace("「", "").Replace("」", "")
+                    .Replace("《", "").Replace("》", "")
+                    .Trim();
+
+                if (name.Length > 20)
+                    name = name.Substring(0, 20);
+
+                return name;
+            }
+        }
+        catch (OperationCanceledException)
+        {
+            Logger.LogWarning("AI 生成知识库名称超时，使用降级方案");
+        }
+        catch (Exception ex)
+        {
+            Logger.LogWarning(ex, "AI 生成知识库名称失败，使用降级方案");
+        }
+
+        return FallbackVaultName(query);
+    }
+
+    private string? FallbackVaultName(string query)
+    {
+        if (string.IsNullOrWhiteSpace(query)) return null;
+        var cleaned = query.Trim()
+            .Replace("？", "").Replace("?", "").Replace("。", "").Replace("，", "").Replace(",", "")
+            .Replace("的", "").Replace("如何", "").Replace("怎么", "").Replace("什么", "");
+        if (string.IsNullOrWhiteSpace(cleaned)) cleaned = query.Trim();
+        return cleaned.Length > 6 ? cleaned.Substring(0, 6) : cleaned;
     }
 }

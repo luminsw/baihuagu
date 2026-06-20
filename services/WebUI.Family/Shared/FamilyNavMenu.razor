@@ -107,10 +107,6 @@
     </div>
     <div class="nav-group">
         <div class="nav-group-label">生成</div>
-        <NavLink href="build">
-            <span class="nav-icon bi bi-bricks"></span>
-            <span>AI 生成</span>
-        </NavLink>
         <NavLink href="generate">
             <span class="nav-icon bi bi-robot"></span>
             <span>AI 生成知识库</span>
@@ -235,7 +231,7 @@
         var inferred = relativePath switch
         {
             string p when p.StartsWith("tasks") || p.StartsWith("openclaw") || p.StartsWith("achievements") || p.StartsWith("leaderboard") || p.StartsWith("dashboard") => 1,
-            string p when p.StartsWith("messages") || p.StartsWith("build") || p.StartsWith("generate") || p.StartsWith("local-models") || p.StartsWith("model-benchmark") || p.StartsWith("ai-metrics") || p.StartsWith("hardware-benchmark") || p.StartsWith("settings") => 2,
+            string p when p.StartsWith("messages") || p.StartsWith("generate") || p.StartsWith("local-models") || p.StartsWith("model-benchmark") || p.StartsWith("ai-metrics") || p.StartsWith("hardware-benchmark") || p.StartsWith("settings") => 2,
             _ => 0
         };
         if (inferred != _activeScene)
