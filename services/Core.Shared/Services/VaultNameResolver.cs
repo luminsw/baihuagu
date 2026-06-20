@@ -6,12 +6,12 @@ namespace TaskRunner.Services;
 /// 知识库名称解析服务
 /// 统一管理知识库名称的安全化、目录推断和显示名称回退
 /// </summary>
-public class VaultNameResolver
+public class VaultNameResolver : IVaultNameResolver
 {
     /// <summary>
     /// 将任意字符串转换为安全的目录名（去除文件系统非法字符）
     /// </summary>
-    public static string ToSafeDirectoryName(string name)
+    public string ToSafeDirectoryName(string name)
     {
         if (string.IsNullOrWhiteSpace(name))
             return "未命名";
@@ -33,7 +33,7 @@ public class VaultNameResolver
     /// <summary>
     /// 获取唯一的目录路径。如果目标目录已存在，尝试追加序号
     /// </summary>
-    public static string GetUniqueDirectoryPath(string parentDir, string name)
+    public string GetUniqueDirectoryPath(string parentDir, string name)
     {
         var safeName = ToSafeDirectoryName(name);
         var targetPath = Path.Combine(parentDir, safeName);
@@ -41,7 +41,6 @@ public class VaultNameResolver
         if (!Directory.Exists(targetPath))
             return targetPath;
 
-        // 目录已存在，尝试追加序号
         for (int i = 2; i <= 999; i++)
         {
             var candidate = Path.Combine(parentDir, $"{safeName}_{i}");
@@ -49,7 +48,6 @@ public class VaultNameResolver
                 return candidate;
         }
 
-        // 极端情况：使用时间戳
         return Path.Combine(parentDir, $"{safeName}_{DateTimeOffset.UtcNow:yyyyMMddHHmmss}");
     }
 
@@ -58,7 +56,7 @@ public class VaultNameResolver
     /// 对于 mobile/{行业}/{名称}/ 结构，取最深层目录名
     /// 对于 local/{行业}/{名称}/ 结构，取最深层目录名
     /// </summary>
-    public static string InferNameFromPath(string path)
+    public string InferNameFromPath(string path)
     {
         if (string.IsNullOrWhiteSpace(path))
             return "未命名";

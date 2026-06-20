@@ -30,6 +30,7 @@ namespace TaskRunner.Vault.Controllers;
         private readonly ISyncAuthorizationStrategy _syncAuthStrategy;
         private readonly IDbContextFactory<AppDbContext> _dbContextFactory;
         private readonly RequestSignatureService _signatureService;
+        private readonly IVaultNameResolver _vaultNameResolver;
 
         // 支持的文件扩展名
         private static readonly HashSet<string> AllowedExtensions = new(StringComparer.OrdinalIgnoreCase)
@@ -72,7 +73,8 @@ namespace TaskRunner.Vault.Controllers;
             ILogger<VaultController> logger,
             ISyncAuthorizationStrategy syncAuthStrategy,
             IDbContextFactory<AppDbContext> dbContextFactory,
-            RequestSignatureService signatureService)
+            RequestSignatureService signatureService,
+            IVaultNameResolver vaultNameResolver)
         {
             _vaultSettings = vaultSettings;
             _deviceService = deviceService;
@@ -80,6 +82,7 @@ namespace TaskRunner.Vault.Controllers;
             _syncAuthStrategy = syncAuthStrategy;
             _dbContextFactory = dbContextFactory;
             _signatureService = signatureService;
+            _vaultNameResolver = vaultNameResolver;
         }
 
         /// <summary>

@@ -22,6 +22,7 @@
 
   <ItemGroup>
     <ProjectReference Include="../../services/TaskRunner.Family/TaskRunner.Family.csproj" />
+    <ProjectReference Include="../../services/Core.Shared/TaskRunner.Core.Shared.csproj" />
   </ItemGroup>
 
 </Project>

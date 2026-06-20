@@ -174,6 +174,7 @@ builder.Services.AddSingleton<AiConfigService>();
 
 builder.Services.AddSingleton<LocalModelSettingsService>();
 
+builder.Services.AddSingleton<IVaultNameResolver, VaultNameResolver>();
 builder.Services.AddSingleton<VaultSettingsService>();
 builder.Services.AddHostedService<StartupOrchestratorHostedService>();
 builder.Services.AddSingleton<DefaultPromptProvider>();

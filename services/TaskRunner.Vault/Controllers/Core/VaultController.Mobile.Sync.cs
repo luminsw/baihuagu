@@ -32,7 +32,7 @@ public partial class VaultController
             var vaultRoot = _vaultSettings.VaultRootPathPreference;
             var mobileDir = Path.Combine(vaultRoot, "mobile");
             var industry = string.IsNullOrWhiteSpace(request.Industry) ? "移动端生成" : request.Industry.Trim();
-            var safeVaultName = VaultNameResolver.ToSafeDirectoryName(request.VaultName.Trim());
+            var safeVaultName = _vaultNameResolver.ToSafeDirectoryName(request.VaultName.Trim());
             var industryDir = Path.Combine(mobileDir, industry);
             Directory.CreateDirectory(industryDir);
 
@@ -68,7 +68,7 @@ public partial class VaultController
                     if (Directory.Exists(expectedPath))
                     {
                         // 目标目录已存在（不太可能，但防御）
-                        vaultDir = VaultNameResolver.GetUniqueDirectoryPath(industryDir, safeVaultName);
+                        vaultDir = _vaultNameResolver.GetUniqueDirectoryPath(industryDir, safeVaultName);
                     }
                     else
                     {
@@ -98,7 +98,7 @@ public partial class VaultController
             else
             {
                 vaultId = Guid.NewGuid().ToString("N");
-                vaultDir = VaultNameResolver.GetUniqueDirectoryPath(industryDir, safeVaultName);
+                vaultDir = _vaultNameResolver.GetUniqueDirectoryPath(industryDir, safeVaultName);
                 isNewVault = true;
             }
 

@@ -72,6 +72,7 @@ builder.Services.AddMemoryCache();
 builder.Services.AddDistributedMemoryCache();
 
 // 核心知识库服务
+builder.Services.AddSingleton<IVaultNameResolver, VaultNameResolver>();
 builder.Services.AddSingleton<VaultSettingsService>();
 builder.Services.AddSingleton<VaultNoteIndexer>();
 builder.Services.AddSingleton<EmbeddingService>();
