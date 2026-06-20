@@ -12,7 +12,7 @@
 
 <h1>🤖 AI 生成知识库</h1>
 
-<p class="text-muted mb-3">选择行业和目标知识库，AI 将自动生成结构化笔记内容。</p>
+<p class="text-muted mb-3">输入主题或问题，AI 将自动生成结构化笔记内容。</p>
 
 @if (isInitializing)
 {
@@ -26,13 +26,50 @@
 else
 {
     <div class="generate-section">
-        <!-- 行业选择 -->
-        @if (GetAvailableIndustries().Count > 0)
+        <!-- 主题/问题输入（最上方） -->
+        <div class="form-group">
+            <label>
+                @(generationMode == "vault" ? "🎯 主题关键词" : "🎯 问题描述")
+            </label>
+            @if (generationMode == "vault")
+            {
+                <input type="text" @bind="aiQuery" class="form-control" placeholder="例如：Python编程、中医诊断学..." />
+                <div class="form-text">输入一个主题，AI 将生成完整的知识库大纲和笔记内容</div>
+            }
+            else
+            {
+                <textarea @bind="aiQuery" @bind:event="oninput" class="form-control" rows="4"
+                          placeholder="输入一个问题，AI 将生成结构化的原子笔记..."></textarea>
+                <div class="form-text">输入一个具体问题，AI 将生成单条结构化笔记</div>
+            }
+        </div>
+
+        <!-- 生成方式选择 -->
+        <div class="form-group">
+            <label>🎯 生成方式</label>
+            <div class="btn-group" role="group">
+                <button class="btn @(generationMode == "vault" ? "btn-primary" : "btn-outline-primary")"
+                        @onclick='() => generationMode = "vault"'>
+                    📚 生成完整知识库
+                </button>
+                <button class="btn @(generationMode == "note" ? "btn-primary" : "btn-outline-primary")"
+                        @onclick='() => generationMode = "note"'>
+                    📝 生成单条笔记
+                </button>
+            </div>
+        </div>
+
+        <!-- 行业选择（含 AI 自动推断） -->
+        @if (GetIndustryOptions().Count > 0)
         {
             <div class="form-group">
                 <label>🏷️ 行业</label>
                 <div class="btn-group">
-                    @foreach (var industry in GetAvailableIndustries())
+                    <button class="btn @(string.IsNullOrEmpty(selectedIndustry) ? "btn-primary" : "btn-outline-primary")"
+                            @onclick="SelectAutoIndustry">
+                        ✨ AI 自动推断
+                    </button>
+                    @foreach (var industry in GetIndustryOptions())
                     {
                         <button class="btn @(selectedIndustry == industry ? "btn-primary" : "btn-outline-primary")"
                                 @onclick="() => OnIndustryChanged(industry)">
@@ -40,6 +77,10 @@ else
                         </button>
                     }
                 </div>
+                @if (string.IsNullOrEmpty(selectedIndustry))
+                {
+                    <div class="form-text text-info">AI 将根据您输入的主题自动推断所属行业</div>
+                }
             </div>
         }
 
@@ -132,39 +173,6 @@ else
                 <strong>✨ 新建知识库模式</strong>
             </div>
         }
-
-        <!-- 生成方式选择 -->
-        <div class="form-group">
-            <label>🎯 生成方式</label>
-            <div class="btn-group" role="group">
-                <button class="btn @(generationMode == "vault" ? "btn-primary" : "btn-outline-primary")"
-                        @onclick='() => generationMode = "vault"'>
-                    📚 生成完整知识库
-                </button>
-                <button class="btn @(generationMode == "note" ? "btn-primary" : "btn-outline-primary")"
-                        @onclick='() => generationMode = "note"'>
-                    📝 生成单条笔记
-                </button>
-            </div>
-        </div>
-
-        <!-- 内容输入 -->
-        <div class="form-group">
-            <label>
-                @(generationMode == "vault" ? "🎯 主题关键词" : "🎯 问题描述")
-            </label>
-            @if (generationMode == "vault")
-            {
-                <input type="text" @bind="aiQuery" class="form-control" placeholder="例如：Python编程、中医诊断学..." />
-                <div class="form-text">输入一个主题，AI 将生成完整的知识库大纲和笔记内容</div>
-            }
-            else
-            {
-                <textarea @bind="aiQuery" @bind:event="oninput" class="form-control" rows="4"
-                          placeholder="输入一个问题，AI 将生成结构化的原子笔记..."></textarea>
-                <div class="form-text">输入一个具体问题，AI 将生成单条结构化笔记</div>
-            }
-        </div>
 
         <!-- 笔记数量（仅生成知识库时显示） -->
         @if (generationMode == "vault")
@@ -318,6 +326,7 @@ else
 
     private string generationMode = "vault";
 
+    // 空字符串表示 AI 自动推断
     private string selectedIndustry = "";
     private string aiQuery = "";
     private int noteCount = 30;
@@ -354,7 +363,7 @@ else
         }
     }
 
-    private List<string> GetAvailableIndustries()
+    private List<string> GetIndustryOptions()
     {
         var predefined = new List<string> { "中医", "计算机", "通用" };
         var fromVaults = vaults.Select(v => v.Industry)
@@ -378,11 +387,9 @@ else
             var vaultsResponse = await VaultsService.GetVaultsAsync();
             vaults = vaultsResponse.Vaults;
 
-            var industries = GetAvailableIndustries();
-            selectedIndustry = industries.FirstOrDefault() ?? "";
-
             vaultRootPath = await VaultsService.GetVaultRootPathPreferenceAsync();
 
+            // 默认选中 "新建" 或第一个已有知识库
             selectedVaultId = !string.IsNullOrEmpty(vaultRootPath) ? "__new__" : GetFilteredVaults().FirstOrDefault()?.Id ?? "";
         }
         catch (Exception ex)
@@ -422,10 +429,16 @@ else
         selectedVaultId = e.Value?.ToString() ?? "";
     }
 
+    private void SelectAutoIndustry()
+    {
+        OnIndustryChanged("");
+    }
+
     private void OnIndustryChanged(string industry)
     {
         selectedIndustry = industry;
         customSystemPrompt = "";
+        // 切换行业后，重新选择默认知识库
         selectedVaultId = !string.IsNullOrEmpty(vaultRootPath) ? "__new__" : GetFilteredVaults().FirstOrDefault()?.Id ?? "";
     }
 
@@ -442,27 +455,78 @@ else
         catch { }
     }
 
+    /// <summary>
+    /// 根据用户输入推断行业。返回 null 表示推断失败。
+    /// </summary>
+    private async Task<string?> InferIndustryAsync(string query)
+    {
+        try
+        {
+            var options = string.Join("、", GetIndustryOptions());
+            var prompt = $"根据以下内容，判断它属于哪个行业。只返回以下预定义行业之一（不要返回其他内容）：{options}\n\n内容：{query}";
+            using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(aiTimeoutSeconds));
+            var response = await ApiService.ChatAsync(prompt, cts.Token);
+            if (response.Success && !string.IsNullOrWhiteSpace(response.Reply))
+            {
+                var inferred = response.Reply.Trim();
+                var available = GetIndustryOptions();
+                var matched = available.FirstOrDefault(i => inferred.Contains(i));
+                if (!string.IsNullOrEmpty(matched))
+                {
+                    Logger.LogInformation("AI 推断行业：{Inferred}，匹配：{Matched}", inferred, matched);
+                    return matched;
+                }
+                Logger.LogWarning("AI 推断行业结果 '{Inferred}' 未匹配预定义选项，使用通用", inferred);
+            }
+        }
+        catch (OperationCanceledException)
+        {
+            Logger.LogWarning("AI 推断行业超时");
+        }
+        catch (Exception ex)
+        {
+            Logger.LogWarning(ex, "AI 推断行业失败");
+        }
+        return "通用";
+    }
+
     private async Task ExecuteGeneration()
     {
         if (string.IsNullOrWhiteSpace(aiQuery)) return;
 
+        // 如果行业为空，先调用 AI 推断
+        var industry = selectedIndustry;
+        if (string.IsNullOrWhiteSpace(industry))
+        {
+            isProcessing = true;
+            StateHasChanged();
+
+            var inferred = await InferIndustryAsync(aiQuery);
+            industry = inferred ?? "通用";
+            selectedIndustry = industry;
+
+            // 推断行业后，如果知识库列表为空或当前选中不合适，刷新知识库选择
+            if (selectedVaultId == "__new__" || string.IsNullOrWhiteSpace(selectedVaultId))
+            {
+                selectedVaultId = !string.IsNullOrEmpty(vaultRootPath) ? "__new__" : GetFilteredVaults().FirstOrDefault()?.Id ?? "";
+            }
+
+            isProcessing = false;
+            StateHasChanged();
+        }
+
         if (generationMode == "vault")
         {
-            await GenerateFullVault();
+            await GenerateFullVault(industry);
         }
         else
         {
-            await GenerateSingleNote();
+            await GenerateSingleNote(industry);
         }
     }
 
-    private async Task GenerateFullVault()
+    private async Task GenerateFullVault(string industry)
     {
-        if (string.IsNullOrWhiteSpace(selectedIndustry))
-        {
-            await JS.InvokeVoidAsync("alert", "请选择行业");
-            return;
-        }
         if (noteCount < 1 || noteCount > 50)
         {
             await JS.InvokeVoidAsync("alert", "笔记数量必须在 1-50 之间");
@@ -472,7 +536,7 @@ else
         isProcessing = true;
         try
         {
-            var response = await ApiService.CreateVaultGenerationTaskAsync(selectedIndustry.Trim(), aiQuery.Trim(), selectedModel, noteCount);
+            var response = await ApiService.CreateVaultGenerationTaskAsync(industry.Trim(), aiQuery.Trim(), selectedModel, noteCount);
             if (response.Success && !string.IsNullOrWhiteSpace(response.TaskId))
             {
                 Navigation.NavigateTo("tasks");
@@ -493,7 +557,7 @@ else
         }
     }
 
-    private async Task GenerateSingleNote()
+    private async Task GenerateSingleNote(string industry)
     {
         if (selectedVaultId == "__new__")
         {
@@ -507,7 +571,7 @@ else
 
             try
             {
-                var vaultName = await GenerateVaultNameAsync(aiQuery);
+                var vaultName = await GenerateVaultNameAsync(aiQuery, industry);
                 if (string.IsNullOrWhiteSpace(vaultName))
                 {
                     Logger.LogWarning("无法生成知识库名称");
@@ -515,7 +579,6 @@ else
                     return;
                 }
 
-                var industry = selectedIndustry;
                 var vaultPath = System.IO.Path.Combine(vaultRootPath, "local", industry, vaultName);
                 var (success, vault, error) = await VaultsService.AddVaultAsync(vaultName, vaultPath, industry);
                 if (!success || vault == null)
@@ -537,7 +600,7 @@ else
 
                 Logger.LogInformation("新建知识库完成，名称={VaultName}, Id={VaultId}, 准备创建 AI 任务", vaultName, vault.Id);
 
-                var response = await ApiService.CreateAiTaskAsync(aiQuery, saveToVault, vault.Id, selectedModel, autoSplitAfterGenerate, customSystemPrompt, selectedIndustry);
+                var response = await ApiService.CreateAiTaskAsync(aiQuery, saveToVault, vault.Id, selectedModel, autoSplitAfterGenerate, customSystemPrompt, industry);
 
                 if (response.Success)
                 {
@@ -569,7 +632,7 @@ else
 
         try
         {
-            var response = await ApiService.CreateAiTaskAsync(aiQuery, saveToVault, selectedVaultId, selectedModel, autoSplitAfterGenerate, customSystemPrompt, selectedIndustry);
+            var response = await ApiService.CreateAiTaskAsync(aiQuery, saveToVault, selectedVaultId, selectedModel, autoSplitAfterGenerate, customSystemPrompt, industry);
 
             if (response.Success)
             {
@@ -590,11 +653,11 @@ else
         }
     }
 
-    private async Task<string?> GenerateVaultNameAsync(string query)
+    private async Task<string?> GenerateVaultNameAsync(string query, string industry)
     {
         try
         {
-            var prompt = $"根据以下{selectedIndustry}问题，生成一个简短的中文知识库名称（2-6个字，不要包含标点符号，只返回名称本身）：\n\n问题：{query}";
+            var prompt = $"根据以下{industry}问题，生成一个简短的中文知识库名称（2-6个字，不要包含标点符号，只返回名称本身）：\n\n问题：{query}";
             using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(aiTimeoutSeconds));
             var response = await ApiService.ChatAsync(prompt, cts.Token);
             if (response.Success && !string.IsNullOrWhiteSpace(response.Reply))
