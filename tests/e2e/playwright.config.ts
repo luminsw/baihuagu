@@ -31,13 +31,13 @@ export default defineConfig({
     // 导航系统：页面路由、导航栏、页面间跳转（本地）
     { name: 'navigation', testDir: './tests/navigation', testMatch: /.*\.spec\.ts/ },
     // 搜索功能：搜索页UI、搜索输入、查AI已移除（共享）
-    { name: 'search', testDir: path.join(sharedE2EPath, 'tests/search'), testMatch: /.*\.spec\.ts/ },
+    { name: 'search', testDir: './tests/search', testMatch: /.*\.spec\.ts/ },
     // 知识库管理：知识库配置、根路径、Tab切换（共享）
     { name: 'vaults', testDir: path.join(sharedE2EPath, 'tests/vaults'), testMatch: /.*\.spec\.ts/ },
     // AI构建：从问题生成、从笔记拆分、知识库选择（共享）
-    { name: 'ai-build', testDir: path.join(sharedE2EPath, 'tests/ai-build'), testMatch: /.*\.spec\.ts/ },
+    { name: 'ai-build', testDir: './tests/generate', testMatch: /.*\.spec\.ts/ },
     // 备份恢复：创建备份、恢复备份、跨平台选项（共享）
-    { name: 'backup', testDir: path.join(sharedE2EPath, 'tests/backup'), testMatch: /.*\.spec\.ts/ },
+    { name: 'backup', testDir: './tests/backup', testMatch: /.*\.spec\.ts/ },
     // 冒烟测试：所有页面能打开、不白屏、不卡spinner（共享）
     { name: 'smoke', testDir: path.join(sharedE2EPath, 'tests/smoke'), testMatch: /.*\.spec\.ts/ },
     // Family 模式：用户类型选择、菜单过滤（共享）
