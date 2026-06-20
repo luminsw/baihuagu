@@ -80,9 +80,6 @@ else if (note != null)
                 <button @onclick="ToggleFavorite" class="btn @(isFavorite ? "btn-warning" : "btn-outline-warning")">
                     <span>@(isFavorite ? "⭐" : "☆")</span> @(isFavorite ? "已收藏" : "收藏")
                 </button>
-                <button @onclick="GoToBuild" class="btn btn-primary">
-                    <span>✂️</span> 拆分原子笔记
-                </button>
                 <button @onclick="EditNote" class="btn btn-secondary">
                     <span>✏️</span> @(isEditing ? "取消编辑" : "编辑")
                 </button>
@@ -365,13 +362,6 @@ else
         {
             Navigation.NavigateTo("search");
         }
-    }
-
-    private void GoToBuild()
-    {
-        if (note == null) return;
-        var vaultParam = string.IsNullOrEmpty(noteVaultId) ? "" : $"&vaultId={Uri.EscapeDataString(noteVaultId)}";
-        Navigation.NavigateTo($"split?noteId={Uri.EscapeDataString(note.Path)}{vaultParam}");
     }
 
     private void EditNote()
