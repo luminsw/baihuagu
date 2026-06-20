@@ -13,7 +13,6 @@
 <div class="container mt-4">
     <h2 class="mb-4">📚 知识库浏览</h2>
 
-
     @if (isLoadingVaults)
     {
         <div class="text-center py-5">
@@ -29,11 +28,29 @@
     }
     else if (string.IsNullOrEmpty(selectedVaultId))
     {
+        <!-- 行业过滤栏 -->
+        @if (allIndustries.Count > 0)
+        {
+            <div class="mb-3 d-flex flex-wrap gap-2 align-items-center">
+                <span class="text-muted small">🏭 行业：</span>
+                <button class="btn btn-sm @(selectedIndustries.Count == 0 ? "btn-primary" : "btn-outline-secondary")" @onclick="ClearIndustryFilter">
+                    全部
+                </button>
+                @foreach (var industry in allIndustries)
+                {
+                    <button class="btn btn-sm @(selectedIndustries.Contains(industry) ? "btn-success" : "btn-outline-success")" @onclick="() => ToggleIndustryFilter(industry)"
+                    style="font-size: 0.8em; padding: 0.2em 0.6em;">
+                        @industry
+                    </button>
+                }
+            </div>
+        }
+
         <!-- 标签过滤栏 -->
         @if (allTags.Count > 0)
         {
             <div class="mb-3 d-flex flex-wrap gap-2 align-items-center">
-                <span class="text-muted small">🏷️ 过滤：</span>
+                <span class="text-muted small">🏷️ 标签：</span>
                 <button class="btn btn-sm @(selectedTags.Count == 0 ? "btn-primary" : "btn-outline-secondary")" @onclick="ClearTagFilter">
                     全部
                 </button>
@@ -57,6 +74,10 @@
                         <div class="card-body text-center py-4">
                             <div class="fs-1 mb-2">📚</div>
                             <div class="fw-bold text-truncate">@v.Name</div>
+                            @if (!string.IsNullOrWhiteSpace(v.Industry))
+                            {
+                                <span class="badge bg-secondary mt-1" style="font-size: 0.65em;">@v.Industry</span>
+                            }
                             @if (v.Tags?.Any() == true)
                             {
                                 <div class="mt-1 d-flex flex-wrap justify-content-center gap-1">
@@ -248,6 +269,7 @@
     private bool isLoading = false;
     private bool isLoadingVaults = false;
     private HashSet<string> selectedTags = new();
+    private HashSet<string> selectedIndustries = new();
 
     private List<string> allTags => vaults
         .SelectMany(v => v.Tags ?? new List<string>())
@@ -255,9 +277,17 @@
         .OrderBy(t => t)
         .ToList();
 
-    private List<VaultConfig> FilteredVaults => selectedTags.Count == 0
-        ? vaults
-        : vaults.Where(v => v.Tags != null && selectedTags.All(tag => v.Tags.Contains(tag))).ToList();
+    private List<string> allIndustries => vaults
+        .Select(v => v.Industry)
+        .Where(i => !string.IsNullOrWhiteSpace(i))
+        .Distinct()
+        .OrderBy(i => i)
+        .ToList();
+
+    private List<VaultConfig> FilteredVaults => vaults
+        .Where(v => selectedIndustries.Count == 0 || selectedIndustries.Contains(v.Industry ?? ""))
+        .Where(v => selectedTags.Count == 0 || (v.Tags != null && selectedTags.All(tag => v.Tags.Contains(tag))))
+        .ToList();
 
     private string currentVaultName => vaults.FirstOrDefault(v => v.Id == selectedVaultId)?.Name ?? "";
 
@@ -270,7 +300,6 @@
         isLoadingVaults = true;
         try
         {
-            // forceRefresh: true 确保显示最新推送的移动端知识库
             var response = await VaultsService.GetVaultsAsync(forceRefresh: true);
             vaults = response.Vaults;
         }
@@ -295,6 +324,7 @@
         currentPath = "";
         browseItems.Clear();
         selectedTags.Clear();
+        selectedIndustries.Clear();
     }
 
     private void ToggleTagFilter(string tag)
@@ -308,6 +338,19 @@
     private void ClearTagFilter()
     {
         selectedTags.Clear();
+    }
+
+    private void ToggleIndustryFilter(string industry)
+    {
+        if (selectedIndustries.Contains(industry))
+            selectedIndustries.Remove(industry);
+        else
+            selectedIndustries.Add(industry);
+    }
+
+    private void ClearIndustryFilter()
+    {
+        selectedIndustries.Clear();
     }
 
     private async Task LoadBrowseItems()
