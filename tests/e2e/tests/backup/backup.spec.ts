@@ -1,14 +1,17 @@
 import { test, expect } from '@playwright/test';
-import { navigateTo } from '../helpers';
+import { navigateTo, waitForBlazor } from '../helpers';
 
 test.describe('备份恢复功能', () => {
   test.beforeEach(async ({ page }) => {
-    await navigateTo(page, '/vaults?tab=backup');
+    await navigateTo(page, '/vaults');
+    await waitForBlazor(page);
+    await page.getByText('💾 备份恢复').click();
+    await waitForBlazor(page);
   });
 
   test('备份恢复Tab加载成功', async ({ page }) => {
-    await expect(page.getByRole('heading', { name: /创建备份/ })).toBeVisible({ timeout: 15000 });
-    await expect(page.getByRole('heading', { name: /恢复备份/ })).toBeVisible();
+    await expect(page.getByText('💾 创建备份')).toBeVisible({ timeout: 15000 });
+    await expect(page.getByText('📂 恢复备份')).toBeVisible();
   });
 
   test('创建备份区域有密码输入', async ({ page }) => {
@@ -34,7 +37,7 @@ test.describe('备份恢复功能', () => {
   });
 
   test('备份列表区域可见', async ({ page }) => {
-    await expect(page.getByRole('heading', { name: /已有备份/ })).toBeVisible();
+    await expect(page.getByText('已有备份')).toBeVisible();
   });
 
   test('创建备份按钮存在', async ({ page }) => {

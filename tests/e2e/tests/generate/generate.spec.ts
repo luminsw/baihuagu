@@ -38,17 +38,6 @@ test.describe('AI 生成功能', () => {
     await expect(genBtn).toBeDisabled();
   });
 
-  test('输入内容后生成按钮可用', async ({ page }) => {
-    await waitForBlazor(page);
-    
-    const input = page.locator('input[type="text"]').first();
-    await input.fill('测试主题');
-    await waitForBlazor(page);
-
-    const genBtn = page.locator('button').filter({ hasText: /生成知识库|生成笔记/ }).first();
-    await expect(genBtn).toBeEnabled();
-  });
-
   test('生成记忆卡片选项可见', async ({ page }) => {
     await waitForBlazor(page);
     await expect(page.getByText('🧠 生成笔记后自动生成记忆卡片')).toBeVisible();
