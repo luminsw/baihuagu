@@ -8,11 +8,10 @@ namespace TaskRunner.Data;
 /// </summary>
 public class FamilyDbContext : DbContext
 {
-    private readonly string _dbPath;
+    private string? _dbPath;
 
     public FamilyDbContext(DbContextOptions<FamilyDbContext> options) : base(options)
     {
-        _dbPath = Database.GetDbConnection().ConnectionString;
     }
 
     public FamilyDbContext()
@@ -29,7 +28,23 @@ public class FamilyDbContext : DbContext
     public DbSet<OnboardingState> OnboardingStates => Set<OnboardingState>();
     public DbSet<InitTaskProgress> InitTaskProgresses => Set<InitTaskProgress>();
 
-    public string DatabasePath => _dbPath;
+    public string DatabasePath
+    {
+        get
+        {
+            if (_dbPath != null)
+                return _dbPath;
+            try
+            {
+                _dbPath = Database.GetDbConnection().ConnectionString;
+                return _dbPath;
+            }
+            catch (InvalidOperationException)
+            {
+                return "InMemory";
+            }
+        }
+    }
 
     protected override void OnConfiguring(DbContextOptionsBuilder optionsBuilder)
     {

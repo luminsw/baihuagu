@@ -8,11 +8,10 @@ namespace TaskRunner.Data;
 /// </summary>
 public class AppDbContext : DbContext
 {
-    private readonly string _dbPath;
+    private string? _dbPath;
 
     public AppDbContext(DbContextOptions<AppDbContext> options) : base(options)
     {
-        _dbPath = Database.GetDbConnection().ConnectionString;
     }
 
     /// <summary>
@@ -62,7 +61,23 @@ public class AppDbContext : DbContext
     /// <summary>
     /// 获取数据库文件路径
     /// </summary>
-    public string DatabasePath => _dbPath;
+    public string DatabasePath
+    {
+        get
+        {
+            if (_dbPath != null)
+                return _dbPath;
+            try
+            {
+                _dbPath = Database.GetDbConnection().ConnectionString;
+                return _dbPath;
+            }
+            catch (InvalidOperationException)
+            {
+                return "InMemory";
+            }
+        }
+    }
 
     protected override void OnConfiguring(DbContextOptionsBuilder optionsBuilder)
     {

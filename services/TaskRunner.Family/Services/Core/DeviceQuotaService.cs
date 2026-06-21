@@ -168,8 +168,9 @@ public class DeviceQuotaService
     /// <summary>
     /// 根据商品ID解析配额信息
     /// </summary>
-    public static (string quotaType, int quotaAmount, decimal price)? ParseProduct(string productId)
+    public static (string quotaType, int quotaAmount, decimal price)? ParseProduct(string? productId)
     {
+        if (productId == null) return null;
         if (ProductCatalog.TryGetValue(productId, out var info))
         {
             return info;
