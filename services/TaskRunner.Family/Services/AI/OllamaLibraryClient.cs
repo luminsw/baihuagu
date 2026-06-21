@@ -158,7 +158,7 @@ public class OllamaLibraryClient
 
     private static double EstimateSizeGiB(string paramSize)
     {
-        var match = Regex.Match(paramSize, @"([0-9.]+)\s*([KMGT])B", RegexOptions.IgnoreCase);
+        var match = Regex.Match(paramSize, @"([0-9.]+)\s*([KMGT])?B", RegexOptions.IgnoreCase);
         if (!match.Success) return 5;
         var val = double.Parse(match.Groups[1].Value);
         var unit = match.Groups[2].Value.ToUpperInvariant();
