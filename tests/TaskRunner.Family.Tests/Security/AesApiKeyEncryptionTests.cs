@@ -5,6 +5,8 @@ using Xunit;
 
 namespace TaskRunner.Family.Tests.Security;
 
+// 定义测试集合，禁止并发运行（避免环境变量冲突）
+[Collection("AesApiKeyEncryption")]
 public class AesApiKeyEncryptionTests : IDisposable
 {
     private readonly string _originalEnvVar;
