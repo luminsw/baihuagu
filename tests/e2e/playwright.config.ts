@@ -46,8 +46,8 @@ export default defineConfig({
     { name: 'browse', testDir: './tests/browse', testMatch: /.*\.spec\.ts/ },
     // 任务管理：任务列表、状态显示、重试、清空（共享）
     { name: 'tasks', testDir: path.join(sharedE2EPath, 'tests/tasks'), testMatch: /.*\.spec\.ts/ },
-    // 设置页：AI 提供商、模型切换、根路径（共享）
-    { name: 'settings', testDir: path.join(sharedE2EPath, 'tests/settings'), testMatch: /.*\.spec\.ts/ },
+    // 设置页：AI提供商管理、编辑删除（本地）
+    { name: 'settings', testDir: './tests/settings', testMatch: /.*\.spec\.ts/ },
     // 记忆卡片：Anki 卡片生成任务（共享）
     { name: 'anki', testDir: path.join(sharedE2EPath, 'tests/anki'), testMatch: /.*\.spec\.ts/ },
     // 移动端管理：设备注册、发现（本地）
@@ -60,5 +60,9 @@ export default defineConfig({
     { name: 'achievements', testDir: './tests/achievements', testMatch: /.*\.spec\.ts/ },
     // 赛舟榜：榜单显示、Tab切换、排名（本地）
     { name: 'leaderboard', testDir: './tests/leaderboard', testMatch: /.*\.spec\.ts/ },
+    // AI对话：消息列表、输入框、发送按钮（本地）
+    { name: 'messages', testDir: './tests/messages', testMatch: /.*\.spec\.ts/ },
+    // 记忆卡片：知识库选择、搜索、统计（本地）
+    { name: 'cards', testDir: './tests/cards', testMatch: /.*\.spec\.ts/ },
   ],
 });
