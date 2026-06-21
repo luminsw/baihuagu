@@ -193,6 +193,7 @@ models/
 tests/e2e/test-results/
 tests/e2e/test-results.json
 tests/e2e/playwright-artifacts-*/
+tests/e2e/storage-state.json
 tests/TaskRunner.Family.Tests/TestResults/
 tests/TaskRunner.Family.Tests/*.coverage
 /playwright/.cache/
