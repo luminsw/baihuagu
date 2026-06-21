@@ -52,5 +52,13 @@ export default defineConfig({
     { name: 'anki', testDir: path.join(sharedE2EPath, 'tests/anki'), testMatch: /.*\.spec\.ts/ },
     // 移动端管理：设备注册、发现（本地）
     { name: 'devices', testDir: './tests/family-mode', testMatch: /devices\.spec\.ts/ },
+    // 家长看板：家庭统计、学习趋势、答题分布（本地）
+    { name: 'dashboard', testDir: './tests/dashboard', testMatch: /.*\.spec\.ts/ },
+    // 每日一帖：卡片翻转、难度选择、进度显示（本地）
+    { name: 'daily-card', testDir: './tests/daily-card', testMatch: /.*\.spec\.ts/ },
+    // 成就墙：成就解锁、学习者管理、统计概览（本地）
+    { name: 'achievements', testDir: './tests/achievements', testMatch: /.*\.spec\.ts/ },
+    // 赛舟榜：榜单显示、Tab切换、排名（本地）
+    { name: 'leaderboard', testDir: './tests/leaderboard', testMatch: /.*\.spec\.ts/ },
   ],
 });
