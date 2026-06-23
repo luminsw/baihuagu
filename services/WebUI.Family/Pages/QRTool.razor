@@ -2,7 +2,7 @@
 @rendermode InteractiveServer
 @using Microsoft.JSInterop
 @inject IJSRuntime JS
-@inject HttpClient HttpClient
+@inject IHttpClientFactory HttpClientFactory
 
 <PageTitle>二维码工具</PageTitle>
 
@@ -152,7 +152,8 @@
         _aiKeyQRError = "";
         try
         {
-            _aiKeyQRCode = await HttpClient.GetFromJsonAsync<AiKeyQRResponse>("api/ai/config/main-apikey");
+            var aiClient = HttpClientFactory.CreateClient("TaskRunnerAiApi");
+            _aiKeyQRCode = await aiClient.GetFromJsonAsync<AiKeyQRResponse>("api/ai/config/main-apikey");
             if (_aiKeyQRCode != null && !string.IsNullOrEmpty(_aiKeyQRCode.ApiKey))
             {
                 await Task.Yield();
@@ -175,7 +176,8 @@
         _serverQRError = "";
         try
         {
-            _serverQRCode = await HttpClient.GetFromJsonAsync<ServerQRResponse>("api/pairing/qrcode");
+            var apiClient = HttpClientFactory.CreateClient("TaskRunnerApi");
+            _serverQRCode = await apiClient.GetFromJsonAsync<ServerQRResponse>("api/pairing/qrcode");
             if (_serverQRCode != null && !string.IsNullOrEmpty(_serverQRCode.QrCodeData))
             {
                 await Task.Yield();
