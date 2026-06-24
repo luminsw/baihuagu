@@ -33,7 +33,7 @@ namespace TaskRunner.Services
         private CancellationTokenSource? _receiveCts;
         private Task? _receiveTask;
         private int _servicePort = 0;
-        private string _serviceId = "com.doctornotes.sync";
+        private string _serviceId = "com.lumin.baihuagu";
         private string _deviceId;
         private string _deviceName;
         private readonly bool _enableSimulatedDiscovery;

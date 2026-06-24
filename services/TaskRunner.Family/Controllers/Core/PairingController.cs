@@ -98,9 +98,9 @@ namespace TaskRunner.Controllers
             
             return Ok(new
             {
-                serviceName = "doctor-notes-sync",
+                serviceName = "baihuagu",
                 serviceType = "_http._tcp.local",
-                serviceId = "com.doctornotes.sync",
+                serviceId = "com.lumin.baihuagu",
                 serverId = _oneHopService.DeviceId,
                 url = url,
                 hostName = hostName,
@@ -147,7 +147,7 @@ namespace TaskRunner.Controllers
             
             return Ok(new
             {
-                serviceId = "com.doctornotes.sync",
+                serviceId = "com.lumin.baihuagu",
                 serverId = _oneHopService.DeviceId,
                 baseUrl = url,
                 httpUrl = url,

@@ -24,7 +24,7 @@ namespace TaskRunner.Services
     {
         private readonly ILogger<MDnsService> _logger;
         private readonly ServerAddressService _serverAddressService;
-        private readonly string _serviceName = "doctor-notes-sync";
+        private readonly string _serviceName = "baihuagu";
         private readonly string _serviceType = "_http._tcp";
 
         // Avahi (Linux)
@@ -98,7 +98,7 @@ namespace TaskRunner.Services
             EnsureAvahiDaemonRunning();
 
             // 安全：mDNS 广播不再包含 serverId 和完整 apiUrl，减少信息泄露
-            var args = $"-s {hostName} {_serviceType} {port} \"serviceId=com.doctornotes.sync\" \"hostName={hostName}\"";
+            var args = $"-s {hostName} {_serviceType} {port} \"serviceId=com.lumin.baihuagu\" \"hostName={hostName}\"";
             _logger.LogInformation("Starting avahi-publish-service: {Args}", args);
 
             // Use nohup to keep the process running even if parent's stdout closes
@@ -195,7 +195,7 @@ namespace TaskRunner.Services
                 });
             }
 
-            _serviceProfile.AddProperty("serviceId", "com.doctornotes.sync");
+            _serviceProfile.AddProperty("serviceId", "com.lumin.baihuagu");
             _serviceProfile.AddProperty("hostName", hostName);
 
             _multicastService = new MulticastService();

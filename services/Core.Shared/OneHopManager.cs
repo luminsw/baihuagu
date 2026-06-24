@@ -18,7 +18,7 @@ namespace TaskRunner.Services
         private readonly IOneHopService _oneHopService;
         private readonly ServerAddressService _serverAddressService;
         private bool _isInitialized = false;
-        private string _serviceId = "com.doctornotes.sync";
+        private string _serviceId = "com.lumin.baihuagu";
 
         public OneHopManager(
             ILogger<OneHopManager> logger,
@@ -67,7 +67,7 @@ namespace TaskRunner.Services
                     { "deviceName", hostName },
                     { "ipAddress", ipAddress },
                     { "httpPort", port.ToString() },
-                    { "serviceType", "doctor-notes-sync" },
+                    { "serviceType", "baihuagu" },
                     { "version", "1.0.0" },
                     { "capabilities", "file-sync,manifest,health-check" }
                 };
