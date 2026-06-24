@@ -20,7 +20,7 @@ tests/                  # E2E 测试
 
 ```bash
 # 一键打开管理面板（自动启动服务）
-./yj dashboard
+./bhg dashboard
 
 # 手动启动
 cd services/TaskRunner.Family && dotnet run
@@ -32,7 +32,7 @@ cd services/WebUI.Family && dotnet run
 无需密码，无需 IP 白名单。使用本机 CLI Token 授权：
 
 ```bash
-./yj dashboard   # 本机一键访问
+./bhg dashboard   # 本机一键访问
 ```
 
 ## 端口

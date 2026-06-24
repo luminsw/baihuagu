@@ -24,7 +24,7 @@
 - `services/TaskRunner.Contracts/`：共享 DTO 与接口契约
 - `services/Core.Shared/`：共享服务层（含 VaultSettingsService、DeviceService 等）
 - `services/TaskRunner.Data/`：共享 EF Core 数据层
-- `yj`：极简 CLI 工具（Linux/Mac）
+- `bhg`：极简 CLI 工具（Linux/Mac）
 - `docs/`：协议与架构文档
 - `scripts/`：开发、发布、部署脚本
 
@@ -32,16 +32,16 @@
 
 ```bash
 # 一键打开管理面板（自动启动服务）
-./yj dashboard
+./bhg dashboard
 ```
 
-无需密码，无需 IP 白名单。授权基于操作系统用户权限（只有能运行 `yj` 命令的本机用户才能访问）。
+无需密码，无需 IP 白名单。授权基于操作系统用户权限（只有能运行 `bhg` 命令的本机用户才能访问）。
 
 ## 常用命令
 
 ```bash
 # 开发模式（Linux/macOS，一键启动全部 3 个后台 + WebUI）
-./yj dashboard
+./bhg dashboard
 
 # 或手动分别启动
 # 终端 1
