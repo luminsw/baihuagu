@@ -608,13 +608,17 @@ app.Use(async (context, next) =>
             using var client = new HttpClient { Timeout = TimeSpan.FromMinutes(5) };
             using var request = new HttpRequestMessage(new HttpMethod(context.Request.Method), targetUrl);
 
-            // 复制请求头（跳过由 HttpClient 自动管理的内容长度/主机头）
+            // 复制请求头（跳过 Host/Content-Length 以及含非 ASCII 字符的头）
             foreach (var header in context.Request.Headers)
             {
                 if (header.Key.Equals("Host", StringComparison.OrdinalIgnoreCase) ||
                     header.Key.Equals("Content-Length", StringComparison.OrdinalIgnoreCase))
                     continue;
-                request.Headers.TryAddWithoutValidation(header.Key, header.Value.ToArray());
+                var values = header.Value.ToArray();
+                // HttpClient 要求请求头仅含 ASCII 字符，否则抛出 HttpRequestException
+                if (values.Any(v => v != null && v.Any(c => c > 127)))
+                    continue;
+                request.Headers.TryAddWithoutValidation(header.Key, values);
             }
 
             // 为 Vault 的 FamilySyncAuthorizationStrategy 附加 Bearer Token：
