@@ -20,6 +20,8 @@ public static class MauiProgram
         // Platform services
         builder.Services.AddSingleton<ISecureStore, MauiSecureStore>();
         builder.Services.AddSingleton<IServerConfigStore, MauiServerConfigStore>();
+        builder.Services.AddSingleton<MobileContract.Services.IVaultStorageAdapter>(sp =>
+            new VaultStorageAdapter(Path.Combine(FileSystem.AppDataDirectory, "vaults")));
 
         // SDK services
         builder.Services.AddSingleton(sp =>

@@ -1,6 +1,8 @@
 @page "/pairing"
 @inject BaihuaguSdk.Services.PairingServiceImpl PairingService
 @inject BaihuaguSdk.Storage.IServerConfigStore ServerStore
+@inject BaihuaguSdk.Signing.IRequestSigner Signer
+@inject BaihuaguSdk.Storage.ISecureStore SecureStore
 
 <PageTitle>百花谷 - 配对</PageTitle>
 
@@ -68,16 +70,7 @@
 
             var addrs = BaihuaguSdk.Services.PairingServiceImpl.GetServerAddresses(content);
             _result = await PairingService.RegisterDeviceAsync(addrs.HttpUrl);
-
-            if (_result.Success)
-            {
-                await ServerStore.AddOrUpdateServerAsync(new BaihuaguSdk.Models.ServerConfig
-                {
-                    Id = addrs.ServerId, Name = addrs.HostName,
-                    HttpUrl = addrs.HttpUrl, HttpsUrl = addrs.HttpsUrl,
-                    IsOnline = true, LastUsedAt = DateTimeOffset.UtcNow
-                });
-            }
+            await SaveResult(addrs.ServerId, addrs.HostName, addrs.HttpUrl);
         }
         catch (Exception ex) { _qrError = ex.Message; }
         finally { _isLoading = false; }
@@ -91,18 +84,28 @@
         {
             var url = BaihuaguSdk.Transport.HttpTransport.NormalizeBaseUrl(_manualUrl);
             _result = await PairingService.RegisterDeviceAsync(url);
-
-            if (_result.Success)
-            {
-                await ServerStore.AddOrUpdateServerAsync(new BaihuaguSdk.Models.ServerConfig
-                {
-                    Id = $"manual-{DateTimeOffset.UtcNow.ToUnixTimeMilliseconds()}",
-                    Name = new Uri(url).Host, HttpUrl = url,
-                    IsOnline = true, LastUsedAt = DateTimeOffset.UtcNow
-                });
-            }
+            var serverId = $"manual-{DateTimeOffset.UtcNow.ToUnixTimeMilliseconds()}";
+            await SaveResult(serverId, new Uri(url).Host, url);
         }
         catch (Exception ex) { _manualError = ex.Message; }
         finally { _isLoading = false; }
+    }
+
+    private async Task SaveResult(string serverId, string serverName, string httpUrl)
+    {
+        if (_result == null || !_result.Success) return;
+
+        // Save shared secret if authorized
+        if (_result.Authorized && !string.IsNullOrEmpty(_result.SharedSecret))
+        {
+            Signer.SetServerSecret(httpUrl, _result.SharedSecret);
+            await SecureStore.SetAsync($"secret_{httpUrl}", _result.SharedSecret);
+        }
+
+        await ServerStore.AddOrUpdateServerAsync(new BaihuaguSdk.Models.ServerConfig
+        {
+            Id = serverId, Name = serverName,
+            HttpUrl = httpUrl, IsOnline = true, LastUsedAt = DateTimeOffset.UtcNow
+        });
     }
 }

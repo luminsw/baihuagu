@@ -1,6 +1,9 @@
 @page "/sync"
 @inject BaihuaguSdk.Services.SyncServiceImpl SyncService
+@inject BaihuaguSdk.Services.PairingServiceImpl PairingService
+@inject BaihuaguSdk.Signing.RequestSigner Signer
 @inject BaihuaguSdk.Storage.IServerConfigStore ServerStore
+@inject BaihuaguSdk.Storage.ISecureStore SecureStore
 
 <PageTitle>百花谷 - 同步</PageTitle>
 
@@ -8,11 +11,11 @@
 
 @if (_servers.Count == 0)
 {
-    <p>没有已配对的服务器。</p>
+    <p class="empty-hint">还没有配对的服务器。<a href="/pairing">去添加</a></p>
 }
 else
 {
-    <select @bind="_selectedServerId" class="server-select">
+    <select @bind="_selectedServerId" @bind:after="OnServerChanged" class="server-select">
         <option value="">-- 选择服务器 --</option>
         @foreach (var s in _servers)
         {
@@ -20,40 +23,63 @@ else
         }
     </select>
 
-    @if (_selectedServer != null)
+    @if (_selectedServer != null && !string.IsNullOrEmpty(_selectedServer.HttpUrl))
     {
-        <button class="btn primary" @onclick="FetchVaults" disabled="@_isLoading">
-            获取知识库列表
-        </button>
-
-        @if (_vaults.Count > 0)
+        @if (!_hasSecret)
         {
-            <h3>知识库 (@_vaults.Count)</h3>
-            <div class="vault-list">
-                @foreach (var v in _vaults)
+            <div class="warning-banner">
+                <p>⚠️ 尚未配对认证。请先注册设备获取共享密钥。</p>
+                <button class="btn primary" @onclick="RegisterDevice">注册设备</button>
+                @if (_regResult != null)
                 {
-                    <div class="vault-card">
-                        <span>@v.Name</span>
-                        <span class="industry">@v.Industry</span>
-                        <button class="btn small" @onclick="() => StartSync(v.Id)"
-                                disabled="@_syncingVault == v.Id">
-                            @(_syncingVault == v.Id ? "同步中..." : "同步")
-                        </button>
-                    </div>
+                    <p class="@(_regResult.Success ? "success" : "error")">
+                        @(_regResult.Success
+                            ? (_regResult.Authorized ? "✅ 已授权! 密钥已保存" : "已注册，请在 WebUI 中授权后重试")
+                            : "注册失败，请检查网络")
+                    </p>
                 }
             </div>
         }
-
-        @if (_manifest != null)
+        else
         {
-            <div class="sync-result">
-                <p>清单已获取: @(_manifest.Files?.Count ?? 0) 个文件</p>
-            </div>
-        }
+            <button class="btn primary" @onclick="FetchVaults" disabled="@_isLoading">
+                @(_isLoading ? "加载中..." : "📋 获取知识库列表")
+            </button>
 
-        @if (!string.IsNullOrEmpty(_error))
-        {
-            <p class="error">@_error</p>
+            @if (_vaults.Count > 0)
+            {
+                <h3>知识库 (@_vaults.Count)</h3>
+                <div class="vault-list">
+                    @foreach (var v in _vaults)
+                    {
+                        <div class="vault-card">
+                            <div>
+                                <strong>@v.Name</strong>
+                                <span class="industry">@v.Industry</span>
+                            </div>
+                            <button class="btn small"
+                                    @onclick="() => SyncVault(v.Id)" disabled="@(_syncingVault == v.Id)">
+                                @(_syncingVault == v.Id ? "⏳ 同步中..." : "🔄 同步")
+                            </button>
+                        </div>
+                    }
+                </div>
+            }
+
+            @if (_syncResult != null)
+            {
+                <div class="sync-result">
+                    <p>✅ 同步完成: 共 @_syncResult.TotalFiles 文件,
+                       下载 @_syncResult.Downloaded,
+                       删除 @_syncResult.Deleted,
+                       失败 @_syncResult.Failed</p>
+                </div>
+            }
+
+            @if (!string.IsNullOrEmpty(_error))
+            {
+                <p class="error">@_error</p>
+            }
         }
     }
 }
@@ -65,36 +91,81 @@ else
     private IReadOnlyList<MobileContract.VaultSync.VaultInfo> _vaults = Array.Empty<MobileContract.VaultSync.VaultInfo>();
     private bool _isLoading;
     private string? _syncingVault;
-    private MobileContract.VaultSync.VaultManifestResponse? _manifest;
+    private MobileContract.VaultSync.SyncResult? _syncResult;
+    private BaihuaguSdk.Models.RegisterDeviceResult? _regResult;
+    private bool _hasSecret;
     private string? _error;
 
     protected override async Task OnInitializedAsync()
     {
         _servers = await ServerStore.GetServersAsync();
+        var current = await ServerStore.GetCurrentServerAsync();
+        if (current != null)
+        {
+            _selectedServerId = current.Id;
+            _selectedServer = current;
+        }
+    }
+
+    private async Task OnServerChanged()
+    {
+        _selectedServer = _servers.FirstOrDefault(s => s.Id == _selectedServerId);
+        if (_selectedServer != null)
+        {
+            await ServerStore.SetCurrentServerAsync(_selectedServer.Id);
+            _hasSecret = Signer.HasServerSecret(_selectedServer.HttpUrl);
+        }
+        _syncResult = null; _error = null; _regResult = null;
+    }
+
+    private async Task RegisterDevice()
+    {
+        if (_selectedServer == null) return;
+        _isLoading = true; _error = null;
+        try
+        {
+            _regResult = await PairingService.RegisterDeviceAsync(_selectedServer.HttpUrl);
+            if (_regResult is { Success: true, Authorized: true, SharedSecret: not null })
+            {
+                Signer.SetServerSecret(_selectedServer.HttpUrl, _regResult.SharedSecret);
+                await SecureStore.SetAsync($"secret_{_selectedServer.HttpUrl}", _regResult.SharedSecret);
+                _hasSecret = true;
+            }
+        }
+        catch (Exception ex) { _error = ex.Message; }
+        finally { _isLoading = false; }
     }
 
     private async Task FetchVaults()
     {
+        if (_selectedServer == null) return;
         _error = null; _isLoading = true;
         try
         {
-            _selectedServer = _servers.First(s => s.Id == _selectedServerId);
             _vaults = await SyncService.FetchVaultListAsync(_selectedServer.HttpUrl);
         }
         catch (Exception ex) { _error = ex.Message; }
         finally { _isLoading = false; }
     }
 
-    private async Task StartSync(string vaultId)
+    private async Task SyncVault(string vaultId)
     {
         if (_selectedServer == null) return;
-        _syncingVault = vaultId;
+        _syncingVault = vaultId; _error = null;
         try
         {
-            // Note: needs a real IVaultStorageAdapter implementation for file writes
-            _manifest = await SyncService.FetchManifestAsync(
-                _selectedServer.HttpUrl, vaultId, MobileApp.Maui.Services.DeviceInfoHelper.GetDeviceId());
-            // Simplified: for now we just verify the manifest fetch works
+            // Use file system storage for sync
+            var vaultRoot = Path.Combine(FileSystem.AppDataDirectory, "vaults", vaultId);
+            var storage = new MobileApp.Maui.Services.VaultStorageAdapter(vaultRoot);
+            var deviceId = Signer.DeviceId;
+
+            _syncResult = await SyncService.SyncVaultAsync(
+                _selectedServer.HttpUrl, vaultId, deviceId, storage);
+
+            await ServerStore.AddOrUpdateServerAsync(_selectedServer with
+            {
+                IsOnline = true, LastUsedAt = DateTimeOffset.UtcNow
+            });
         }
         catch (Exception ex) { _error = ex.Message; }
         finally { _syncingVault = null; }

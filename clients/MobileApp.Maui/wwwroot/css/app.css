@@ -48,3 +48,17 @@ h3 { font-size: 16px; margin: 16px 0 8px; }
 
 .settings-section { background: white; border-radius: 10px; padding: 16px; margin-bottom: 12px; }
 .settings-section code { background: #f0f0f0; padding: 2px 6px; border-radius: 4px; font-size: 13px; }
+
+.server-card { cursor: pointer; transition: transform 0.1s; }
+.server-card:active { transform: scale(0.98); }
+.server-time { font-size: 11px; color: #999; margin-top: 4px; }
+
+.quick-actions { background: white; border-radius: 10px; padding: 16px; margin-top: 16px; display: flex; flex-direction: column; gap: 10px; }
+.quick-actions h3 { margin-top: 0; }
+
+.warning-banner { background: #fff8e1; padding: 14px; border-radius: 8px; margin: 12px 0; border-left: 4px solid #ff9500; }
+.warning-banner p { margin: 4px 0; }
+.success { color: #2e7d32; }
+
+a.btn { text-decoration: none; display: inline-block; }
+a.btn.primary { color: white; }
