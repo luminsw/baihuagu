@@ -1,0 +1,16 @@
+@inherits LayoutComponentBase
+
+<div class="app-shell">
+    <nav class="top-bar">
+        <span class="brand">百花谷</span>
+        <div class="nav-links">
+            <NavLink href="/" Match="NavLinkMatch.All">首页</NavLink>
+            <NavLink href="/pairing">配对</NavLink>
+            <NavLink href="/sync">同步</NavLink>
+            <NavLink href="/settings">设置</NavLink>
+        </div>
+    </nav>
+    <main class="content">
+        @Body
+    </main>
+</div>

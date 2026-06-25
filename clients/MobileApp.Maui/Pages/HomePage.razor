@@ -1,0 +1,36 @@
+@page "/"
+@inject BaihuaguSdk.Storage.IServerConfigStore ServerStore
+
+<PageTitle>百花谷 - 首页</PageTitle>
+
+<h1>百花谷</h1>
+<p>个人知识库集散地</p>
+
+<h2>已配对的服务器</h2>
+
+@if (_servers.Count == 0)
+{
+    <p class="empty-hint">还没有配对的服务器，去<a href="/pairing">配对页面</a>添加吧。</p>
+}
+else
+{
+    <div class="server-list">
+        @foreach (var s in _servers)
+        {
+            <div class="server-card @(s.IsOnline ? "online" : "offline")">
+                <div class="server-name">@s.Name</div>
+                <div class="server-url">@s.HttpUrl</div>
+                <div class="server-status">@(s.IsOnline ? "在线" : "离线")</div>
+            </div>
+        }
+    </div>
+}
+
+@code {
+    private IReadOnlyList<BaihuaguSdk.Models.ServerConfig> _servers = Array.Empty<BaihuaguSdk.Models.ServerConfig>();
+
+    protected override async Task OnInitializedAsync()
+    {
+        _servers = await ServerStore.GetServersAsync();
+    }
+}

@@ -1,0 +1,108 @@
+@page "/pairing"
+@inject BaihuaguSdk.Services.PairingServiceImpl PairingService
+@inject BaihuaguSdk.Storage.IServerConfigStore ServerStore
+
+<PageTitle>百花谷 - 配对</PageTitle>
+
+<h1>连接服务器</h1>
+
+<div class="pair-methods">
+    <div class="method-card">
+        <h3>扫码连接</h3>
+        <p>扫描百花谷管理后台的二维码</p>
+        <textarea @bind="_qrInput" placeholder="粘贴二维码内容..." rows="3"></textarea>
+        <button class="btn primary" @onclick="ParseAndPair" disabled="@_isLoading">
+            @(_isLoading ? "解析中..." : "解析并配对")
+        </button>
+        @if (!string.IsNullOrEmpty(_qrError))
+        {
+            <p class="error">@_qrError</p>
+        }
+    </div>
+
+    <div class="method-card">
+        <h3>手动输入</h3>
+        <p>直接输入百花谷服务器地址</p>
+        <input @bind="_manualUrl" placeholder="例如: http://192.168.1.100:8788" />
+        <button class="btn primary" @onclick="ManualRegister" disabled="@_isLoading">
+            @(_isLoading ? "注册中..." : "注册设备")
+        </button>
+        @if (!string.IsNullOrEmpty(_manualError))
+        {
+            <p class="error">@_manualError</p>
+        }
+    </div>
+</div>
+
+@if (_result != null)
+{
+    <div class="result @(_result.Success ? "success" : "error")">
+        <p>注册结果: @(_result.Success ? "成功" : "失败")</p>
+        @if (_result.Authorized)
+        {
+            <p>设备已授权! SharedSecret 已保存。</p>
+        }
+        @if (!string.IsNullOrEmpty(_result.DeviceName))
+        {
+            <p>服务器: @_result.DeviceName</p>
+        }
+    </div>
+}
+
+@code {
+    private string _qrInput = "";
+    private string _manualUrl = "";
+    private string? _qrError;
+    private string? _manualError;
+    private bool _isLoading;
+    private BaihuaguSdk.Models.RegisterDeviceResult? _result;
+
+    private async Task ParseAndPair()
+    {
+        _qrError = null;
+        _isLoading = true;
+        try
+        {
+            var content = BaihuaguSdk.Services.PairingServiceImpl.ParseQrCode(_qrInput);
+            if (content == null) { _qrError = "无法解析二维码内容"; return; }
+
+            var addrs = BaihuaguSdk.Services.PairingServiceImpl.GetServerAddresses(content);
+            _result = await PairingService.RegisterDeviceAsync(addrs.HttpUrl);
+
+            if (_result.Success)
+            {
+                await ServerStore.AddOrUpdateServerAsync(new BaihuaguSdk.Models.ServerConfig
+                {
+                    Id = addrs.ServerId, Name = addrs.HostName,
+                    HttpUrl = addrs.HttpUrl, HttpsUrl = addrs.HttpsUrl,
+                    IsOnline = true, LastUsedAt = DateTimeOffset.UtcNow
+                });
+            }
+        }
+        catch (Exception ex) { _qrError = ex.Message; }
+        finally { _isLoading = false; }
+    }
+
+    private async Task ManualRegister()
+    {
+        _manualError = null;
+        _isLoading = true;
+        try
+        {
+            var url = BaihuaguSdk.Transport.HttpTransport.NormalizeBaseUrl(_manualUrl);
+            _result = await PairingService.RegisterDeviceAsync(url);
+
+            if (_result.Success)
+            {
+                await ServerStore.AddOrUpdateServerAsync(new BaihuaguSdk.Models.ServerConfig
+                {
+                    Id = $"manual-{DateTimeOffset.UtcNow.ToUnixTimeMilliseconds()}",
+                    Name = new Uri(url).Host, HttpUrl = url,
+                    IsOnline = true, LastUsedAt = DateTimeOffset.UtcNow
+                });
+            }
+        }
+        catch (Exception ex) { _manualError = ex.Message; }
+        finally { _isLoading = false; }
+    }
+}

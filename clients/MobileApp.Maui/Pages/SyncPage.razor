@@ -1,0 +1,102 @@
+@page "/sync"
+@inject BaihuaguSdk.Services.SyncServiceImpl SyncService
+@inject BaihuaguSdk.Storage.IServerConfigStore ServerStore
+
+<PageTitle>百花谷 - 同步</PageTitle>
+
+<h1>知识库同步</h1>
+
+@if (_servers.Count == 0)
+{
+    <p>没有已配对的服务器。</p>
+}
+else
+{
+    <select @bind="_selectedServerId" class="server-select">
+        <option value="">-- 选择服务器 --</option>
+        @foreach (var s in _servers)
+        {
+            <option value="@s.Id">@s.Name (@s.HttpUrl)</option>
+        }
+    </select>
+
+    @if (_selectedServer != null)
+    {
+        <button class="btn primary" @onclick="FetchVaults" disabled="@_isLoading">
+            获取知识库列表
+        </button>
+
+        @if (_vaults.Count > 0)
+        {
+            <h3>知识库 (@_vaults.Count)</h3>
+            <div class="vault-list">
+                @foreach (var v in _vaults)
+                {
+                    <div class="vault-card">
+                        <span>@v.Name</span>
+                        <span class="industry">@v.Industry</span>
+                        <button class="btn small" @onclick="() => StartSync(v.Id)"
+                                disabled="@_syncingVault == v.Id">
+                            @(_syncingVault == v.Id ? "同步中..." : "同步")
+                        </button>
+                    </div>
+                }
+            </div>
+        }
+
+        @if (_manifest != null)
+        {
+            <div class="sync-result">
+                <p>清单已获取: @(_manifest.Files?.Count ?? 0) 个文件</p>
+            </div>
+        }
+
+        @if (!string.IsNullOrEmpty(_error))
+        {
+            <p class="error">@_error</p>
+        }
+    }
+}
+
+@code {
+    private IReadOnlyList<BaihuaguSdk.Models.ServerConfig> _servers = Array.Empty<BaihuaguSdk.Models.ServerConfig>();
+    private string _selectedServerId = "";
+    private BaihuaguSdk.Models.ServerConfig? _selectedServer;
+    private IReadOnlyList<MobileContract.VaultSync.VaultInfo> _vaults = Array.Empty<MobileContract.VaultSync.VaultInfo>();
+    private bool _isLoading;
+    private string? _syncingVault;
+    private MobileContract.VaultSync.VaultManifestResponse? _manifest;
+    private string? _error;
+
+    protected override async Task OnInitializedAsync()
+    {
+        _servers = await ServerStore.GetServersAsync();
+    }
+
+    private async Task FetchVaults()
+    {
+        _error = null; _isLoading = true;
+        try
+        {
+            _selectedServer = _servers.First(s => s.Id == _selectedServerId);
+            _vaults = await SyncService.FetchVaultListAsync(_selectedServer.HttpUrl);
+        }
+        catch (Exception ex) { _error = ex.Message; }
+        finally { _isLoading = false; }
+    }
+
+    private async Task StartSync(string vaultId)
+    {
+        if (_selectedServer == null) return;
+        _syncingVault = vaultId;
+        try
+        {
+            // Note: needs a real IVaultStorageAdapter implementation for file writes
+            _manifest = await SyncService.FetchManifestAsync(
+                _selectedServer.HttpUrl, vaultId, MobileApp.Maui.Services.DeviceInfoHelper.GetDeviceId());
+            // Simplified: for now we just verify the manifest fetch works
+        }
+        catch (Exception ex) { _error = ex.Message; }
+        finally { _syncingVault = null; }
+    }
+}
