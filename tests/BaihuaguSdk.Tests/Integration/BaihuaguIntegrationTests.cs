@@ -27,7 +27,11 @@ public class BaihuaguIntegrationTests
     private static string TestVaultId =>
         Environment.GetEnvironmentVariable("BAIHUAGU_TEST_VAULT_ID") ?? "";
 
+    private static string? TestSecret =>
+        Environment.GetEnvironmentVariable("BAIHUAGU_TEST_SECRET");
+
     private bool HasServer => !string.IsNullOrEmpty(TestUrl);
+    private bool HasSecret => !string.IsNullOrEmpty(TestSecret);
 
     private (HttpClient, RequestSigner) CreateClient()
     {
@@ -36,7 +40,9 @@ public class BaihuaguIntegrationTests
             ServerCertificateCustomValidationCallback = (_, _, _, _) => true
         };
         var client = new HttpClient(handler) { Timeout = TimeSpan.FromSeconds(30) };
-        var signer = new RequestSigner("test_device", "IntegrationTestDevice");
+        var signer = new RequestSigner("sdk-test-001", "SDK Integration Test");
+        if (HasSecret)
+            signer.SetServerSecret(TestUrl!, TestSecret!);
         return (client, signer);
     }
 
@@ -58,6 +64,7 @@ public class BaihuaguIntegrationTests
     public async Task FetchVaultList_ReturnsVaults()
     {
         if (!HasServer) { _output.WriteLine("SKIP: BAIHUAGU_TEST_URL not set"); return; }
+        if (!HasSecret) { _output.WriteLine("SKIP: BAIHUAGU_TEST_SECRET not set (needed for signing)"); return; }
 
         var (client, signer) = CreateClient();
         var sync = new SyncServiceImpl(client, signer);
@@ -68,17 +75,19 @@ public class BaihuaguIntegrationTests
             _output.WriteLine($"  - {v.Name} (id={v.Id}, industry={v.Industry})");
 
         Assert.NotNull(vaults);
+        Assert.NotEmpty(vaults);
     }
 
     [Fact]
     public async Task FetchManifest_Succeeds()
     {
         if (!HasServer) { _output.WriteLine("SKIP: BAIHUAGU_TEST_URL not set"); return; }
+        if (!HasSecret) { _output.WriteLine("SKIP: BAIHUAGU_TEST_SECRET not set"); return; }
         if (string.IsNullOrEmpty(TestVaultId)) { _output.WriteLine("SKIP: BAIHUAGU_TEST_VAULT_ID not set"); return; }
 
         var (client, signer) = CreateClient();
         var sync = new SyncServiceImpl(client, signer);
-        var manifest = await sync.FetchManifestAsync(TestUrl!, TestVaultId, "test_device");
+        var manifest = await sync.FetchManifestAsync(TestUrl!, TestVaultId, "sdk-test-001");
         _output.WriteLine($"Manifest: vaultId={manifest.VaultId}, files={manifest.Files?.Count ?? 0}");
 
         Assert.NotNull(manifest);
@@ -131,6 +140,8 @@ public class BaihuaguIntegrationTests
 
         if (!string.IsNullOrEmpty(reg.SharedSecret))
             signer.SetServerSecret(addrs.HttpUrl, reg.SharedSecret);
+        else if (HasSecret)
+            signer.SetServerSecret(addrs.HttpUrl, TestSecret!);
 
         var sync = new SyncServiceImpl(client, signer);
         var vaults = await sync.FetchVaultListAsync(addrs.HttpUrl);
