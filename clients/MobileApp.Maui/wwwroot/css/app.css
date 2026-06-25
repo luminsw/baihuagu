@@ -1,12 +1,20 @@
 * { box-sizing: border-box; margin: 0; padding: 0; }
-body { font-family: -apple-system, BlinkMacSystemFont, sans-serif; background: #f5f5f5; color: #333; }
+html, body { font-family: -apple-system, BlinkMacSystemFont, sans-serif; background: #f5f5f5; color: #333; }
 
-.app-shell { max-width: 800px; margin: 0 auto; min-height: 100vh; }
+/* Android status bar - 24dp ≈ 80px on 3x screens */
+.status-bar-safe-area {
+    display: block;
+    height: 30px;
+    width: 100%;
+    background: #1a73e8;
+}
 
-.top-bar { display: flex; align-items: center; padding: 12px 16px; background: #1a73e8; color: white; }
-.top-bar .brand { font-size: 18px; font-weight: bold; margin-right: 24px; }
-.nav-links { display: flex; gap: 16px; }
-.nav-links a { color: rgba(255,255,255,0.85); text-decoration: none; font-size: 14px; }
+.app-shell { max-width: 800px; margin: 0 auto; min-height: calc(100vh - 30px); }
+
+.top-bar { display: flex; align-items: center; padding: 14px 16px; background: #1a73e8; color: white; }
+.top-bar .brand { font-size: 18px; font-weight: bold; margin-right: 20px; }
+.nav-links { display: flex; gap: 20px; }
+.nav-links a { color: rgba(255,255,255,0.9); text-decoration: none; font-size: 16px; padding: 8px 4px; display: inline-block; }
 .nav-links a.active { color: white; font-weight: bold; }
 
 .content { padding: 20px 16px; }
@@ -14,7 +22,7 @@ h1 { font-size: 22px; margin-bottom: 8px; }
 h2 { font-size: 18px; margin: 20px 0 12px; }
 h3 { font-size: 16px; margin: 16px 0 8px; }
 
-.empty-hint { color: #999; margin: 20px 0; }
+.empty-hint { color: #999; margin: 20px 0; font-size: 15px; }
 
 .server-list, .vault-list { display: flex; flex-direction: column; gap: 10px; }
 .server-card, .vault-card { background: white; border-radius: 10px; padding: 14px; }
@@ -31,14 +39,15 @@ h3 { font-size: 16px; margin: 16px 0 8px; }
 .pair-methods { display: flex; flex-direction: column; gap: 20px; }
 .method-card { background: white; border-radius: 10px; padding: 16px; }
 .method-card h3 { margin-top: 0; }
-.method-card input, .method-card textarea { width: 100%; padding: 8px; border: 1px solid #ccc; border-radius: 6px; font-size: 14px; margin: 8px 0; }
+.method-card input, .method-card textarea { width: 100%; padding: 10px; border: 1px solid #ccc; border-radius: 6px; font-size: 16px; margin: 8px 0; }
 
-.server-select { width: 100%; padding: 10px; border: 1px solid #ccc; border-radius: 6px; font-size: 14px; margin: 8px 0; }
+.server-select { width: 100%; padding: 12px; border: 1px solid #ccc; border-radius: 6px; font-size: 16px; margin: 8px 0; }
 
-.btn { padding: 10px 20px; border: none; border-radius: 6px; font-size: 14px; cursor: pointer; }
+.btn { padding: 14px 28px; border: none; border-radius: 8px; font-size: 16px; cursor: pointer; display: inline-block; min-height: 48px; min-width: 48px; margin: 4px 0; }
 .btn.primary { background: #1a73e8; color: white; }
-.btn.small { padding: 6px 12px; font-size: 12px; }
+.btn.small { padding: 8px 16px; font-size: 14px; min-height: 36px; }
 .btn:disabled { opacity: 0.5; }
+.btn:active { transform: scale(0.97); }
 
 .result { margin-top: 16px; padding: 12px; border-radius: 6px; }
 .result.success { background: #e8f5e9; color: #2e7d32; }
@@ -77,3 +86,6 @@ a.btn.primary { color: white; }
 .file-size { font-size: 11px; color: #999; }
 
 .file-content { background: #f8f9fa; padding: 16px; border-radius: 8px; font-size: 14px; line-height: 1.7; white-space: pre-wrap; word-break: break-word; max-height: 70vh; overflow-y: auto; }
+
+/* Debug: big red text for test button feedback */
+.debug-msg { font-size: 20px; color: red; font-weight: bold; margin-top: 12px; padding: 16px; background: #fff3cd; border-radius: 8px; }

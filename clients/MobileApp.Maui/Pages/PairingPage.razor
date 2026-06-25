@@ -63,23 +63,25 @@
     {
         _qrError = null;
         _isLoading = true;
+        StateHasChanged();
         try
         {
             var content = BaihuaguSdk.Services.PairingServiceImpl.ParseQrCode(_qrInput);
-            if (content == null) { _qrError = "无法解析二维码内容"; return; }
+            if (content == null) { _qrError = "无法解析二维码内容"; StateHasChanged(); return; }
 
             var addrs = BaihuaguSdk.Services.PairingServiceImpl.GetServerAddresses(content);
             _result = await PairingService.RegisterDeviceAsync(addrs.HttpUrl);
             await SaveResult(addrs.ServerId, addrs.HostName, addrs.HttpUrl);
         }
         catch (Exception ex) { _qrError = ex.Message; }
-        finally { _isLoading = false; }
+        finally { _isLoading = false; StateHasChanged(); }
     }
 
     private async Task ManualRegister()
     {
         _manualError = null;
         _isLoading = true;
+        StateHasChanged();
         try
         {
             var url = BaihuaguSdk.Transport.HttpTransport.NormalizeBaseUrl(_manualUrl);
@@ -88,7 +90,7 @@
             await SaveResult(serverId, new Uri(url).Host, url);
         }
         catch (Exception ex) { _manualError = ex.Message; }
-        finally { _isLoading = false; }
+        finally { _isLoading = false; StateHasChanged(); }
     }
 
     private async Task SaveResult(string serverId, string serverName, string httpUrl)

@@ -14,7 +14,7 @@
 @if (_servers.Count == 0)
 {
     <p class="empty-hint">还没有配对的服务器</p>
-    <a href="/pairing" class="btn primary">添加服务器</a>
+    <button class="btn primary" @onclick="GoPairing">添加服务器</button>
 }
 else
 {
@@ -30,7 +30,7 @@ else
         }
     </div>
 
-    <a href="/pairing" class="btn" style="margin-top:12px">+ 添加服务器</a>
+    <button class="btn" style="margin-top:12px" @onclick="GoPairing">+ 添加服务器</button>
 }
 
 @if (_selectedServer != null)
@@ -50,8 +50,6 @@ else
     protected override async Task OnInitializedAsync()
     {
         _servers = await ServerStore.GetServersAsync();
-
-        // 恢复持久化的 sharedSecret
         foreach (var s in _servers)
         {
             if (!Signer.HasServerSecret(s.HttpUrl))
@@ -61,7 +59,6 @@ else
                     Signer.SetServerSecret(s.HttpUrl, secret);
             }
         }
-
         var current = await ServerStore.GetCurrentServerAsync();
         if (current != null) _selectedServer = current;
     }
@@ -70,9 +67,10 @@ else
     {
         _selectedServer = server;
         await ServerStore.SetCurrentServerAsync(server.Id);
+        StateHasChanged();
     }
 
-    private void GoSync() => Nav.NavigateTo("/sync");
-    private void GoVaults() => Nav.NavigateTo("/vaults");
-    private void GoPairing() => Nav.NavigateTo("/pairing");
+    private void GoSync() { Nav.NavigateTo("/sync"); StateHasChanged(); }
+    private void GoVaults() { Nav.NavigateTo("/vaults"); StateHasChanged(); }
+    private void GoPairing() { Nav.NavigateTo("/pairing"); StateHasChanged(); }
 }

@@ -1,0 +1,35 @@
+@page "/test"
+@inject NavigationManager Nav
+
+<button class="btn primary" @onclick="Increment" style="margin:20px 0">点我 +1 (@_count)</button>
+<button class="btn" @onclick="GoPairing" style="margin:20px 0">去配对页 (async)</button>
+<button class="btn" @onclick="GoHome">← 去首页 (async)</button>
+<p class="debug-msg">@_msg</p>
+
+@code {
+    private int _count;
+    private string _msg = "还没点";
+
+    private void Increment()
+    {
+        _count++;
+        _msg = $"✅ 点击了 {_count} 次!";
+        StateHasChanged();
+    }
+
+    private async Task GoPairing()
+    {
+        _msg = "导航到 /pairing...";
+        StateHasChanged();
+        await InvokeAsync(() => Nav.NavigateTo("/pairing"));
+        StateHasChanged();
+    }
+
+    private async Task GoHome()
+    {
+        _msg = "导航到 /home...";
+        StateHasChanged();
+        await InvokeAsync(() => Nav.NavigateTo("/home"));
+        StateHasChanged();
+    }
+}

@@ -4,6 +4,7 @@
 @inject BaihuaguSdk.Signing.RequestSigner Signer
 @inject BaihuaguSdk.Storage.IServerConfigStore ServerStore
 @inject BaihuaguSdk.Storage.ISecureStore SecureStore
+@inject NavigationManager Nav
 
 <PageTitle>百花谷 - 同步</PageTitle>
 
@@ -11,7 +12,7 @@
 
 @if (_servers.Count == 0)
 {
-    <p class="empty-hint">还没有配对的服务器。<a href="/pairing">去添加</a></p>
+    <p class="empty-hint">还没有配对的服务器。<button class="btn small primary" @onclick="GoPairing">去添加</button></p>
 }
 else
 {
@@ -107,6 +108,8 @@ else
         }
     }
 
+    private void GoPairing() { Nav.NavigateTo("/pairing"); StateHasChanged(); }
+
     private async Task OnServerChanged()
     {
         _selectedServer = _servers.FirstOrDefault(s => s.Id == _selectedServerId);
@@ -116,12 +119,14 @@ else
             _hasSecret = Signer.HasServerSecret(_selectedServer.HttpUrl);
         }
         _syncResult = null; _error = null; _regResult = null;
+        StateHasChanged();
     }
 
     private async Task RegisterDevice()
     {
         if (_selectedServer == null) return;
         _isLoading = true; _error = null;
+        StateHasChanged();
         try
         {
             _regResult = await PairingService.RegisterDeviceAsync(_selectedServer.HttpUrl);
@@ -133,25 +138,27 @@ else
             }
         }
         catch (Exception ex) { _error = ex.Message; }
-        finally { _isLoading = false; }
+        finally { _isLoading = false; StateHasChanged(); }
     }
 
     private async Task FetchVaults()
     {
         if (_selectedServer == null) return;
         _error = null; _isLoading = true;
+        StateHasChanged();
         try
         {
             _vaults = await SyncService.FetchVaultListAsync(_selectedServer.HttpUrl);
         }
         catch (Exception ex) { _error = ex.Message; }
-        finally { _isLoading = false; }
+        finally { _isLoading = false; StateHasChanged(); }
     }
 
     private async Task SyncVault(string vaultId)
     {
         if (_selectedServer == null) return;
         _syncingVault = vaultId; _error = null;
+        StateHasChanged();
         try
         {
             // Use file system storage for sync
@@ -168,6 +175,6 @@ else
             });
         }
         catch (Exception ex) { _error = ex.Message; }
-        finally { _syncingVault = null; }
+        finally { _syncingVault = null; StateHasChanged(); }
     }
 }

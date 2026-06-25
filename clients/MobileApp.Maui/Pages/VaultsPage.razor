@@ -7,7 +7,7 @@
 
 @if (_vaults.Count == 0)
 {
-    <p class="empty-hint">还没有同步过知识库。<a href="/sync">去同步</a></p>
+    <p class="empty-hint">还没有同步过知识库。<button class="btn small primary" @onclick="GoSync">去同步</button></p>
 }
 else
 {
@@ -84,6 +84,8 @@ else
         _selectedFiles = _vaults.First(v => v.Name == name).Files;
         _viewContent = null;
     }
+
+    private void GoSync() => Nav.NavigateTo("/sync");
 
     private void ViewFile(FileEntry file)
     {
