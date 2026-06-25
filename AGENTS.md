@@ -74,3 +74,53 @@ dotnet build services/DoctorNotes.Family.slnx -c Release
 授权与认证：
 - 局域网发现/配对阶段通过 HMAC 签名（共享 `sharedSecret`）校验设备身份。
 - 转发到 `TaskRunner.Vault` 时，`TaskRunner.Family` 会为已授权设备自动附加 `Authorization: Bearer <accessToken>`，Vault 侧校验 Bearer Token 或本机回环请求。
+
+## BaihuaguSdk（跨平台移动端 SDK）
+
+**位置**: `libs/BaihuaguSdk/` — 纯 C# `net9.0;net10.0` 类库，零 MAUI 依赖。
+
+封装了与百花谷服务器通信的全部协议层：
+
+| 模块 | 说明 |
+|------|------|
+| `Signing/` | HMAC-SHA256 请求签名（与 Kotlin `RequestSigner.kt` 算法一致） |
+| `Transport/` | HttpClient 封装、签名注入、HTTPS→HTTP 降级、错误中文映射 |
+| `Services/SyncServiceImpl.cs` | 知识库同步（manifest → 文件下载 → 本地写入） |
+| `Services/PairingServiceImpl.cs` | QR 码解析、多地址格式、设备注册 |
+| `Services/LogServiceImpl.cs` | 批量缓冲日志上报 |
+| `Services/QuotaServiceImpl.cs` | 配额/购买 API |
+| `Push/PushWebSocketService.cs` | WebSocket 实时推送 + HTTP 轮询降级 |
+| `Storage/` | ISecureStore / IServerConfigStore 接口（平台层实现） |
+
+```bash
+# 运行 SDK 单元测试
+dotnet test tests/BaihuaguSdk.Tests/BaihuaguSdk.Tests.csproj
+
+# 运行集成测试（需要百花谷服务器）
+export BAIHUAGU_TEST_URL=http://192.168.3.x:8788
+export BAIHUAGU_TEST_SECRET=<shared-secret>
+export BAIHUAGU_TEST_VAULT_ID=<vault-id>
+dotnet test tests/BaihuaguSdk.Tests/BaihuaguSdk.Tests.csproj --filter Integration
+```
+
+## MobileApp.Maui（百花谷移动客户端）
+
+**位置**: `clients/MobileApp.Maui/` — .NET MAUI Blazor Hybrid App。
+
+- **Android**: `dotnet build -f net10.0-android` → APK 在 `bin/Release/net10.0-android/com.lumin.baihuagu-Signed.apk`
+- **iOS**: 需要 macOS + Xcode（GitHub Actions CI 已配置 `.github/workflows/ci.yml`）
+
+```bash
+# Android 编译
+dotnet build -f net10.0-android -c Release
+
+# 安装到手机
+adb install clients/MobileApp.Maui/bin/Release/net10.0-android/com.lumin.baihuagu-Signed.apk
+```
+
+页面：首页（服务器列表）、配对（扫码/手动注册）、同步（知识库拉取+文件下载）、已同步（文件浏览器）。
+
+## 已知限制
+
+- **华为/荣耀手机**：HarmonyOS 底层的 Android 与 MAUI 的 native lib 打包格式不兼容（`.so` 文件检查过于严格），标准 Android 设备正常。
+- **Android 模拟器**：需要 KVM 硬件加速（`sudo modprobe kvm_intel`，BIOS 中启用 VT-x）。

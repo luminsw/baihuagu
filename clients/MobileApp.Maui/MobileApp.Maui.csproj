@@ -11,7 +11,9 @@
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
 
-    <!-- Android -->
+    <!-- Android: .so 文件必须不压缩存储 -->
+    <AndroidStoreUncompressedFileExtensions>.so;.dll</AndroidStoreUncompressedFileExtensions>
+    <AndroidEnableCompressionInNativeLibraries>false</AndroidEnableCompressionInNativeLibraries>
     <ApplicationTitle>百花谷</ApplicationTitle>
     <ApplicationId>com.lumin.baihuagu</ApplicationId>
     <ApplicationDisplayVersion>1.0</ApplicationDisplayVersion>
