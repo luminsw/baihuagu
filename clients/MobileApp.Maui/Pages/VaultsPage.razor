@@ -1,0 +1,94 @@
+@page "/vaults"
+@inject NavigationManager Nav
+
+<PageTitle>百花谷 - 已同步</PageTitle>
+
+<h1>已同步的知识库</h1>
+
+@if (_vaults.Count == 0)
+{
+    <p class="empty-hint">还没有同步过知识库。<a href="/sync">去同步</a></p>
+}
+else
+{
+    @foreach (var vault in _vaults)
+    {
+        <div class="vault-card" @onclick="() => OpenVault(vault.Name)">
+            <strong>@vault.Name</strong>
+            <span class="file-count">@vault.Files.Count 个文件</span>
+        </div>
+    }
+}
+
+@if (_selectedName != null)
+{
+    <h2 style="margin-top:20px">
+        <button class="btn small" @onclick="() => _selectedName = null">← 返回</button>
+        @_selectedName
+    </h2>
+
+    @foreach (var file in _selectedFiles)
+    {
+        <div class="file-item" @onclick="() => ViewFile(file)">
+            <span class="file-icon">📄</span>
+            <span class="file-path">@file.RelPath</span>
+            <span class="file-size">@file.SizeDisplay</span>
+        </div>
+    }
+
+    @if (_viewContent != null)
+    {
+        <h3 style="margin-top:16px">
+            <button class="btn small" @onclick="() => _viewContent = null">← 返回</button>
+            @_viewFilePath
+        </h3>
+        <pre class="file-content">@_viewContent</pre>
+    }
+}
+
+@code {
+    private List<VaultEntry> _vaults = new();
+    private string? _selectedName;
+    private List<FileEntry> _selectedFiles = new();
+    private string? _viewContent;
+    private string? _viewFilePath;
+
+    private record VaultEntry(string Name, List<FileEntry> Files);
+    private record FileEntry(string RelPath, long Size, string FullPath)
+    {
+        public string SizeDisplay => Size < 1024 ? $"{Size} B" :
+            Size < 1024 * 1024 ? $"{Size / 1024.0:F1} KB" : $"{Size / (1024.0 * 1024):F1} MB";
+    }
+
+    protected override void OnInitialized()
+    {
+        var baseDir = System.IO.Path.Combine(FileSystem.AppDataDirectory, "vaults");
+        if (!Directory.Exists(baseDir)) return;
+
+        foreach (var vaultDir in Directory.GetDirectories(baseDir))
+        {
+            var name = System.IO.Path.GetFileName(vaultDir);
+            var files = Directory.GetFiles(vaultDir, "*.*", SearchOption.AllDirectories)
+                .Select(f => new FileEntry(
+                    System.IO.Path.GetRelativePath(vaultDir, f),
+                    new System.IO.FileInfo(f).Length, f))
+                .OrderBy(f => f.RelPath)
+                .ToList();
+            _vaults.Add(new VaultEntry(name, files));
+        }
+    }
+
+    private void OpenVault(string name)
+    {
+        _selectedName = name;
+        _selectedFiles = _vaults.First(v => v.Name == name).Files;
+        _viewContent = null;
+    }
+
+    private void ViewFile(FileEntry file)
+    {
+        _viewFilePath = file.RelPath;
+        try { _viewContent = File.ReadAllText(file.FullPath); }
+        catch { _viewContent = "[无法预览]"; }
+    }
+}

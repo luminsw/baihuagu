@@ -1,5 +1,7 @@
 @page "/"
 @inject BaihuaguSdk.Storage.IServerConfigStore ServerStore
+@inject BaihuaguSdk.Storage.ISecureStore SecureStore
+@inject BaihuaguSdk.Signing.IRequestSigner Signer
 @inject NavigationManager Nav
 
 <PageTitle>百花谷</PageTitle>
@@ -20,7 +22,7 @@ else
         @foreach (var s in _servers)
         {
             <div class="server-card @(s.IsOnline ? "online" : "offline")" @onclick="() => SelectServer(s)">
-                <div class="server-name">@s.Name</div>
+                <div class="server-name">@s.Name @(Signer.HasServerSecret(s.HttpUrl) ? "🔑" : "")</div>
                 <div class="server-url">@s.HttpUrl</div>
                 <div class="server-status">@(s.IsOnline ? "● 在线" : "○ 离线")</div>
                 <div class="server-time">最后使用: @(s.LastUsedAt?.ToString("MM-dd HH:mm") ?? "从未")</div>
@@ -36,7 +38,8 @@ else
     <div class="quick-actions">
         <h3>@_selectedServer.Name</h3>
         <button class="btn primary" @onclick="GoSync">📥 同步知识库</button>
-        <button class="btn" @onclick="GoPairing">📋 查看详情</button>
+        <button class="btn" @onclick="GoVaults">📁 浏览已同步</button>
+        <button class="btn" @onclick="GoPairing">⚙️ 服务器详情</button>
     </div>
 }
 
@@ -47,6 +50,18 @@ else
     protected override async Task OnInitializedAsync()
     {
         _servers = await ServerStore.GetServersAsync();
+
+        // 恢复持久化的 sharedSecret
+        foreach (var s in _servers)
+        {
+            if (!Signer.HasServerSecret(s.HttpUrl))
+            {
+                var secret = await SecureStore.GetAsync($"secret_{s.HttpUrl}");
+                if (!string.IsNullOrEmpty(secret))
+                    Signer.SetServerSecret(s.HttpUrl, secret);
+            }
+        }
+
         var current = await ServerStore.GetCurrentServerAsync();
         if (current != null) _selectedServer = current;
     }
@@ -58,5 +73,6 @@ else
     }
 
     private void GoSync() => Nav.NavigateTo("/sync");
+    private void GoVaults() => Nav.NavigateTo("/vaults");
     private void GoPairing() => Nav.NavigateTo("/pairing");
 }
