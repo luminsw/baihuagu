@@ -12,7 +12,4 @@ public record AuthorizedDeviceDto
     public string? IpAddress { get; init; }
     public long SyncCount { get; init; }
     public DateTimeOffset? FirstSyncTime { get; init; }
-    public int? PaidSyncQuota { get; init; }
-    public int? AiBuildQuota { get; init; }
-    public decimal? TotalSpent { get; init; }
 }
