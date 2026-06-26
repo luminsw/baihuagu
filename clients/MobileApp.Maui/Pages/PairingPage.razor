@@ -4,6 +4,7 @@
 @inject BaihuaguSdk.Signing.IRequestSigner Signer
 @inject BaihuaguSdk.Storage.ISecureStore SecureStore
 @inject MobileApp.Maui.Services.IQrScanner QrScanner
+@inject BaihuaguSdk.Services.LogServiceImpl Logger
 
 <PageTitle>百花谷 - 配对</PageTitle>
 
@@ -142,5 +143,8 @@
             Id = serverId, Name = serverName,
             HttpUrl = httpUrl, IsOnline = true, LastUsedAt = DateTimeOffset.UtcNow
         });
+
+        Logger.Initialize(httpUrl);
+        Logger.Info($"设备已配对: {serverName} ({httpUrl})", "PairingPage");
     }
 }
