@@ -3,6 +3,7 @@ using BaihuaguSdk.Services;
 using BaihuaguSdk.Signing;
 using BaihuaguSdk.Storage;
 using MobileApp.Maui.Services;
+using MobileContract.Services;
 using ZXing.Net.Maui.Controls;
 
 namespace MobileApp.Maui;
@@ -61,6 +62,7 @@ public static class MauiProgram
             return new PairingServiceImpl(client, signer,
                 DeviceInfoHelper.GetDeviceId(), DeviceInfoHelper.GetDeviceName());
         });
+        builder.Services.AddSingleton<IPairingService>(sp => sp.GetRequiredService<PairingServiceImpl>());
         builder.Services.AddSingleton<SyncServiceImpl>();
         builder.Services.AddSingleton(sp =>
         {

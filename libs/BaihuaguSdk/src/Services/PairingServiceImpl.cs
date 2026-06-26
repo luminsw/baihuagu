@@ -2,6 +2,8 @@ using System.Text.Json;
 using BaihuaguSdk.Models;
 using BaihuaguSdk.Signing;
 using BaihuaguSdk.Transport;
+using MobileContract.Pairing;
+using MobileContract.Services;
 
 namespace BaihuaguSdk.Services;
 
@@ -10,12 +12,14 @@ namespace BaihuaguSdk.Services;
 /// 处理二维码解析、设备注册、配对码流程。
 /// 与 Kotlin PairingService.kt + DeviceRegistrationService.kt 逻辑对齐。
 /// </summary>
-public class PairingServiceImpl
+public class PairingServiceImpl : IPairingService
 {
     private readonly HttpClient _httpClient;
     private readonly IRequestSigner _signer;
     private readonly string _deviceId;
     private readonly string _deviceName;
+
+    private string _serverUrl = "";
 
     public PairingServiceImpl(
         HttpClient httpClient, IRequestSigner signer,
@@ -25,6 +29,12 @@ public class PairingServiceImpl
         _signer = signer;
         _deviceId = deviceId;
         _deviceName = deviceName;
+    }
+
+    /// <summary>设置后续配对操作使用的服务器地址</summary>
+    public void Initialize(string serverUrl)
+    {
+        _serverUrl = HttpTransport.NormalizeBaseUrl(serverUrl);
     }
 
     // ---- QR Code parsing ----
@@ -67,9 +77,9 @@ public class PairingServiceImpl
         return new ServerAddresses(serverId, http, https, content.HostName, content.DeviceId);
     }
 
-    // ---- Device Registration ----
+    // ---- OneHop QR Registration (not part of IPairingService) ----
 
-    /// <summary>向服务器注册本机设备</summary>
+    /// <summary>向服务器注册本机设备（OneHop 二维码流程）</summary>
     public async Task<RegisterDeviceResult> RegisterDeviceAsync(string serverUrl)
     {
         try
@@ -109,7 +119,130 @@ public class PairingServiceImpl
         }
     }
 
+    // ---- IPairingService implementation (pair-code flow) ----
+
+    /// <inheritdoc />
+    public async Task<PairCodeResponse> GetPairCodeAsync(CancellationToken cancellationToken = default)
+    {
+        EnsureInitialized();
+        var transport = new HttpTransport(_httpClient, _signer, _serverUrl);
+        var resp = await transport.GetJsonAsync<JsonElement>("/mg/pair/code", ct: cancellationToken);
+
+        if (!resp.IsSuccess)
+            return new PairCodeResponse();
+
+        var root = resp.Data;
+        var pairCode = root.ValueKind == JsonValueKind.Object
+            ? GetString(root, "pairCode")
+            : null;
+        var deviceId = root.ValueKind == JsonValueKind.Object
+            ? GetString(root, "deviceId") ?? ""
+            : "";
+
+        return new PairCodeResponse
+        {
+            PairCode = pairCode,
+            DeviceId = deviceId
+        };
+    }
+
+    /// <inheritdoc />
+    public async Task<PairCodeResponse> RefreshPairCodeAsync(CancellationToken cancellationToken = default)
+    {
+        EnsureInitialized();
+        var transport = new HttpTransport(_httpClient, _signer, _serverUrl);
+        var resp = await transport.PostJsonAsync<JsonElement>("/mg/pair/code/refresh", null, ct: cancellationToken);
+
+        if (!resp.IsSuccess)
+            return new PairCodeResponse();
+
+        var root = resp.Data;
+        var pairCode = root.ValueKind == JsonValueKind.Object
+            ? GetString(root, "pairCode")
+            : null;
+
+        return new PairCodeResponse
+        {
+            PairCode = pairCode,
+            DeviceId = _deviceId
+        };
+    }
+
+    /// <inheritdoc />
+    public async Task<PairResponse> PairDeviceAsync(PairRequest request, CancellationToken cancellationToken = default)
+    {
+        EnsureInitialized();
+        var transport = new HttpTransport(_httpClient, _signer, _serverUrl);
+        var body = new
+        {
+            pairCode = request.PairCode,
+            deviceName = request.DeviceName ?? _deviceName,
+            deviceId = request.DeviceId ?? _deviceId
+        };
+        var resp = await transport.PostJsonAsync<JsonElement>("/mg/pair", body, ct: cancellationToken);
+
+        return MapPairResponse(resp);
+    }
+
+    /// <inheritdoc />
+    public Task<PairResponse> CheckPairStatusAsync(string requestId, CancellationToken cancellationToken = default)
+    {
+        // 后端暂未向移动端暴露独立的配对状态查询端点
+        throw new NotSupportedException("移动端 SDK 暂不支持查询配对状态，请通过 PairDeviceAsync 的结果或 /mg/pair 重试。");
+    }
+
+    /// <inheritdoc />
+    public Task<bool> VerifyTokenAsync(VerifyTokenRequest request, CancellationToken cancellationToken = default)
+    {
+        // 后端暂未实现 /mg/verify-token 端点
+        throw new NotSupportedException("移动端 SDK 暂不支持令牌验证端点。");
+    }
+
+    /// <inheritdoc />
+    public Task<AuthConfigResponse> GetAuthConfigAsync(AuthConfigRequest request, CancellationToken cancellationToken = default)
+    {
+        // 后端暂未实现 /mg/auth/config 端点
+        throw new NotSupportedException("移动端 SDK 暂不支持获取认证配置端点。");
+    }
+
     // ---- helpers ----
+
+    private void EnsureInitialized()
+    {
+        if (string.IsNullOrEmpty(_serverUrl))
+            throw new InvalidOperationException("PairingService 尚未初始化，请先调用 Initialize(serverUrl)。");
+    }
+
+    private static PairResponse MapPairResponse(ApiResponse<JsonElement> resp)
+    {
+        if (!resp.IsSuccess)
+        {
+            return new PairResponse
+            {
+                Status = "failed",
+                Message = resp.ErrorMessage ?? "请求失败"
+            };
+        }
+
+        var root = resp.Data;
+        if (root.ValueKind != JsonValueKind.Object)
+        {
+            return new PairResponse
+            {
+                Status = "failed",
+                Message = "返回格式错误"
+            };
+        }
+
+        return new PairResponse
+        {
+            RequestId = GetString(root, "requestId"),
+            AccessToken = GetString(root, "accessToken"),
+            ExpiresIn = GetInt(root, "expiresIn"),
+            Status = GetString(root, "status") ?? "pending",
+            Message = GetString(root, "message")
+        };
+    }
 
     private static string? FirstNonEmpty(params string?[] values) =>
         values.FirstOrDefault(v => !string.IsNullOrEmpty(v));
@@ -119,6 +252,9 @@ public class PairingServiceImpl
 
     private static bool GetBool(JsonElement el, string key) =>
         el.TryGetProperty(key, out var v) && v.ValueKind == JsonValueKind.True;
+
+    private static int GetInt(JsonElement el, string key) =>
+        el.TryGetProperty(key, out var v) && v.ValueKind == JsonValueKind.Number ? v.GetInt32() : 0;
 
     private static string NormalizeUrl(string url) =>
         url.TrimEnd('/').ToLowerInvariant();

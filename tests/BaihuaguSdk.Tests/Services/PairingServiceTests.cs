@@ -1,5 +1,6 @@
 using BaihuaguSdk.Services;
 using BaihuaguSdk.Signing;
+using MobileContract.Pairing;
 using Moq;
 using System.Net;
 using System.Text.Json;
@@ -223,5 +224,145 @@ public class PairingServiceTests
     public void ParseQrCode_Null_ReturnsNull()
     {
         Assert.Null(PairingServiceImpl.ParseQrCode(null!));
+    }
+
+    // ---- IPairingService 测试 ----
+
+    private static (PairingServiceImpl Service, MockHttpMessageHandler Handler, Mock<IRequestSigner> Signer) CreatePairingService()
+    {
+        var handler = new MockHttpMessageHandler();
+        var client = new HttpClient(handler);
+        var signerMock = new Mock<IRequestSigner>();
+        signerMock.Setup(s => s.SignRequest(It.IsAny<string>(), It.IsAny<string>(),
+            It.IsAny<string?>(), It.IsAny<string?>())).Returns(new Dictionary<string, string>());
+
+        var service = new PairingServiceImpl(client, signerMock.Object, "device-1", "TestDevice");
+        service.Initialize("http://localhost:8788");
+        return (service, handler, signerMock);
+    }
+
+    [Fact]
+    public async Task GetPairCodeAsync_ReturnsPairCode()
+    {
+        var (service, handler, _) = CreatePairingService();
+        handler.SetupResponse("/mg/pair/code", HttpStatusCode.OK,
+            """{"pairCode":"123456","deviceId":"server-1"}""");
+
+        var result = await service.GetPairCodeAsync();
+
+        Assert.Equal("123456", result.PairCode);
+        Assert.Equal("server-1", result.DeviceId);
+    }
+
+    [Fact]
+    public async Task GetPairCodeAsync_ServerError_ReturnsEmpty()
+    {
+        var (service, handler, _) = CreatePairingService();
+        handler.SetupResponse("/mg/pair/code", HttpStatusCode.InternalServerError, "error");
+
+        var result = await service.GetPairCodeAsync();
+
+        Assert.Null(result.PairCode);
+        Assert.Equal("", result.DeviceId);
+    }
+
+    [Fact]
+    public async Task RefreshPairCodeAsync_ReturnsNewPairCode()
+    {
+        var (service, handler, _) = CreatePairingService();
+        handler.SetupResponse("/mg/pair/code/refresh", HttpStatusCode.OK,
+            """{"pairCode":"654321","message":"配对码已刷新"}""");
+
+        var result = await service.RefreshPairCodeAsync();
+
+        Assert.Equal("654321", result.PairCode);
+        Assert.Equal("device-1", result.DeviceId);
+    }
+
+    [Fact]
+    public async Task PairDeviceAsync_Authorized_ReturnsToken()
+    {
+        var (service, handler, _) = CreatePairingService();
+        handler.SetupResponse("/mg/pair", HttpStatusCode.OK,
+            """{"requestId":"req-1","accessToken":"token-abc","expiresIn":86400,"status":"authorized","message":"已授权"}""");
+
+        var result = await service.PairDeviceAsync(new PairRequest
+        {
+            PairCode = "123456",
+            DeviceName = "MyDevice"
+        });
+
+        Assert.Equal("authorized", result.Status);
+        Assert.Equal("token-abc", result.AccessToken);
+        Assert.Equal("req-1", result.RequestId);
+        Assert.Equal(86400, result.ExpiresIn);
+    }
+
+    [Fact]
+    public async Task PairDeviceAsync_Pending_ReturnsRequestId()
+    {
+        var (service, handler, _) = CreatePairingService();
+        handler.SetupResponse("/mg/pair", HttpStatusCode.OK,
+            """{"requestId":"req-2","status":"pending","message":"等待授权"}""");
+
+        var result = await service.PairDeviceAsync(new PairRequest
+        {
+            PairCode = "123456"
+        });
+
+        Assert.Equal("pending", result.Status);
+        Assert.Equal("req-2", result.RequestId);
+    }
+
+    [Fact]
+    public async Task PairDeviceAsync_InvalidPairCode_ReturnsFailed()
+    {
+        var (service, handler, _) = CreatePairingService();
+        handler.SetupResponse("/mg/pair", HttpStatusCode.BadRequest,
+            """{"error":"配对码错误"}""");
+
+        var result = await service.PairDeviceAsync(new PairRequest
+        {
+            PairCode = "wrong"
+        });
+
+        Assert.Equal("failed", result.Status);
+        Assert.Equal("配对码错误", result.Message);
+    }
+
+    [Fact]
+    public async Task PairDeviceAsync_WithoutInitialize_Throws()
+    {
+        var handler = new MockHttpMessageHandler();
+        var client = new HttpClient(handler);
+        var signerMock = new Mock<IRequestSigner>();
+        var service = new PairingServiceImpl(client, signerMock.Object, "device-1", "TestDevice");
+
+        await Assert.ThrowsAsync<InvalidOperationException>(() =>
+            service.PairDeviceAsync(new PairRequest { PairCode = "123456" }));
+    }
+
+    [Fact]
+    public async Task CheckPairStatusAsync_ThrowsNotSupported()
+    {
+        var (service, _, _) = CreatePairingService();
+        await Assert.ThrowsAsync<NotSupportedException>(() =>
+            service.CheckPairStatusAsync("req-1"));
+    }
+
+    [Fact]
+    public async Task VerifyTokenAsync_ThrowsNotSupported()
+    {
+        var (service, _, _) = CreatePairingService();
+        await Assert.ThrowsAsync<NotSupportedException>(() =>
+            service.VerifyTokenAsync(new VerifyTokenRequest { Token = "token" }));
+    }
+
+    [Fact]
+    public async Task GetAuthConfigAsync_ThrowsNotSupported()
+    {
+        var (service, _, _) = CreatePairingService();
+        await Assert.ThrowsAsync<NotSupportedException>(() =>
+            service.GetAuthConfigAsync(new AuthConfigRequest { DeviceId = "device-1" }));
     }
 }
