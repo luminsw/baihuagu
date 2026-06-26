@@ -1,16 +1,34 @@
 @page "/vaults"
+@inject BaihuaguSdk.Storage.IServerConfigStore ServerStore
+@inject BaihuaguSdk.Signing.RequestSigner Signer
+@inject BaihuaguSdk.Services.SyncServiceImpl SyncService
+@inject MobileContract.Services.IVaultStorageAdapter StorageAdapter
 @inject NavigationManager Nav
 
 <PageTitle>百花谷 - 已同步</PageTitle>
 
 <h1>已同步的知识库</h1>
 
+@if (_syncing)
+{
+    <p class="sync-status">🔄 正在同步...</p>
+}
+
 @if (_vaults.Count == 0)
 {
-    <p class="empty-hint">还没有同步过知识库。<button class="btn small primary" @onclick="GoSync">去同步</button></p>
+    <p class="empty-hint">还没有同步过知识库。</p>
+    <button class="btn small primary" @onclick="GoSync">去同步</button>
 }
 else
 {
+    <div class="toolbar">
+        <button class="btn small" @onclick="RefreshVaults">🔄 刷新</button>
+        @if (_currentServer != null)
+        {
+            <button class="btn small primary" @onclick="SyncAll">📥 同步全部</button>
+        }
+    </div>
+
     @foreach (var vault in _vaults)
     {
         <div class="vault-card" @onclick="() => OpenVault(vault.Name)">
@@ -46,12 +64,20 @@ else
     }
 }
 
+@if (_error != null)
+{
+    <p class="error-message">❌ @_error</p>
+}
+
 @code {
     private List<VaultEntry> _vaults = new();
     private string? _selectedName;
     private List<FileEntry> _selectedFiles = new();
     private string? _viewContent;
     private string? _viewFilePath;
+    private bool _syncing = false;
+    private string? _error;
+    private BaihuaguSdk.Models.ServerConfig? _currentServer;
 
     private record VaultEntry(string Name, List<FileEntry> Files);
     private record FileEntry(string RelPath, long Size, string FullPath)
@@ -60,8 +86,15 @@ else
             Size < 1024 * 1024 ? $"{Size / 1024.0:F1} KB" : $"{Size / (1024.0 * 1024):F1} MB";
     }
 
-    protected override void OnInitialized()
+    protected override async Task OnInitializedAsync()
     {
+        _currentServer = await ServerStore.GetCurrentServerAsync();
+        RefreshVaults();
+    }
+
+    private void RefreshVaults()
+    {
+        _vaults.Clear();
         var baseDir = System.IO.Path.Combine(FileSystem.AppDataDirectory, "vaults");
         if (!Directory.Exists(baseDir)) return;
 
@@ -76,6 +109,7 @@ else
                 .ToList();
             _vaults.Add(new VaultEntry(name, files));
         }
+        StateHasChanged();
     }
 
     private void OpenVault(string name)
@@ -86,6 +120,38 @@ else
     }
 
     private void GoSync() => Nav.NavigateTo("/sync");
+
+    private async Task SyncAll()
+    {
+        if (_currentServer == null || _syncing) return;
+
+        _syncing = true;
+        _error = null;
+        StateHasChanged();
+
+        try
+        {
+            var vaults = await SyncService.FetchVaultListAsync(_currentServer.HttpUrl);
+            foreach (var vault in vaults)
+            {
+                await SyncService.SyncVaultAsync(
+                    _currentServer.HttpUrl,
+                    vault.Id,
+                    Signer.DeviceId,
+                    StorageAdapter);
+            }
+            RefreshVaults();
+        }
+        catch (Exception ex)
+        {
+            _error = ex.Message;
+        }
+        finally
+        {
+            _syncing = false;
+            StateHasChanged();
+        }
+    }
 
     private void ViewFile(FileEntry file)
     {

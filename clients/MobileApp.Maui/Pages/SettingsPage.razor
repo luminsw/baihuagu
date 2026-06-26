@@ -1,5 +1,6 @@
 @page "/settings"
 @inject BaihuaguSdk.Signing.RequestSigner Signer
+@inject BaihuaguSdk.Storage.IServerConfigStore ServerStore
 
 <PageTitle>百花谷 - 设置</PageTitle>
 
@@ -12,8 +13,74 @@
 </div>
 
 <div class="settings-section">
+    <h3>数据管理</h3>
+    <button class="btn" @onclick="ClearCache">清除缓存</button>
+    <button class="btn danger" @onclick="ConfirmDeleteVaults">删除已同步数据</button>
+    <p class="hint">已同步数据位于: <code>@_vaultsPath</code></p>
+</div>
+
+@if (_confirmDelete)
+{
+    <div class="confirm-dialog">
+        <p>⚠️ 确认删除所有已同步的知识库数据？此操作不可恢复。</p>
+        <button class="btn danger" @onclick="DeleteVaultsData">确认删除</button>
+        <button class="btn" @onclick="() => _confirmDelete = false">取消</button>
+    </div>
+}
+
+@if (_message != null)
+{
+    <p class="status-message">@_message</p>
+}
+
+<div class="settings-section">
     <h3>关于</h3>
     <p>百花谷 iOS SDK 试验项目</p>
     <p>版本: 1.0.0-preview</p>
     <p>技术栈: .NET MAUI Blazor Hybrid + BaihuaguSdk</p>
 </div>
+
+@code {
+    private string _vaultsPath = "";
+    private bool _confirmDelete = false;
+    private string? _message;
+
+    protected override void OnInitialized()
+    {
+        _vaultsPath = Path.Combine(FileSystem.AppDataDirectory, "vaults");
+    }
+
+    private void ClearCache()
+    {
+        BaihuaguSdk.Services.SyncServiceImpl.ClearVaultListCache("");
+        _message = "✅ 缓存已清除";
+        StateHasChanged();
+    }
+
+    private void ConfirmDeleteVaults()
+    {
+        _confirmDelete = true;
+    }
+
+    private void DeleteVaultsData()
+    {
+        try
+        {
+            if (Directory.Exists(_vaultsPath))
+            {
+                Directory.Delete(_vaultsPath, recursive: true);
+                _message = "✅ 已同步数据已删除";
+            }
+            else
+            {
+                _message = "没有已同步数据";
+            }
+        }
+        catch (Exception ex)
+        {
+            _message = $"❌ 删除失败: {ex.Message}";
+        }
+        _confirmDelete = false;
+        StateHasChanged();
+    }
+}
