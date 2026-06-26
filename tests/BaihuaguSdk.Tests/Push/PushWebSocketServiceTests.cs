@@ -23,15 +23,13 @@ public class PushWebSocketServiceTests
     }
 
     [Fact]
-    public void OnConnectionStateChange_CanBeSet()
+    public void ConnectionStateChanged_CanBeSubscribed()
     {
         using var httpClient = new HttpClient();
         bool? state = null;
-        var service = new PushWebSocketService(httpClient)
-        {
-            OnConnectionStateChange = connected => state = connected
-        };
-        Assert.NotNull(service.OnConnectionStateChange);
+        using var service = new PushWebSocketService(httpClient);
+        service.ConnectionStateChanged += connected => state = connected;
+        Assert.Null(state);
     }
 
     [Fact]

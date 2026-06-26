@@ -5,8 +5,10 @@ html, body { font-family: -apple-system, BlinkMacSystemFont, sans-serif; backgro
 .status-bar-safe-area {
     display: block;
     height: 30px;
+    height: max(30px, env(safe-area-inset-top));
     width: 100%;
     background: #1a73e8;
+    flex-shrink: 0;
 }
 
 .app-shell { max-width: 800px; margin: 0 auto; min-height: calc(100vh - 30px); }
@@ -56,6 +58,19 @@ h3 { font-size: 16px; margin: 16px 0 8px; }
 
 .sync-result { background: #e3f2fd; padding: 12px; border-radius: 6px; margin-top: 12px; }
 
+.status-banner {
+    background: white;
+    border-radius: 10px;
+    padding: 14px;
+    margin: 16px 0;
+    border-left: 4px solid #1a73e8;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.05);
+}
+.status-banner.success { background: #e8f5e9; border-left-color: #34c759; }
+.status-banner.error { background: #ffebee; border-left-color: #ff3b30; }
+.status-banner strong { display: block; margin-bottom: 4px; font-size: 16px; }
+.status-banner p { margin: 0; font-size: 14px; line-height: 1.5; }
+
 .settings-section { background: white; border-radius: 10px; padding: 16px; margin-bottom: 12px; }
 .settings-section code { background: #f0f0f0; padding: 2px 6px; border-radius: 4px; font-size: 13px; }
 
@@ -68,7 +83,14 @@ h3 { font-size: 16px; margin: 16px 0 8px; }
 
 .warning-banner { background: #fff8e1; padding: 14px; border-radius: 8px; margin: 12px 0; border-left: 4px solid #ff9500; }
 .warning-banner p { margin: 4px 0; }
+.warning-banner .d-flex { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.warning-banner .mb-0 { margin-bottom: 0; }
+.warning-banner .mt-2 { margin-top: 8px; }
 .success { color: #2e7d32; }
+
+.ws-badge { font-size: 12px; padding: 4px 8px; border-radius: 12px; font-weight: 500; }
+.ws-badge.ws-on { background: #e8f5e9; color: #2e7d32; }
+.ws-badge.ws-off { background: #ffebee; color: #c62828; }
 
 a.btn { text-decoration: none; display: inline-block; }
 a.btn.primary { color: white; }

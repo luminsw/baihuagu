@@ -6,6 +6,10 @@
 @inject BaihuaguSdk.Storage.ISecureStore SecureStore
 @inject MobileApp.Maui.Services.IVaultStorageFactory VaultStorageFactory
 @inject NavigationManager Nav
+@inject IJSRuntime JS
+@inject MobileContract.Services.IRemoteLogService Logger
+@inject BaihuaguSdk.Push.PushWebSocketService PushService
+@implements IDisposable
 
 <PageTitle>百花谷 - 同步</PageTitle>
 
@@ -30,14 +34,27 @@ else
         @if (!_hasSecret)
         {
             <div class="warning-banner">
-                <p>⚠️ 尚未配对认证。请先注册设备获取共享密钥。</p>
-                <button class="btn primary" @onclick="RegisterDevice">注册设备</button>
+                <div class="d-flex align-items-center gap-2 mb-2">
+                    <p class="mb-0">⚠️ 尚未配对认证。</p>
+                    <span class="ws-badge @(_pushConnected ? "ws-on" : "ws-off")">
+                        @(_pushConnected ? "🟢 WebSocket 已连接" : "🔴 WebSocket 未连接")
+                    </span>
+                </div>
+                @if (_regResult == null || !_regResult.Success)
+                {
+                    <button class="btn primary" @onclick="RegisterDevice" disabled="@_isLoading">
+                        @(_isLoading ? "注册中..." : "注册设备")
+                    </button>
+                    <button class="btn small" @onclick="EnsurePushConnectionAsync" disabled="@_isLoading">
+                        🔄 检查连接
+                    </button>
+                }
                 @if (_regResult != null)
                 {
-                    <p class="@(_regResult.Success ? "success" : "error")">
+                    <p class="@(_regResult.Success ? "success" : "error") mt-2">
                         @(_regResult.Success
-                            ? (_regResult.Authorized ? "✅ 已授权! 密钥已保存" : "已注册，请在 WebUI 中授权后重试")
-                            : "注册失败，请检查网络")
+                            ? (_regResult.Authorized ? "✅ 已授权! 密钥已保存" : "已注册，等待 WebUI 授权；授权成功后会自动刷新")
+                            : $"注册失败: {_regResult.ErrorMessage ?? "请检查网络"}")
                     </p>
                 }
             </div>
@@ -47,6 +64,22 @@ else
             <button class="btn primary" @onclick="FetchVaults" disabled="@_isLoading">
                 @(_isLoading ? "加载中..." : "📋 获取知识库列表")
             </button>
+
+            @if (_syncResult != null)
+            {
+                <div class="status-banner success" @ref="_resultRef">
+                    <strong>✅ 同步完成</strong>
+                    <p>共 @_syncResult.TotalFiles 文件，下载 @_syncResult.Downloaded，删除 @_syncResult.Deleted，失败 @_syncResult.Failed</p>
+                </div>
+            }
+
+            @if (!string.IsNullOrEmpty(_error))
+            {
+                <div class="status-banner error" @ref="_resultRef">
+                    <strong>❌ 出错了</strong>
+                    <p>@_error</p>
+                </div>
+            }
 
             @if (_vaults.Count > 0)
             {
@@ -67,21 +100,6 @@ else
                     }
                 </div>
             }
-
-            @if (_syncResult != null)
-            {
-                <div class="sync-result">
-                    <p>✅ 同步完成: 共 @_syncResult.TotalFiles 文件,
-                       下载 @_syncResult.Downloaded,
-                       删除 @_syncResult.Deleted,
-                       失败 @_syncResult.Failed</p>
-                </div>
-            }
-
-            @if (!string.IsNullOrEmpty(_error))
-            {
-                <p class="error">@_error</p>
-            }
         }
     }
 }
@@ -97,9 +115,13 @@ else
     private MobileContract.Pairing.RegisterDeviceResult? _regResult;
     private bool _hasSecret;
     private string? _error;
+    private ElementReference _resultRef;
+    private CancellationTokenSource? _pollCts;
+    private bool _pushConnected;
 
     protected override async Task OnInitializedAsync()
     {
+        PushService.OnLog = msg => Logger?.Info(msg, "PushWebSocket");
         _servers = await ServerStore.GetServersAsync();
         var current = await ServerStore.GetCurrentServerAsync();
         if (current != null)
@@ -109,17 +131,37 @@ else
         }
     }
 
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (!firstRender) return;
+        await EnsurePushConnectionAsync();
+        if (_selectedServer != null && !_hasSecret)
+        {
+            await AutoCheckRegistrationAsync();
+        }
+    }
+
     private void GoPairing() { Nav.NavigateTo("/pairing"); StateHasChanged(); }
 
     private async Task OnServerChanged()
     {
+        StopPolling();
         _selectedServer = _servers.FirstOrDefault(s => s.Id == _selectedServerId);
         if (_selectedServer != null)
         {
             await ServerStore.SetCurrentServerAsync(_selectedServer.Id);
             _hasSecret = Signer.HasServerSecret(_selectedServer.HttpUrl);
+            _syncResult = null; _error = null; _regResult = null;
+            await EnsurePushConnectionAsync();
+            if (!_hasSecret)
+            {
+                await AutoCheckRegistrationAsync();
+            }
         }
-        _syncResult = null; _error = null; _regResult = null;
+        else
+        {
+            _syncResult = null; _error = null; _regResult = null;
+        }
         StateHasChanged();
     }
 
@@ -130,29 +172,196 @@ else
         StateHasChanged();
         try
         {
-            _regResult = await DeviceRegistration.RegisterDeviceAsync(_selectedServer.HttpUrl);
-            if (_regResult is { Success: true, Authorized: true, SharedSecret: not null })
-            {
-                Signer.SetServerSecret(_selectedServer.HttpUrl, _regResult.SharedSecret);
-                await SecureStore.SetAsync($"secret_{_selectedServer.HttpUrl}", _regResult.SharedSecret);
-                _hasSecret = true;
-            }
+            await DoRegisterAsync("按钮");
         }
         catch (Exception ex) { _error = ex.Message; }
         finally { _isLoading = false; StateHasChanged(); }
+    }
+
+    private async Task AutoCheckRegistrationAsync(string source = "自动检查")
+    {
+        if (_selectedServer == null) return;
+        try
+        {
+            await DoRegisterAsync(source);
+            StateHasChanged();
+        }
+        catch (Exception ex)
+        {
+            Logger.Info($"[{source}] 自动检查授权状态失败: {ex.Message}", "SyncPage");
+        }
+    }
+
+    private async Task DoRegisterAsync(string source)
+    {
+        if (_selectedServer == null) return;
+        Logger.Info($"[{source}] 开始查询注册/授权状态", "SyncPage");
+        _regResult = await DeviceRegistration.RegisterDeviceAsync(_selectedServer.HttpUrl);
+        Logger.Info($"[{source}] 注册结果: Success={_regResult?.Success}, Authorized={_regResult?.Authorized}", "SyncPage");
+        if (_regResult is { Success: true, Authorized: true, SharedSecret: not null })
+        {
+            StopPolling();
+            Logger.Info($"[{source}] 已授权，准备保存密钥并加载知识库", "SyncPage");
+            await ApplyAuthorizedSecretAsync(_regResult.SharedSecret, source);
+        }
+        else if (_regResult is { Success: true, Authorized: false })
+        {
+            await EnsurePushConnectionAsync();
+            if (!_pushConnected)
+            {
+                StartPolling(source);
+            }
+            else
+            {
+                Logger.Info($"[{source}] WebSocket 已连接，等待授权推送，不启动轮询", "SyncPage");
+            }
+        }
+        else
+        {
+            StopPolling();
+        }
+    }
+
+    private void StartPolling(string source)
+    {
+        StopPolling();
+        Logger.Info($"[{source}] 启动轮询兜底（5 秒后开始，每 3 秒一次）", "SyncPage");
+        _pollCts = new CancellationTokenSource();
+        var ct = _pollCts.Token;
+        _ = Task.Run(async () =>
+        {
+            try
+            {
+                await Task.Delay(TimeSpan.FromSeconds(5), ct);
+                int count = 0;
+                while (!ct.IsCancellationRequested)
+                {
+                    if (_selectedServer == null || _hasSecret || ct.IsCancellationRequested) break;
+                    count++;
+                    Logger.Info($"[轮询] 第 {count} 次检查授权状态", "SyncPage");
+                    await InvokeAsync(async () =>
+                    {
+                        try { await AutoCheckRegistrationAsync($"轮询-{count}"); }
+                        catch { }
+                    });
+                    await Task.Delay(TimeSpan.FromSeconds(3), ct);
+                }
+                Logger.Info($"[轮询] 结束，共 {count} 次", "SyncPage");
+            }
+            catch (OperationCanceledException) { }
+        }, ct);
+    }
+
+    private void StopPolling()
+    {
+        if (_pollCts != null)
+        {
+            _pollCts.Cancel();
+            _pollCts.Dispose();
+            _pollCts = null;
+        }
+    }
+
+    private async Task ApplyAuthorizedSecretAsync(string secret, string source)
+    {
+        if (_selectedServer == null) return;
+        Signer.SetServerSecret(_selectedServer.HttpUrl, secret);
+        await SecureStore.SetAsync($"secret_{_selectedServer.HttpUrl}", secret);
+        _hasSecret = true;
+        _regResult = null;
+        Logger.Info($"[{source}] 授权完成，密钥已保存，准备加载知识库列表", "SyncPage");
+        StateHasChanged();
+        await FetchVaults();
+        Logger.Info($"[{source}] 知识库列表加载完成: {_vaults.Count} 个", "SyncPage");
+    }
+
+    private async Task EnsurePushConnectionAsync()
+    {
+        if (_selectedServer == null) return;
+        try
+        {
+            PushService.Authorized -= OnPushAuthorized;
+            PushService.Authorized += OnPushAuthorized;
+            PushService.ConnectionStateChanged -= OnPushConnectionStateChange;
+            PushService.ConnectionStateChanged += OnPushConnectionStateChange;
+
+            if (!PushService.IsConnected)
+            {
+                var deviceName = MobileApp.Maui.Services.DeviceInfoHelper.GetDeviceName();
+                await PushService.ConnectAsync(_selectedServer.HttpUrl, deviceName);
+                // 最多等待 5 秒让连接建立
+                using var connectCts = new CancellationTokenSource(TimeSpan.FromSeconds(5));
+                try
+                {
+                    while (!PushService.IsConnected && !connectCts.Token.IsCancellationRequested)
+                    {
+                        await Task.Delay(100, connectCts.Token);
+                    }
+                }
+                catch (OperationCanceledException) { }
+            }
+            _pushConnected = PushService.IsConnected;
+        }
+        catch (Exception ex)
+        {
+            _pushConnected = false;
+            Logger.Info($"WebSocket 连接失败: {ex.Message}", "SyncPage");
+        }
+    }
+
+    private void OnPushConnectionStateChange(bool connected)
+    {
+        _pushConnected = connected;
+        Logger.Info($"[WebSocket] 连接状态变化: {(connected ? "已连接" : "已断开")}", "SyncPage");
+        if (!connected && _selectedServer != null && !_hasSecret)
+        {
+            // WebSocket 断开且仍未授权，启用轮询兜底
+            StartPolling("WebSocket断开");
+        }
+        InvokeAsync(StateHasChanged);
+    }
+
+    private async void OnPushAuthorized(object? sender, EventArgs e)
+    {
+        if (_selectedServer == null || _hasSecret) return;
+        Logger.Info("[WebSocket] 收到授权推送事件", "SyncPage");
+        try
+        {
+            var result = await DeviceRegistration.RegisterDeviceAsync(_selectedServer.HttpUrl);
+            if (result is { Success: true, Authorized: true, SharedSecret: not null })
+            {
+                Logger.Info("[WebSocket] 推送后注册查询确认已授权，准备刷新", "SyncPage");
+                await InvokeAsync(async () => await ApplyAuthorizedSecretAsync(result.SharedSecret, "WebSocket推送"));
+            }
+            else
+            {
+                Logger.Info($"[WebSocket] 推送后注册查询未授权: Success={result?.Success}, Authorized={result?.Authorized}", "SyncPage");
+            }
+        }
+        catch (Exception ex)
+        {
+            Logger.Info($"[WebSocket] 授权推送处理失败: {ex.Message}", "SyncPage");
+        }
     }
 
     private async Task FetchVaults()
     {
         if (_selectedServer == null) return;
         _error = null; _isLoading = true;
-        StateHasChanged();
+        await InvokeAsync(StateHasChanged);
         try
         {
             _vaults = await SyncService.FetchVaultListAsync(_selectedServer.HttpUrl);
         }
         catch (Exception ex) { _error = ex.Message; }
-        finally { _isLoading = false; StateHasChanged(); }
+        finally { _isLoading = false; await InvokeAsync(StateHasChanged); }
+    }
+
+    public void Dispose()
+    {
+        StopPolling();
+        PushService.Authorized -= OnPushAuthorized;
+        PushService.ConnectionStateChanged -= OnPushConnectionStateChange;
     }
 
     private async Task SyncVault(string vaultId)
@@ -174,6 +383,14 @@ else
             });
         }
         catch (Exception ex) { _error = ex.Message; }
-        finally { _syncingVault = null; StateHasChanged(); }
+        finally
+        {
+            _syncingVault = null;
+            StateHasChanged();
+            if (_syncResult != null || !string.IsNullOrEmpty(_error))
+            {
+                try { await JS.InvokeVoidAsync("scrollIntoView", _resultRef); } catch { }
+            }
+        }
     }
 }

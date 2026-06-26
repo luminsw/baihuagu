@@ -11,9 +11,11 @@
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
 
-    <!-- Android: .so 文件必须不压缩存储 -->
+    <!-- Android: .so 文件必须不压缩存储；真机 Debug 测试关闭 Fast Deployment，避免增量安装压缩 native lib 导致启动崩溃 -->
     <AndroidStoreUncompressedFileExtensions>.so;.dll</AndroidStoreUncompressedFileExtensions>
     <AndroidEnableCompressionInNativeLibraries>false</AndroidEnableCompressionInNativeLibraries>
+    <AndroidEnableFastDeployment>false</AndroidEnableFastDeployment>
+    <EmbedAssembliesIntoApk>true</EmbedAssembliesIntoApk>
     <ApplicationTitle>百花谷</ApplicationTitle>
     <ApplicationId>com.lumin.baihuagu</ApplicationId>
     <ApplicationDisplayVersion>1.0</ApplicationDisplayVersion>

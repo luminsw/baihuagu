@@ -295,6 +295,7 @@ namespace TaskRunner.Core.Shared;
             _logger.LogInformation("设备已授权: {DeviceName}, DeviceId: {DeviceId}", request.DeviceName, newDeviceId);
             
             _ = NotifyDeviceStatusChangedAsync("authorized", request.DeviceName, requestId);
+            _ = NotifyAuthorizedViaWebSocketAsync(request.DeviceName);
             
             return (true, accessToken, null);
         }
@@ -765,7 +766,11 @@ namespace TaskRunner.Core.Shared;
 
         // ========== WebSocket 推送 ==========
 
-        public void RegisterPushSocket(string deviceName, WebSocket socket)
+        /// <summary>
+        /// 注册 WebSocket 推送连接并启动接收循环。
+        /// 返回的 Task 在连接关闭时完成，调用方应 await 以保持 Kestrel 请求存活。
+        /// </summary>
+        public Task RegisterPushSocket(string deviceName, WebSocket socket)
         {
             // 关闭旧连接
             if (_pushSockets.TryRemove(deviceName, out var oldSocket))
@@ -784,8 +789,8 @@ namespace TaskRunner.Core.Shared;
             _pushSocketCts[deviceName] = cts;
             _logger.LogInformation("[WebSocket] 设备 {DeviceName} 已连接推送通道", deviceName);
 
-            // 启动接收循环（保持连接活跃，处理关闭）
-            _ = RunPushSocketReceiveLoop(deviceName, socket, cts.Token);
+            // 启动接收循环（保持连接活跃，处理关闭），把 Task 返回给调用方
+            return RunPushSocketReceiveLoop(deviceName, socket, cts.Token);
         }
 
         private async Task RunPushSocketReceiveLoop(string deviceName, WebSocket socket, CancellationToken ct)
@@ -853,6 +858,39 @@ namespace TaskRunner.Core.Shared;
             {
                 _logger.LogWarning(ex, "[WebSocket] 向 {DeviceName} 推送失败", deviceName);
                 _pushSockets.TryRemove(deviceName, out _);
+                try { socket.Dispose(); } catch { }
+            }
+        }
+
+        public async Task NotifyAuthorizedViaWebSocketAsync(string? deviceName)
+        {
+            if (string.IsNullOrEmpty(deviceName)
+                || !_pushSockets.TryGetValue(deviceName, out var socket)
+                || socket.State != WebSocketState.Open)
+                return;
+
+            var name = deviceName;
+            var message = JsonSerializer.Serialize(new
+            {
+                type = "Authorized",
+                deviceName = name,
+                timestamp = DateTime.UtcNow
+            });
+
+            try
+            {
+                var bytes = Encoding.UTF8.GetBytes(message);
+                await socket.SendAsync(
+                    new ArraySegment<byte>(bytes),
+                    WebSocketMessageType.Text,
+                    endOfMessage: true,
+                    CancellationToken.None);
+                _logger.LogInformation("[WebSocket] 已通知 {DeviceName} 授权成功", name);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogWarning(ex, "[WebSocket] 通知 {DeviceName} 授权失败", name);
+                _pushSockets.TryRemove(name, out _);
                 try { socket.Dispose(); } catch { }
             }
         }

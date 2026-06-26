@@ -1,5 +1,6 @@
 @page "/devices"
 @rendermode InteractiveServer
+@using WebUI.Components
 @inject HttpClient HttpClient
 @inject IJSRuntime JSRuntime
 @inject ILogger<Devices> Logger
@@ -13,10 +14,10 @@
     <!-- Tab 导航 -->
     <ul class="nav nav-tabs mb-4">
         <li class="nav-item">
-            <button class="nav-link @(activeTab == "discover" ? "active" : "")" @onclick='() => SwitchTab("discover")'>🔍 发现</button>
+            <button class="nav-link @(activeTab == "devices" ? "active" : "")" @onclick='() => SwitchTab("devices")'>📱 设备</button>
         </li>
         <li class="nav-item">
-            <button class="nav-link @(activeTab == "devices" ? "active" : "")" @onclick='() => SwitchTab("devices")'>📱 设备</button>
+            <button class="nav-link @(activeTab == "discover" ? "active" : "")" @onclick='() => SwitchTab("discover")'>🔍 发现</button>
         </li>
     </ul>
 
@@ -28,13 +29,13 @@
         </div>
     }
 
-    <div class="alert alert-info mb-4">
-        <p class="mb-1"><strong>📱 局域网自动发现</strong></p>
-        <p class="mb-0 small">确保手机和电脑连接同一 WiFi，打开移动端「原记」APP 即可自动被发现。</p>
-    </div>
-
     @if (activeTab == "discover")
     {
+        <div class="alert alert-info mb-4">
+            <p class="mb-1"><strong>📱 局域网自动发现</strong></p>
+            <p class="mb-0 small">确保手机和电脑连接同一 WiFi，打开移动端「原记」APP 即可自动被发现。</p>
+        </div>
+
         <!-- 发现 Tab -->
         <div class="card mb-4">
             <div class="card-header d-flex justify-content-between align-items-center">
@@ -165,10 +166,22 @@
             </div>
         </div>
     }
-    else
+    else if (activeTab == "devices")
     {
         <!-- 设备 Tab -->
         <div class="row">
+            <!-- 二维码工具：扫码后可直接在本页看到授权请求 -->
+            <div class="col-12 mb-4">
+                <div class="card">
+                    <div class="card-header">
+                        <h5 class="mb-0">🖼️ 扫码配对</h5>
+                    </div>
+                    <div class="card-body">
+                        <QRToolPanel />
+                    </div>
+                </div>
+            </div>
+
             <!-- 待授权设备 -->
             <div class="col-12 mb-4">
                 <div class="card">
@@ -319,7 +332,7 @@
 </div>
 
 @code {
-    private string activeTab = "discover";
+    private string activeTab = "devices";
 
     // 通用状态
     private string? message;
@@ -407,13 +420,13 @@
     {
         activeTab = tab;
         message = null;
-        if (tab == "discover")
-        {
-            await LoadOneHopDataAsync();
-        }
-        else if (tab == "devices")
+        if (tab == "devices")
         {
             await LoadDevicesAsync();
+        }
+        else if (tab == "discover")
+        {
+            await LoadOneHopDataAsync();
         }
     }
 

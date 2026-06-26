@@ -726,27 +726,9 @@ app.Map("/ws/push", async (HttpContext context, DeviceService deviceService, ILo
     }
 
     var socket = await context.WebSockets.AcceptWebSocketAsync();
-    deviceService.RegisterPushSocket(deviceName, socket);
-
-    // 保持连接直到客户端断开
-    var buffer = new byte[1];
-    try
-    {
-        while (socket.State == WebSocketState.Open)
-        {
-            var result = await socket.ReceiveAsync(new ArraySegment<byte>(buffer), CancellationToken.None);
-            if (result.MessageType == WebSocketMessageType.Close)
-            {
-                break;
-            }
-        }
-    }
-    catch (WebSocketException) { }
-    catch (OperationCanceledException) { }
-    finally
-    {
-        logger.LogInformation("[WebSocket] 设备 {DeviceName} 连接结束", deviceName);
-    }
+    // RegisterPushSocket 内部运行接收循环并在连接关闭时完成；await 以保持 Kestrel 请求存活
+    await deviceService.RegisterPushSocket(deviceName, socket);
+    logger.LogInformation("[WebSocket] 设备 {DeviceName} 连接结束", deviceName);
 });
 
 // 启动信息

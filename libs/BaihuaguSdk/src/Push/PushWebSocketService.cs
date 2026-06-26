@@ -28,18 +28,21 @@ public class PushWebSocketService : IDisposable
     private string _deviceName = "";
     private string? _pendingPollUrl;
 
-    /// <summary>收到同步推送时的回调（vaultId, vaultName, action）</summary>
+    /// <summary>收到同步推送时触发（vaultId, vaultName, action）</summary>
     public Func<string, string, string, CancellationToken, Task>? OnSyncRequest
     {
         get => _onSyncRequest;
         init => _onSyncRequest = value;
     }
 
-    /// <summary>连接状态变化回调</summary>
-    public Action<bool>? OnConnectionStateChange { get; init; }
+    /// <summary>连接状态变化时触发</summary>
+    public event Action<bool>? ConnectionStateChanged;
 
     /// <summary>日志回调</summary>
-    public Action<string>? OnLog { get; init; }
+    public Action<string>? OnLog { get; set; }
+
+    /// <summary>设备被 WebUI 授权时触发</summary>
+    public event EventHandler? Authorized;
 
     /// <summary>是否已连接到服务器</summary>
     public bool IsConnected => _webSocket?.State == WebSocketState.Open;
@@ -111,7 +114,7 @@ public class PushWebSocketService : IDisposable
             await ws.ConnectAsync(new Uri(wsUrl), ct);
             Log("PushWebSocket connected");
             _reconnectAttempts = 0;
-            OnConnectionStateChange?.Invoke(true);
+            ConnectionStateChanged?.Invoke(true);
 
             // Read messages in a loop
             var buffer = new byte[4096];
@@ -142,7 +145,7 @@ public class PushWebSocketService : IDisposable
         }
 
         _webSocket = null;
-        OnConnectionStateChange?.Invoke(false);
+        ConnectionStateChanged?.Invoke(false);
 
         if (!_disposed && !ct.IsCancellationRequested)
             ScheduleReconnect(ct);
@@ -165,6 +168,10 @@ public class PushWebSocketService : IDisposable
 
                 if (!string.IsNullOrEmpty(vaultId))
                     _ = OnSyncRequest?.Invoke(vaultId, vaultName, action, CancellationToken.None);
+            }
+            else if (type == "Authorized")
+            {
+                Authorized?.Invoke(this, EventArgs.Empty);
             }
         }
         catch (Exception ex)
