@@ -16,6 +16,8 @@ public record RegisterDeviceResult
 
     public string? DeviceName { get; init; }
 
+    public string? AccessToken { get; init; }
+
     /// <summary>失败时的可读错误信息（调试用）</summary>
     public string? ErrorMessage { get; init; }
 }

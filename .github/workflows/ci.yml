@@ -17,7 +17,22 @@ jobs:
       - uses: actions/setup-dotnet@v4
         with:
           dotnet-version: '10.0.x'
-      - run: dotnet test tests/BaihuaguSdk.Tests/BaihuaguSdk.Tests.csproj -c Release
+      - name: Run SDK unit tests
+        run: dotnet test tests/BaihuaguSdk.Tests/BaihuaguSdk.Tests.csproj -c Release
+      - name: Run MAUI regression tests
+        run: dotnet test tests/MobileApp.Maui.Tests/MobileApp.Maui.Tests.csproj -c Release
+
+  # ── 服务端全方案编译（防止 MobileContract 变更后适配器编译失败） ──
+  family-build:
+    name: Family Solution Build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '10.0.x'
+      - name: Build DoctorNotes.Family solution
+        run: dotnet build services/DoctorNotes.Family.slnx -c Release
 
   # ── Android 编译（Linux） ──
   android-build:

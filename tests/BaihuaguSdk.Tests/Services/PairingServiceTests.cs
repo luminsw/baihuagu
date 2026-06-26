@@ -210,6 +210,70 @@ public class PairingServiceTests
         Assert.False(result.Success);
     }
 
+    // ---- 真实服务端响应格式契约测试（防止再次与 OneHopController 格式脱轨） ----
+
+    [Fact]
+    public async Task RegisterDeviceAsync_ServerRealUnauthorizedResponse_ParsesAsNotAuthorized()
+    {
+        var handler = new MockHttpMessageHandler();
+        var client = new HttpClient(handler);
+        var signerMock = new Mock<IRequestSigner>();
+        signerMock.Setup(s => s.SignRequest(It.IsAny<string>(), It.IsAny<string>(),
+            It.IsAny<string?>(), It.IsAny<string?>())).Returns(new Dictionary<string, string>());
+
+        handler.SetupResponse("/mg/onehop/register-device", HttpStatusCode.OK,
+            """{"message":"设备已注册，请在 WebUI 中授权","deviceId":"d1","deviceName":"Honor","serverName":"family-pc","ipAddress":"192.168.1.100","requestId":"req-abc","authorized":false,"accessToken":null}""");
+
+        var service = new PairingServiceImpl(client, signerMock.Object, "d1", "Honor");
+        var result = await service.RegisterDeviceAsync("http://192.168.1.100:8788");
+
+        Assert.True(result.Success);
+        Assert.False(result.Authorized);
+        Assert.Equal("req-abc", result.RequestId);
+        Assert.Equal("family-pc", result.DeviceName);
+    }
+
+    [Fact]
+    public async Task RegisterDeviceAsync_ServerRealAuthorizedResponse_ParsesSharedSecret()
+    {
+        var handler = new MockHttpMessageHandler();
+        var client = new HttpClient(handler);
+        var signerMock = new Mock<IRequestSigner>();
+        signerMock.Setup(s => s.SignRequest(It.IsAny<string>(), It.IsAny<string>(),
+            It.IsAny<string?>(), It.IsAny<string?>())).Returns(new Dictionary<string, string>());
+
+        handler.SetupResponse("/mg/onehop/register-device", HttpStatusCode.OK,
+            """{"message":"设备已授权","deviceId":"d1","deviceName":"Honor","serverName":"family-pc","ipAddress":"192.168.1.100","requestId":"d1","authorized":true,"accessToken":"token-xyz","sharedSecret":"secret-123"}""");
+
+        var service = new PairingServiceImpl(client, signerMock.Object, "d1", "Honor");
+        var result = await service.RegisterDeviceAsync("http://192.168.1.100:8788");
+
+        Assert.True(result.Success);
+        Assert.True(result.Authorized);
+        Assert.Equal("secret-123", result.SharedSecret);
+        Assert.Equal("token-xyz", result.AccessToken);
+    }
+
+    [Fact]
+    public async Task RegisterDeviceAsync_ServerRealMismatchResponse_ParsesAsNotAuthorized()
+    {
+        var handler = new MockHttpMessageHandler();
+        var client = new HttpClient(handler);
+        var signerMock = new Mock<IRequestSigner>();
+        signerMock.Setup(s => s.SignRequest(It.IsAny<string>(), It.IsAny<string>(),
+            It.IsAny<string?>(), It.IsAny<string?>())).Returns(new Dictionary<string, string>());
+
+        handler.SetupResponse("/mg/onehop/register-device", HttpStatusCode.OK,
+            """{"message":"设备标识已变更，请在 WebUI 中重新授权","deviceId":"d1","deviceName":"Honor","serverName":"family-pc","ipAddress":"192.168.1.100","requestId":"req-mismatch","authorized":false}""");
+
+        var service = new PairingServiceImpl(client, signerMock.Object, "d1", "Honor");
+        var result = await service.RegisterDeviceAsync("http://192.168.1.100:8788");
+
+        Assert.True(result.Success);
+        Assert.False(result.Authorized);
+        Assert.Equal("req-mismatch", result.RequestId);
+    }
+
     [Fact]
     public void ParseQrCode_EmptyString_ReturnsNull()
     {
