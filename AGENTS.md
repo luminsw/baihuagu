@@ -24,9 +24,15 @@
 - `services/TaskRunner.Contracts/`：共享 DTO 与接口契约
 - `services/Core.Shared/`：共享服务层（含 VaultSettingsService、DeviceService 等）
 - `services/TaskRunner.Data/`：共享 EF Core 数据层
+- `libs/BaihuaguSdk/`：跨平台移动端 SDK（net9.0;net10.0，零 MAUI 依赖）
+- `libs/MobileContract/`：移动端契约（DTO、接口定义）
+- `clients/MobileApp.Maui/`：MAUI Blazor Hybrid 移动客户端
 - `bhg`：极简 CLI 工具（Linux/Mac）
 - `docs/`：协议与架构文档
 - `scripts/`：开发、发布、部署脚本
+- `tests/BaihuaguSdk.Tests/`：SDK 单元测试与集成测试
+- `tests/MobileApp.Maui.Tests/`：MAUI DI 回归测试
+- `tests/TaskRunner.Family.Tests/`：后端配对服务测试
 
 ## 访问授权
 
@@ -119,6 +125,49 @@ adb install clients/MobileApp.Maui/bin/Release/net10.0-android/com.lumin.baihuag
 ```
 
 页面：首页（服务器列表）、配对（扫码/手动注册）、同步（知识库拉取+文件下载）、已同步（文件浏览器）。
+
+## 测试
+
+### BaihuaguSdk 测试
+
+**单元测试**（无需服务器，覆盖核心算法和逻辑）：
+
+```bash
+dotnet test tests/BaihuaguSdk.Tests/BaihuaguSdk.Tests.csproj --filter Unit
+```
+
+覆盖模块：
+- `Signing/RequestSigner`：签名算法、密钥管理、SHA256/HMAC 验证
+- `Transport/HttpTransport`：URL 规范化、错误提取、HTTP 状态码映射
+- `Services/SyncServiceImpl`：文件类型判断、路径安全验证
+- `Services/PairingServiceImpl`：QR 码解析（新旧格式）、服务器地址提取
+
+**集成测试**（需要运行中的百花谷服务器）：
+
+```bash
+export BAIHUAGU_TEST_URL=http://192.168.x.x:8788
+export BAIHUAGU_TEST_SECRET=<shared-secret>
+export BAIHUAGU_TEST_VAULT_ID=<vault-id>
+dotnet test tests/BaihuaguSdk.Tests/BaihuaguSdk.Tests.csproj --filter Integration
+```
+
+测试完整流程：配对 → 获取知识库列表 → 获取 manifest → 同步文件
+
+### MobileApp.Maui 测试
+
+**DI 回归测试**（确保所有服务可正确构造）：
+
+```bash
+dotnet test tests/MobileApp.Maui.Tests/MobileApp.Maui.Tests.csproj
+```
+
+### TaskRunner.Family 测试
+
+**后端配对服务测试**：
+
+```bash
+dotnet test tests/TaskRunner.Family.Tests/TaskRunner.Family.Tests.csproj
+```
 
 ## 已知限制
 
