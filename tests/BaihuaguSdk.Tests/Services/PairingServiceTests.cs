@@ -116,17 +116,13 @@ public class PairingServiceTests
 
         var response = new
         {
-            success = true,
-            data = new
-            {
-                authorized = true,
-                sharedSecret = "secret-123",
-                requestId = "req-456",
-                deviceName = "TestDevice"
-            }
+            authorized = true,
+            sharedSecret = "secret-123",
+            requestId = "req-456",
+            deviceName = "TestDevice"
         };
         handler.SetupResponse("/mg/onehop/register-device", HttpStatusCode.OK,
-            JsonSerializer.Serialize(new { success = true, data = response.data }));
+            JsonSerializer.Serialize(response));
 
         var service = new PairingServiceImpl(client, signerMock.Object, "device-1", "TestDevice");
 
@@ -149,7 +145,7 @@ public class PairingServiceTests
             It.IsAny<string?>(), It.IsAny<string?>())).Returns(new Dictionary<string, string>());
 
         handler.SetupResponse("/mg/onehop/register-device", HttpStatusCode.OK,
-            """{"success":true,"data":{"authorized":false,"requestId":"req-1"}}""");
+            """{"authorized":false,"requestId":"req-1","deviceId":"device-1"}""");
 
         var service = new PairingServiceImpl(client, signerMock.Object, "device-1", "TestDevice");
 

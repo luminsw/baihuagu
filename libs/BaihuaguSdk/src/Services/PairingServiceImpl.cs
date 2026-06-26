@@ -91,32 +91,28 @@ public class PairingServiceImpl : IPairingService, IDeviceRegistrationService
             if (resp.IsSuccess)
             {
                 var root = resp.Data!;
-                var success = GetBool(root, "success");
-                if (!success)
-                {
-                    var msg = HttpTransport.ExtractServerError(resp.RawBody) ?? "服务器返回失败";
-                    return new RegisterDeviceResult { Success = false, ErrorMessage = msg };
-                }
 
-                if (root.TryGetProperty("data", out var data) && data.ValueKind == JsonValueKind.Object)
-                {
-                    return new RegisterDeviceResult
-                    {
-                        Success = true,
-                        Authorized = GetBool(data, "authorized"),
-                        SharedSecret = GetString(data, "sharedSecret"),
-                        RequestId = GetString(data, "requestId"),
-                        DeviceName = GetString(data, "deviceName")
-                    };
-                }
+                // 服务端直接返回字段（与 Kotlin/ArkTS 对齐），不是 { success, data } 包装
+                if (root.ValueKind != JsonValueKind.Object)
+                    return new RegisterDeviceResult { Success = false, ErrorMessage = "返回格式错误" };
 
-                return new RegisterDeviceResult { Success = true };
+                if (GetString(root, "error") is { } serverErr)
+                    return new RegisterDeviceResult { Success = false, ErrorMessage = serverErr };
+
+                return new RegisterDeviceResult
+                {
+                    Success = true,
+                    Authorized = GetBool(root, "authorized"),
+                    SharedSecret = GetString(root, "sharedSecret"),
+                    RequestId = GetString(root, "requestId"),
+                    DeviceName = GetString(root, "deviceName") ?? GetString(root, "serverName")
+                };
             }
 
             var httpMsg = $"HTTP {(int)resp.StatusCode}";
-            var serverErr = HttpTransport.ExtractServerError(resp.RawBody);
-            if (!string.IsNullOrEmpty(serverErr))
-                httpMsg += $": {serverErr}";
+            var bodyErr = HttpTransport.ExtractServerError(resp.RawBody);
+            if (!string.IsNullOrEmpty(bodyErr))
+                httpMsg += $": {bodyErr}";
             return new RegisterDeviceResult { Success = false, ErrorMessage = httpMsg };
         }
         catch (Exception ex)
