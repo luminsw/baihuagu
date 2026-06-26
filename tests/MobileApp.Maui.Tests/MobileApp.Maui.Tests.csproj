@@ -16,4 +16,3 @@
     <ProjectReference Include="..\..\libs\MobileContract\MobileContract.csproj" />
   </ItemGroup>
 </Project>
-
