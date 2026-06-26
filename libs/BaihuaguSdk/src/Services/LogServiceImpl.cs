@@ -79,6 +79,9 @@ public class LogServiceImpl : IDisposable
     public void Error(string msg, string? ctx = null) => Log("ERROR", msg, ctx);
     public void Debug(string msg, string? ctx = null) => Log("DEBUG", msg, ctx);
 
+    /// <summary>强制刷新缓冲区（用于测试）</summary>
+    internal Task ForceFlushAsync() => FlushBatchAsync();
+
     /// <summary>停止后台刷新并清空缓冲区</summary>
     public void Dispose()
     {

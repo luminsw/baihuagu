@@ -81,15 +81,24 @@ public class PairingServiceImpl
 
             if (resp.IsSuccess)
             {
-                var data = resp.Data!;
-                return new RegisterDeviceResult
+                var root = resp.Data!;
+                var success = GetBool(root, "success");
+                if (!success)
+                    return new RegisterDeviceResult { Success = false };
+
+                if (root.TryGetProperty("data", out var data) && data.ValueKind == JsonValueKind.Object)
                 {
-                    Success = true,
-                    Authorized = GetBool(data, "authorized"),
-                    SharedSecret = GetString(data, "sharedSecret"),
-                    RequestId = GetString(data, "requestId"),
-                    DeviceName = GetString(data, "deviceName")
-                };
+                    return new RegisterDeviceResult
+                    {
+                        Success = true,
+                        Authorized = GetBool(data, "authorized"),
+                        SharedSecret = GetString(data, "sharedSecret"),
+                        RequestId = GetString(data, "requestId"),
+                        DeviceName = GetString(data, "deviceName")
+                    };
+                }
+
+                return new RegisterDeviceResult { Success = true };
             }
 
             return new RegisterDeviceResult { Success = false };

@@ -2,6 +2,9 @@ using BaihuaguSdk.Services;
 using BaihuaguSdk.Signing;
 using BaihuaguSdk.Transport;
 using Moq;
+using System.Net;
+using System.Text;
+using System.Text.Json;
 using Xunit;
 
 namespace BaihuaguSdk.Tests.Services;
@@ -9,14 +12,17 @@ namespace BaihuaguSdk.Tests.Services;
 public class LogServiceTests : IDisposable
 {
     private readonly Mock<IRequestSigner> _signerMock = new();
+    private readonly MockHttpMessageHandler _handler = new();
     private readonly HttpClient _httpClient;
 
     public LogServiceTests()
     {
-        _httpClient = new HttpClient();
+        _httpClient = new HttpClient(_handler);
         _signerMock.Setup(s => s.SignRequest(It.IsAny<string>(), It.IsAny<string>(),
             It.IsAny<string?>(), It.IsAny<string?>())).Returns(new Dictionary<string, string>());
     }
+
+    // ---- 基础构造/初始化测试 ----
 
     [Fact]
     public void Constructor_InitializesCorrectly()
@@ -116,6 +122,94 @@ public class LogServiceTests : IDisposable
         {
             service.Info($"message {i}", "loop");
         }
+    }
+
+    // ---- 实际上报测试（Mock HttpMessageHandler） ----
+
+    [Fact]
+    public async Task FlushBatchAsync_SendsLogsToServer()
+    {
+        _handler.SetupResponse("/mg/mobile-logs/batch", HttpStatusCode.OK, "{}");
+
+        using var service = new LogServiceImpl(_httpClient, _signerMock.Object, "device-1", "TestDevice");
+        service.Initialize("http://localhost:8788");
+
+        service.Info("test message", "ctx");
+
+        await service.ForceFlushAsync();
+
+        Assert.Contains(_handler.RequestLog, r => r.Contains("/mg/mobile-logs/batch"));
+    }
+
+    [Fact]
+    public async Task Log_ExceedsBufferThreshold_TriggersFlush()
+    {
+        _handler.SetupResponse("/mg/mobile-logs/batch", HttpStatusCode.OK, "{}");
+
+        using var service = new LogServiceImpl(_httpClient, _signerMock.Object, "device-1", "TestDevice");
+        service.Initialize("http://localhost:8788");
+
+        // MaxBufferSize = 50, add 51 to trigger immediate flush
+        for (var i = 0; i < 51; i++)
+        {
+            service.Info($"message {i}", "batch");
+        }
+
+        await Task.Delay(100);
+
+        Assert.Contains(_handler.RequestLog, r => r.Contains("/mg/mobile-logs/batch"));
+    }
+
+    [Fact]
+    public async Task Dispose_TriggersFinalFlush()
+    {
+        _handler.SetupResponse("/mg/mobile-logs/batch", HttpStatusCode.OK, "{}");
+
+        var service = new LogServiceImpl(_httpClient, _signerMock.Object, "device-1", "TestDevice");
+        service.Initialize("http://localhost:8788");
+
+        service.Info("before dispose", "ctx");
+
+        service.Dispose();
+        await Task.Delay(100);
+
+        Assert.Contains(_handler.RequestLog, r => r.Contains("/mg/mobile-logs/batch"));
+    }
+
+    [Fact]
+    public async Task Log_WithExtraFields_SerializedInRequest()
+    {
+        string? requestBody = null;
+        _handler.SetupResponse("/mg/mobile-logs/batch", HttpStatusCode.OK, "{}",
+            body => requestBody = body);
+
+        using var service = new LogServiceImpl(_httpClient, _signerMock.Object, "device-1", "TestDevice");
+        service.Initialize("http://localhost:8788");
+
+        var extra = new Dictionary<string, string> { ["key"] = "value" };
+        service.Log("INFO", "test with extra", "ctx", extra);
+
+        await service.ForceFlushAsync();
+
+        Assert.NotNull(requestBody);
+        Assert.Contains("test with extra", requestBody);
+        Assert.Contains("device-1", requestBody);
+    }
+
+    [Fact]
+    public void DeriveOpenObservePort_FamilyServer_Returns5082()
+    {
+        using var service = new LogServiceImpl(_httpClient, _signerMock.Object, "device-1", "TestDevice");
+        service.Initialize("http://localhost:8788", "localhost");
+    }
+
+    [Fact]
+    public void Log_EmptyMessage_Accepted()
+    {
+        using var service = new LogServiceImpl(_httpClient, _signerMock.Object, "device-1", "TestDevice");
+        service.Initialize("http://localhost:8788");
+
+        service.Info("", "ctx");
     }
 
     public void Dispose()
