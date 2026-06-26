@@ -36,16 +36,17 @@ jobs:
 
   # ── iOS 编译（macOS, .NET 9） ──
   # .NET 10 iOS 工作负载需要 Xcode 26.5，GitHub runner 只有 16.4，暂用 .NET 9
-  ios-build:
-    name: iOS Build (.NET 9)
-    runs-on: macos-latest
-    needs: sdk-tests
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-dotnet@v4
-        with:
-          dotnet-version: '9.0.x'
-      - name: Install MAUI workloads
-        run: dotnet workload install maui-ios
-      - name: Build iOS
-        run: dotnet build clients/MobileApp.Maui/MobileApp.Maui.csproj -f net9.0-ios -c Release -p:TargetFrameworks=net9.0-ios
+  # TODO: iOS 构建太耗时（3+分钟），当前无实际需求，暂且注释，以后再启用
+  # ios-build:
+  #   name: iOS Build (.NET 9)
+  #   runs-on: macos-latest
+  #   needs: sdk-tests
+  #   steps:
+  #     - uses: actions/checkout@v4
+  #     - uses: actions/setup-dotnet@v4
+  #       with:
+  #         dotnet-version: '9.0.x'
+  #     - name: Install MAUI workloads
+  #       run: dotnet workload install maui-ios
+  #     - name: Build iOS
+  #       run: dotnet build clients/MobileApp.Maui/MobileApp.Maui.csproj -f net9.0-ios -c Release -p:TargetFrameworks=net9.0-ios
