@@ -195,7 +195,6 @@ builder.Services.AddSingleton<AchievementEngine>();
 builder.Services.AddSingleton<LeaderboardService>();
 builder.Services.AddHostedService<StudyRecordMigrationService>();
 builder.Services.AddSingleton<DeviceService>();
-builder.Services.AddSingleton<DeviceQuotaService>();
 builder.Services.AddSingleton<PairingService>();
 
 // Family 版固定使用 Family 配对和同步授权策略
@@ -211,7 +210,6 @@ builder.Services.AddSingleton<MobileContract.Services.IDeviceService, TaskRunner
 builder.Services.AddSingleton<MobileContract.Services.IPairingService, TaskRunner.Services.Adapters.MobileDeviceServiceAdapter>();
 builder.Services.AddSingleton<MobileContract.Services.IPushNotificationService, TaskRunner.Services.Adapters.MobileDeviceServiceAdapter>();
 builder.Services.AddSingleton<MobileContract.Services.ILogService, TaskRunner.Services.Adapters.MobileLogServiceAdapter>();
-builder.Services.AddSingleton<MobileContract.Services.IQuotaService, TaskRunner.Services.Adapters.MobileQuotaServiceAdapter>();
 
 // 注册OneHop服务（基于TCP的局域网设备连接）
 builder.Services.AddSingleton<IOneHopService, OneHopService>();
@@ -282,7 +280,6 @@ builder.Services.AddRateLimiter(options =>
 
 // 注册后台服务
 builder.Services.AddHostedService<TaskCleanupService>();
-builder.Services.AddHostedService<DeviceDailySyncCleanupService>();
 builder.Services.AddHostedService<ObsidianWarmupHostedService>();
 builder.Services.AddHostedService<OneHopManager>();
 // VaultIndexSchedulerService 已在 TaskRunner.Vault 中注册，避免两个进程同时重建索引

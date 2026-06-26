@@ -33,20 +33,7 @@ public class AppDbContext : DbContext
     public DbSet<AuthorizedDevice> AuthorizedDevices => Set<AuthorizedDevice>();
     public DbSet<DeviceSyncLog> DeviceSyncLogs => Set<DeviceSyncLog>();
 
-    /// <summary>
-    /// 设备配额（付费同步 + AI构建）
-    /// </summary>
-    public DbSet<DeviceQuota> DeviceQuotas => Set<DeviceQuota>();
 
-    /// <summary>
-    /// 设备每日同步记录（频率限制）
-    /// </summary>
-    public DbSet<DeviceDailySync> DeviceDailySyncs => Set<DeviceDailySync>();
-
-    /// <summary>
-    /// 华为 IAP 购买记录
-    /// </summary>
-    public DbSet<IapPurchaseRecord> IapPurchaseRecords => Set<IapPurchaseRecord>();
 
     /// <summary>
     /// 服务器地址配置（用于移动端连接）
@@ -177,48 +164,6 @@ public class AppDbContext : DbContext
             entity.Property(e => e.UpdatedAt).HasDefaultValueSql("datetime('now')");
         });
 
-        // 设备配额
-        modelBuilder.Entity<DeviceQuota>(entity =>
-        {
-            entity.ToTable("DeviceQuotas");
-            entity.HasKey(e => e.Id);
-            entity.HasIndex(e => e.DeviceId).IsUnique();
-
-            entity.Property(e => e.DeviceId).HasMaxLength(100).IsRequired();
-            entity.Property(e => e.DeviceName).HasMaxLength(200).IsRequired();
-            entity.Property(e => e.CreatedAt).HasDefaultValueSql("datetime('now')");
-            entity.Property(e => e.UpdatedAt).HasDefaultValueSql("datetime('now')");
-        });
-
-        // 设备每日同步记录
-        modelBuilder.Entity<DeviceDailySync>(entity =>
-        {
-            entity.ToTable("DeviceDailySyncs");
-            entity.HasKey(e => e.Id);
-            entity.HasIndex(e => new { e.DeviceId, e.VaultId, e.SyncDate }).IsUnique();
-
-            entity.Property(e => e.DeviceId).HasMaxLength(100).IsRequired();
-            entity.Property(e => e.VaultId).HasMaxLength(50).IsRequired();
-            entity.Property(e => e.SyncDate).IsRequired();
-            entity.Property(e => e.CreatedAt).HasDefaultValueSql("datetime('now')");
-            entity.Property(e => e.UpdatedAt).HasDefaultValueSql("datetime('now')");
-        });
-
-        // 华为 IAP 购买记录
-        modelBuilder.Entity<IapPurchaseRecord>(entity =>
-        {
-            entity.ToTable("IapPurchaseRecords");
-            entity.HasKey(e => e.Id);
-            entity.HasIndex(e => e.PurchaseToken).IsUnique();
-            entity.HasIndex(e => e.DeviceId);
-
-            entity.Property(e => e.DeviceId).HasMaxLength(100).IsRequired();
-            entity.Property(e => e.ProductId).HasMaxLength(100).IsRequired();
-            entity.Property(e => e.PurchaseToken).HasMaxLength(500).IsRequired();
-            entity.Property(e => e.QuotaType).HasMaxLength(50).IsRequired();
-            entity.Property(e => e.CreatedAt).HasDefaultValueSql("datetime('now')");
-        });
-
         // 设备同步日志
         modelBuilder.Entity<DeviceSyncLog>(entity =>
         {
@@ -304,14 +249,6 @@ public class AppDbContext : DbContext
             else if (entry.Entity is ServerAddressSetting setting)
             {
                 setting.UpdatedAt = DateTime.Now;
-            }
-            else if (entry.Entity is DeviceQuota deviceQuota)
-            {
-                deviceQuota.UpdatedAt = DateTime.Now;
-            }
-            else if (entry.Entity is DeviceDailySync deviceDailySync)
-            {
-                deviceDailySync.UpdatedAt = DateTime.Now;
             }
         }
     }

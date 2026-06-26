@@ -8,7 +8,7 @@ namespace MobileApp.Maui.Tests;
 
 /// <summary>
 /// 回归测试：确保 MauiProgram 中所有 DI 注册的服务都可以正确构造。
-/// 之前 PairingServiceImpl/QuotaServiceImpl/LogServiceImpl 的构造函数包含 string
+/// 之前 PairingServiceImpl/LogServiceImpl 的构造函数包含 string
 /// 参数，而 DI 容器无法解析，导致 Blazor 路由器静默崩溃。
 /// </summary>
 public class DiRegressionTests
@@ -29,36 +29,12 @@ public class DiRegressionTests
     [Fact]
     public void PairingServiceImpl_Ctor_RequiresAllStringParams()
     {
-        // 验证构造函数签名包含 string 参数（这些必须通过工厂方法提供）
         var ctor = typeof(PairingServiceImpl).GetConstructors().Single();
         var stringParams = ctor.GetParameters().Where(p => p.ParameterType == typeof(string));
 
         Assert.Equal(2, stringParams.Count());
         Assert.Contains(stringParams, p => p.Name == "deviceId");
         Assert.Contains(stringParams, p => p.Name == "deviceName");
-    }
-
-    // ---- QuotaServiceImpl ----
-
-    [Fact]
-    public void QuotaServiceImpl_CanBeConstructed_WithCorrectFactoryPattern()
-    {
-        var client = new HttpClient();
-        var signer = Mock.Of<IRequestSigner>();
-
-        var service = new QuotaServiceImpl(client, signer, "http://localhost:8788");
-
-        Assert.NotNull(service);
-    }
-
-    [Fact]
-    public void QuotaServiceImpl_Ctor_RequiresStringBaseUrl()
-    {
-        var ctor = typeof(QuotaServiceImpl).GetConstructors().Single();
-        var stringParams = ctor.GetParameters().Where(p => p.ParameterType == typeof(string));
-
-        Assert.Single(stringParams);
-        Assert.Equal("baseUrl", stringParams.First().Name);
     }
 
     // ---- LogServiceImpl ----
@@ -139,7 +115,6 @@ public class DiRegressionTests
         var services = new object[]
         {
             new PairingServiceImpl(client, signer, "test-device", "test-name"),
-            new QuotaServiceImpl(client, signer, ""),
             new LogServiceImpl(client, signer, "test-device", "test-name"),
             new SyncServiceImpl(client, signer),
             new PushWebSocketService(client),

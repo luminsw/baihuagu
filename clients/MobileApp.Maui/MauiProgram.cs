@@ -60,12 +60,6 @@ public static class MauiProgram
         {
             var client = sp.GetRequiredService<HttpClient>();
             var signer = sp.GetRequiredService<IRequestSigner>();
-            return new QuotaServiceImpl(client, signer, "");
-        });
-        builder.Services.AddSingleton(sp =>
-        {
-            var client = sp.GetRequiredService<HttpClient>();
-            var signer = sp.GetRequiredService<IRequestSigner>();
             return new LogServiceImpl(client, signer,
                 DeviceInfoHelper.GetDeviceId(), DeviceInfoHelper.GetDeviceName());
         });
