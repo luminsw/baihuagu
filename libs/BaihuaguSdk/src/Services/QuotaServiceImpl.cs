@@ -24,6 +24,8 @@ public class QuotaServiceImpl
     /// <summary>获取设备当前配额状态</summary>
     public async Task<QuotaInfoDto> GetQuotaAsync(string deviceId, CancellationToken ct = default)
     {
+        ArgumentException.ThrowIfNullOrEmpty(deviceId);
+        
         var transport = new HttpTransport(_httpClient, _signer, _baseUrl, deviceId: deviceId);
         var resp = await transport.GetJsonAsync<QuotaInfoDto>("/mg/mobile/quota", ct: ct);
         if (!resp.IsSuccess)
@@ -34,6 +36,8 @@ public class QuotaServiceImpl
     /// <summary>获取设备购买历史</summary>
     public async Task<IReadOnlyList<OrderRecordDto>> GetOrdersAsync(string deviceId, CancellationToken ct = default)
     {
+        ArgumentException.ThrowIfNullOrEmpty(deviceId);
+        
         var transport = new HttpTransport(_httpClient, _signer, _baseUrl, deviceId: deviceId);
         var resp = await transport.GetJsonAsync<List<OrderRecordDto>>("/mg/mobile/orders", ct: ct);
         if (!resp.IsSuccess)
@@ -44,6 +48,9 @@ public class QuotaServiceImpl
     /// <summary>模拟购买（开发/测试用）</summary>
     public async Task<bool> SimulatePurchaseAsync(string deviceId, string productId, CancellationToken ct = default)
     {
+        ArgumentException.ThrowIfNullOrEmpty(deviceId);
+        ArgumentException.ThrowIfNullOrEmpty(productId);
+        
         var transport = new HttpTransport(_httpClient, _signer, _baseUrl, deviceId: deviceId);
         var body = new { deviceId, productId };
         var resp = await transport.PostJsonAsync<object>("/mg/mobile/purchase", body, ct: ct);

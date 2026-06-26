@@ -1,3 +1,4 @@
+using BaihuaguSdk.Push;
 using BaihuaguSdk.Services;
 using BaihuaguSdk.Signing;
 using BaihuaguSdk.Storage;
@@ -67,6 +68,12 @@ public static class MauiProgram
             var signer = sp.GetRequiredService<IRequestSigner>();
             return new LogServiceImpl(client, signer,
                 DeviceInfoHelper.GetDeviceId(), DeviceInfoHelper.GetDeviceName());
+        });
+
+        builder.Services.AddSingleton(sp =>
+        {
+            var client = sp.GetRequiredService<HttpClient>();
+            return new PushWebSocketService(client);
         });
 
         return builder.Build();

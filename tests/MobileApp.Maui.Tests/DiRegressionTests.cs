@@ -1,3 +1,4 @@
+using BaihuaguSdk.Push;
 using BaihuaguSdk.Services;
 using BaihuaguSdk.Signing;
 using BaihuaguSdk.Storage;
@@ -104,6 +105,28 @@ public class DiRegressionTests
         Assert.Empty(stringParams); // 可以直接通过 DI 容器构造，无需工厂方法
     }
 
+    // ---- PushWebSocketService ----
+
+    [Fact]
+    public void PushWebSocketService_CanBeConstructed_WithHttpClient()
+    {
+        var client = new HttpClient();
+        
+        using var service = new PushWebSocketService(client);
+        
+        Assert.NotNull(service);
+        Assert.False(service.IsConnected);
+    }
+
+    [Fact]
+    public void PushWebSocketService_Ctor_HasNoStringParams()
+    {
+        var ctor = typeof(PushWebSocketService).GetConstructors().Single();
+        var stringParams = ctor.GetParameters().Where(p => p.ParameterType == typeof(string));
+        
+        Assert.Empty(stringParams);
+    }
+
     // ---- 综合：验证所有 @inject 的类型都可以构造 ----
 
     [Fact]
@@ -119,6 +142,7 @@ public class DiRegressionTests
             new QuotaServiceImpl(client, signer, ""),
             new LogServiceImpl(client, signer, "test-device", "test-name"),
             new SyncServiceImpl(client, signer),
+            new PushWebSocketService(client),
         };
 
         foreach (var svc in services)

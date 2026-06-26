@@ -82,10 +82,12 @@ public class LogServiceImpl : IDisposable
     /// <summary>停止后台刷新并清空缓冲区</summary>
     public void Dispose()
     {
+        if (_disposed) return;
         _disposed = true;
-        _cts.Cancel();
-        _ = FlushBatchAsync(); // final flush
-        _cts.Dispose();
+
+        try { _cts.Cancel(); } catch { }
+        try { _ = FlushBatchAsync(); } catch { }
+        try { _cts.Dispose(); } catch { }
     }
 
     // ---- internal ----
