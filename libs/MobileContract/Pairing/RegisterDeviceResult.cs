@@ -15,4 +15,7 @@ public record RegisterDeviceResult
     public string? RequestId { get; init; }
 
     public string? DeviceName { get; init; }
+
+    /// <summary>失败时的可读错误信息（调试用）</summary>
+    public string? ErrorMessage { get; init; }
 }

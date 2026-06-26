@@ -93,7 +93,10 @@ public class PairingServiceImpl : IPairingService, IDeviceRegistrationService
                 var root = resp.Data!;
                 var success = GetBool(root, "success");
                 if (!success)
-                    return new RegisterDeviceResult { Success = false };
+                {
+                    var msg = HttpTransport.ExtractServerError(resp.RawBody) ?? "服务器返回失败";
+                    return new RegisterDeviceResult { Success = false, ErrorMessage = msg };
+                }
 
                 if (root.TryGetProperty("data", out var data) && data.ValueKind == JsonValueKind.Object)
                 {
@@ -110,11 +113,15 @@ public class PairingServiceImpl : IPairingService, IDeviceRegistrationService
                 return new RegisterDeviceResult { Success = true };
             }
 
-            return new RegisterDeviceResult { Success = false };
+            var httpMsg = $"HTTP {(int)resp.StatusCode}";
+            var serverErr = HttpTransport.ExtractServerError(resp.RawBody);
+            if (!string.IsNullOrEmpty(serverErr))
+                httpMsg += $": {serverErr}";
+            return new RegisterDeviceResult { Success = false, ErrorMessage = httpMsg };
         }
-        catch
+        catch (Exception ex)
         {
-            return new RegisterDeviceResult { Success = false };
+            return new RegisterDeviceResult { Success = false, ErrorMessage = $"异常: {ex.Message}" };
         }
     }
 

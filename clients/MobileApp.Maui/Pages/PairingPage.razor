@@ -48,6 +48,10 @@
 {
     <div class="result @(_result.Success ? "success" : "error")">
         <p>注册结果: @(_result.Success ? "成功" : "失败")</p>
+        @if (!_result.Success && !string.IsNullOrEmpty(_result.ErrorMessage))
+        {
+            <p>错误: @_result.ErrorMessage</p>
+        }
         @if (_result.Authorized)
         {
             <p>设备已授权! SharedSecret 已保存。</p>
