@@ -5,6 +5,7 @@
 @inject BaihuaguSdk.Storage.ISecureStore SecureStore
 @inject MobileApp.Maui.Services.IQrScanner QrScanner
 @inject BaihuaguSdk.Services.LogServiceImpl Logger
+@inject BaihuaguSdk.Push.PushWebSocketService PushService
 
 <PageTitle>百花谷 - 配对</PageTitle>
 
@@ -146,5 +147,8 @@
 
         Logger.Initialize(httpUrl);
         Logger.Info($"设备已配对: {serverName} ({httpUrl})", "PairingPage");
+
+        await PushService.ConnectAsync(httpUrl, DeviceInfoHelper.GetDeviceName());
+        Logger.Info("已启动 WebSocket 推送连接", "PairingPage");
     }
 }
