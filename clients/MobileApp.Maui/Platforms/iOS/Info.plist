@@ -24,5 +24,7 @@
 		<key>NSAllowsArbitraryLoads</key>
 		<true/>
 	</dict>
+	<key>NSCameraUsageDescription</key>
+	<string>需要使用相机扫描二维码以连接百花谷服务器。</string>
 </dict>
 </plist>

@@ -40,6 +40,7 @@ h3 { font-size: 16px; margin: 16px 0 8px; }
 .method-card { background: white; border-radius: 10px; padding: 16px; }
 .method-card h3 { margin-top: 0; }
 .method-card input, .method-card textarea { width: 100%; padding: 10px; border: 1px solid #ccc; border-radius: 6px; font-size: 16px; margin: 8px 0; }
+.or-divider { text-align: center; color: #999; font-size: 13px; margin: 8px 0; }
 
 .server-select { width: 100%; padding: 12px; border: 1px solid #ccc; border-radius: 6px; font-size: 16px; margin: 8px 0; }
 

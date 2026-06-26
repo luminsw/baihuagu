@@ -4,6 +4,7 @@
 @inject BaihuaguSdk.Signing.RequestSigner Signer
 @inject BaihuaguSdk.Storage.IServerConfigStore ServerStore
 @inject BaihuaguSdk.Storage.ISecureStore SecureStore
+@inject MobileApp.Maui.Services.IVaultStorageFactory VaultStorageFactory
 @inject NavigationManager Nav
 
 <PageTitle>百花谷 - 同步</PageTitle>
@@ -161,9 +162,7 @@ else
         StateHasChanged();
         try
         {
-            // Use file system storage for sync
-            var vaultRoot = Path.Combine(FileSystem.AppDataDirectory, "vaults", vaultId);
-            var storage = new MobileApp.Maui.Services.VaultStorageAdapter(vaultRoot);
+            var storage = VaultStorageFactory.CreateForVault(vaultId);
             var deviceId = Signer.DeviceId;
 
             _syncResult = await SyncService.SyncVaultAsync(

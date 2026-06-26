@@ -3,6 +3,7 @@
 @inject BaihuaguSdk.Storage.IServerConfigStore ServerStore
 @inject BaihuaguSdk.Signing.IRequestSigner Signer
 @inject BaihuaguSdk.Storage.ISecureStore SecureStore
+@inject MobileApp.Maui.Services.IQrScanner QrScanner
 
 <PageTitle>百花谷 - 配对</PageTitle>
 
@@ -12,8 +13,12 @@
     <div class="method-card">
         <h3>扫码连接</h3>
         <p>扫描百花谷管理后台的二维码</p>
+        <button class="btn primary" @onclick="ScanQrCode" disabled="@_isLoading">
+            @(_isLoading ? "打开相机..." : "📷 扫描二维码")
+        </button>
+        <p class="or-divider">或手动粘贴</p>
         <textarea @bind="_qrInput" placeholder="粘贴二维码内容..." rows="3"></textarea>
-        <button class="btn primary" @onclick="ParseAndPair" disabled="@_isLoading">
+        <button class="btn" @onclick="ParseAndPair" disabled="@_isLoading">
             @(_isLoading ? "解析中..." : "解析并配对")
         </button>
         @if (!string.IsNullOrEmpty(_qrError))
@@ -58,6 +63,34 @@
     private string? _manualError;
     private bool _isLoading;
     private BaihuaguSdk.Models.RegisterDeviceResult? _result;
+
+    private async Task ScanQrCode()
+    {
+        _qrError = null;
+        _isLoading = true;
+        StateHasChanged();
+        try
+        {
+            var scanned = await QrScanner.ScanAsync();
+            if (string.IsNullOrEmpty(scanned))
+            {
+                _qrError = "未识别到二维码";
+                return;
+            }
+
+            _qrInput = scanned;
+            await ParseAndPair();
+        }
+        catch (Exception ex)
+        {
+            _qrError = $"扫码失败: {ex.Message}";
+        }
+        finally
+        {
+            _isLoading = false;
+            StateHasChanged();
+        }
+    }
 
     private async Task ParseAndPair()
     {

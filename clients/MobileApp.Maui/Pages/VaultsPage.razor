@@ -2,7 +2,7 @@
 @inject BaihuaguSdk.Storage.IServerConfigStore ServerStore
 @inject BaihuaguSdk.Signing.RequestSigner Signer
 @inject BaihuaguSdk.Services.SyncServiceImpl SyncService
-@inject MobileContract.Services.IVaultStorageAdapter StorageAdapter
+@inject MobileApp.Maui.Services.IVaultStorageFactory VaultStorageFactory
 @inject NavigationManager Nav
 
 <PageTitle>百花谷 - 已同步</PageTitle>
@@ -134,11 +134,12 @@ else
             var vaults = await SyncService.FetchVaultListAsync(_currentServer.HttpUrl);
             foreach (var vault in vaults)
             {
+                var storage = VaultStorageFactory.CreateForVault(vault.Id);
                 await SyncService.SyncVaultAsync(
                     _currentServer.HttpUrl,
                     vault.Id,
                     Signer.DeviceId,
-                    StorageAdapter);
+                    storage);
             }
             RefreshVaults();
         }

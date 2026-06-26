@@ -3,6 +3,7 @@ using BaihuaguSdk.Services;
 using BaihuaguSdk.Signing;
 using BaihuaguSdk.Storage;
 using MobileApp.Maui.Services;
+using ZXing.Net.Maui.Controls;
 
 namespace MobileApp.Maui;
 
@@ -13,6 +14,7 @@ public static class MauiProgram
         var builder = MauiApp.CreateBuilder();
         builder
             .UseMauiApp<App>()
+            .UseBarcodeReader()
             .ConfigureFonts(fonts =>
             {
                 fonts.AddFont("OpenSans-Regular.ttf", "OpenSansRegular");
@@ -20,11 +22,15 @@ public static class MauiProgram
 
         builder.Services.AddMauiBlazorWebView();
 
+        // 先初始化设备 ID，避免后续在 UI 线程反复阻塞 SecureStorage
+        DeviceInfoHelper.InitializeAsync().GetAwaiter().GetResult();
+
         // Platform services
         builder.Services.AddSingleton<ISecureStore, MauiSecureStore>();
         builder.Services.AddSingleton<IServerConfigStore, MauiServerConfigStore>();
-        builder.Services.AddSingleton<MobileContract.Services.IVaultStorageAdapter>(sp =>
-            new VaultStorageAdapter(Path.Combine(FileSystem.AppDataDirectory, "vaults")));
+        builder.Services.AddSingleton<IVaultStorageFactory>(sp =>
+            new VaultStorageFactory(Path.Combine(FileSystem.AppDataDirectory, "vaults")));
+        builder.Services.AddSingleton<IQrScanner, MauiQrScanner>();
 
         // SDK services
         builder.Services.AddSingleton(sp =>
