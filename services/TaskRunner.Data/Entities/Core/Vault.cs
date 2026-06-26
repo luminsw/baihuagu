@@ -12,11 +12,6 @@ public class Vault
     public bool IsActive { get; set; }
 
     /// <summary>
-    /// 是否为付费知识库（官网模式下有效）
-    /// </summary>
-    public bool IsPaid { get; set; } = false;
-
-    /// <summary>
     /// 知识库标签，逗号分隔
     /// </summary>
     public string Tags { get; set; } = "";

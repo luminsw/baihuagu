@@ -98,20 +98,6 @@ public partial class VaultSettingsService
         }
     }
 
-    public bool UpdateVaultPaid(string vaultId, bool isPaid)
-    {
-        using var dbContext = _dbContextFactory.CreateDbContext();
-        lock (_vaultPathLock)
-        {
-            var vault = dbContext.Vaults.FirstOrDefault(v => v.VaultId == vaultId);
-            if (vault == null) return false;
-
-            vault.IsPaid = isPaid;
-            dbContext.SaveChanges();
-            return true;
-        }
-    }
-
     public bool UpdateVaultTags(string vaultId, string tags)
     {
         using var dbContext = _dbContextFactory.CreateDbContext();

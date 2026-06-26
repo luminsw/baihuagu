@@ -136,7 +136,6 @@ public class AppDbContext : DbContext
             entity.Property(e => e.Name).HasMaxLength(200).IsRequired();
             entity.Property(e => e.Path).HasMaxLength(1000).IsRequired();
             entity.Property(e => e.IsActive).HasDefaultValue(false);
-            entity.Property(e => e.IsPaid).HasDefaultValue(false);
             entity.Property(e => e.Tags).HasMaxLength(500).HasDefaultValue("");
             entity.Property(e => e.Industry).HasMaxLength(100).HasDefaultValue("");
             entity.Property(e => e.IsDeleted).HasDefaultValue(false);

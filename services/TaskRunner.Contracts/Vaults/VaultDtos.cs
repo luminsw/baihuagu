@@ -8,11 +8,6 @@ public class VaultConfig
     public DateTime CreatedAt { get; set; }
 
     /// <summary>
-    /// 是否为付费知识库（官网模式下有效）
-    /// </summary>
-    public bool IsPaid { get; set; }
-
-    /// <summary>
     /// 知识库标签
     /// </summary>
     public List<string> Tags { get; set; } = new();
@@ -67,7 +62,6 @@ public class AddVaultRequest
 public class UpdateVaultRequest
 {
     public string? Name { get; set; }
-    public bool? IsPaid { get; set; }
     public string? Tags { get; set; }
     public string? Industry { get; set; }
 }

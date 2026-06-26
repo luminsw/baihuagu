@@ -56,7 +56,6 @@ public partial class VaultSettingsService
                     Name = v.Name,
                     Path = v.Path,
                     CreatedAt = v.CreatedAt,
-                    IsPaid = v.IsPaid,
                     Tags = ParseTags(v.Tags),
                     Industry = v.Industry
                 })
@@ -81,7 +80,6 @@ public partial class VaultSettingsService
                 Name = vault.Name,
                 Path = vault.Path,
                 CreatedAt = vault.CreatedAt,
-                IsPaid = vault.IsPaid,
                 Tags = ParseTags(vault.Tags)
             };
         }
@@ -101,7 +99,6 @@ public partial class VaultSettingsService
                     Name = v.Name,
                     Path = v.Path,
                     CreatedAt = v.CreatedAt,
-                    IsPaid = v.IsPaid,
                     Tags = ParseTags(v.Tags),
                     Industry = v.Industry
                 })

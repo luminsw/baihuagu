@@ -97,14 +97,6 @@ namespace TaskRunner.Vault.Controllers
                 _logger.LogInformation("更新知识库名称: {VaultId} -> {Name}", vaultId, request.Name);
             }
 
-            if (request.IsPaid.HasValue)
-            {
-                var success = _vaultSettings.UpdateVaultPaid(vaultId, request.IsPaid.Value);
-                if (!success)
-                    return NotFound(new { error = "知识库不存在" });
-                _logger.LogInformation("更新知识库付费状态: {VaultId} -> {IsPaid}", vaultId, request.IsPaid.Value);
-            }
-
             if (request.Tags != null)
             {
                 var success = _vaultSettings.UpdateVaultTags(vaultId, request.Tags.Trim());
