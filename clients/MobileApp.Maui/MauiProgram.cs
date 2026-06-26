@@ -80,6 +80,12 @@ public static class MauiProgram
             var client = sp.GetRequiredService<HttpClient>();
             return new PushWebSocketService(client);
         });
+        builder.Services.AddTransient<AuthorizationWatcher>(sp =>
+        {
+            var registration = sp.GetRequiredService<IDeviceRegistrationService>();
+            var pushService = sp.GetRequiredService<PushWebSocketService>();
+            return new AuthorizationWatcher(registration, pushService);
+        });
         builder.Services.AddSingleton(sp =>
         {
             var client = sp.GetRequiredService<HttpClient>();
