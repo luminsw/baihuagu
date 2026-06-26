@@ -95,6 +95,14 @@ public class LogServiceTests : IDisposable
     }
 
     [Fact]
+    public void Initialize_WithOpenObserveCustomCredentials_UsesProvidedCredentials()
+    {
+        using var service = new LogServiceImpl(_httpClient, _signerMock.Object, "device-1", "TestDevice");
+        
+        service.Initialize("http://localhost:8788", "192.168.1.1", "admin@example.com", "MySecret123");
+    }
+
+    [Fact]
     public void Initialize_NoOpenObserveHost_DisablesOpenObserve()
     {
         using var service = new LogServiceImpl(_httpClient, _signerMock.Object, "device-1", "TestDevice");

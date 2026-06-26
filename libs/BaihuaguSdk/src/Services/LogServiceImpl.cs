@@ -43,7 +43,15 @@ public class LogServiceImpl : IDisposable
     }
 
     /// <summary>初始化远程日志（需指定百花谷服务器地址）</summary>
-    public void Initialize(string serverUrl, string? ooHost = null)
+    /// <param name="serverUrl">百花谷服务器地址</param>
+    /// <param name="ooHost">OpenObserve 主机，为空则禁用 OpenObserve</param>
+    /// <param name="ooUsername">OpenObserve 用户名</param>
+    /// <param name="ooPassword">OpenObserve 密码</param>
+    public void Initialize(
+        string serverUrl,
+        string? ooHost = null,
+        string? ooUsername = null,
+        string? ooPassword = null)
     {
         _serverUrl = serverUrl;
         _ooEnabled = !string.IsNullOrEmpty(ooHost);
@@ -52,8 +60,11 @@ public class LogServiceImpl : IDisposable
         {
             var ooPort = DeriveOpenObservePort(serverUrl);
             _ooUrl = $"http://{ooHost}:{ooPort}/api/default/mobile/_json";
+
+            var username = !string.IsNullOrEmpty(ooUsername) ? ooUsername : "root@localhost.com";
+            var password = !string.IsNullOrEmpty(ooPassword) ? ooPassword : "Complexpass#123";
             _ooAuth = Convert.ToBase64String(
-                System.Text.Encoding.UTF8.GetBytes("root@localhost.com:Complexpass#123"));
+                System.Text.Encoding.UTF8.GetBytes($"{username}:{password}"));
         }
 
         // Start background flush
