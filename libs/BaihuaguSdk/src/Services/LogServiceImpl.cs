@@ -1,6 +1,7 @@
 using System.Text.Json;
 using BaihuaguSdk.Signing;
 using BaihuaguSdk.Transport;
+using MobileContract.Services;
 
 namespace BaihuaguSdk.Services;
 
@@ -9,7 +10,7 @@ namespace BaihuaguSdk.Services;
 /// 缓冲批量日志，定时或达到阈值后发送到百花谷服务器和 OpenObserve。
 /// 与 Kotlin RemoteLogService.kt 逻辑对齐。
 /// </summary>
-public class LogServiceImpl : IDisposable
+public class LogServiceImpl : IRemoteLogService, IDisposable
 {
     private const int MaxBufferSize = 50;
     private static readonly TimeSpan FlushInterval = TimeSpan.FromSeconds(5);
@@ -53,7 +54,7 @@ public class LogServiceImpl : IDisposable
         string? ooUsername = null,
         string? ooPassword = null)
     {
-        _serverUrl = serverUrl;
+        UpdateServerUrl(serverUrl);
         _ooEnabled = !string.IsNullOrEmpty(ooHost);
 
         if (_ooEnabled)
@@ -67,9 +68,20 @@ public class LogServiceImpl : IDisposable
                 System.Text.Encoding.UTF8.GetBytes($"{username}:{password}"));
         }
 
-        // Start background flush
-        _flushLoop = FlushLoopAsync(_cts.Token);
+        // Start background flush only once
+        if (_flushLoop == null)
+            _flushLoop = FlushLoopAsync(_cts.Token);
     }
+
+    /// <summary>切换目标服务器地址</summary>
+    public void UpdateServerUrl(string serverUrl)
+    {
+        _serverUrl = serverUrl;
+    }
+
+    /// <summary>强制刷新缓冲区到服务端</summary>
+    public Task FlushAsync(CancellationToken cancellationToken = default)
+        => FlushBatchAsync();
 
     /// <summary>记录一条日志</summary>
     public void Log(string level, string message, string? context = null,

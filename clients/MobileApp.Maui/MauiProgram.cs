@@ -63,7 +63,9 @@ public static class MauiProgram
                 DeviceInfoHelper.GetDeviceId(), DeviceInfoHelper.GetDeviceName());
         });
         builder.Services.AddSingleton<IPairingService>(sp => sp.GetRequiredService<PairingServiceImpl>());
+        builder.Services.AddSingleton<IDeviceRegistrationService>(sp => sp.GetRequiredService<PairingServiceImpl>());
         builder.Services.AddSingleton<SyncServiceImpl>();
+        builder.Services.AddSingleton<ISyncService>(sp => sp.GetRequiredService<SyncServiceImpl>());
         builder.Services.AddSingleton(sp =>
         {
             var client = sp.GetRequiredService<HttpClient>();
@@ -71,12 +73,20 @@ public static class MauiProgram
             return new LogServiceImpl(client, signer,
                 DeviceInfoHelper.GetDeviceId(), DeviceInfoHelper.GetDeviceName());
         });
+        builder.Services.AddSingleton<IRemoteLogService>(sp => sp.GetRequiredService<LogServiceImpl>());
 
         builder.Services.AddSingleton(sp =>
         {
             var client = sp.GetRequiredService<HttpClient>();
             return new PushWebSocketService(client);
         });
+        builder.Services.AddSingleton(sp =>
+        {
+            var client = sp.GetRequiredService<HttpClient>();
+            var signer = sp.GetRequiredService<IRequestSigner>();
+            return new PushPollingServiceImpl(client, signer);
+        });
+        builder.Services.AddSingleton<IPushPollingService>(sp => sp.GetRequiredService<PushPollingServiceImpl>());
 
         return builder.Build();
     }

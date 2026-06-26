@@ -206,10 +206,13 @@ builder.Services.AddSingleton<WebUINotificationService>();
 builder.Services.AddSingleton<RequestSignatureService>();
 
 // MobileContract 接口适配器
-builder.Services.AddSingleton<MobileContract.Services.IDeviceService, TaskRunner.Services.Adapters.MobileDeviceServiceAdapter>();
+// 移动端接口
 builder.Services.AddSingleton<MobileContract.Services.IPairingService, TaskRunner.Services.Adapters.MobileDeviceServiceAdapter>();
-builder.Services.AddSingleton<MobileContract.Services.IPushNotificationService, TaskRunner.Services.Adapters.MobileDeviceServiceAdapter>();
-builder.Services.AddSingleton<MobileContract.Services.ILogService, TaskRunner.Services.Adapters.MobileLogServiceAdapter>();
+// 管理后台接口
+builder.Services.AddSingleton<MobileContract.Admin.IDeviceAdminService, TaskRunner.Services.Adapters.MobileDeviceServiceAdapter>();
+builder.Services.AddSingleton<MobileContract.Admin.IPushAdminService, TaskRunner.Services.Adapters.MobileDeviceServiceAdapter>();
+builder.Services.AddSingleton<MobileContract.Admin.ILogAdminService, TaskRunner.Services.Adapters.MobileLogServiceAdapter>();
+builder.Services.AddSingleton<MobileContract.Admin.IOneHopAdminService, TaskRunner.Services.Adapters.OneHopAdminServiceAdapter>();
 
 // 注册OneHop服务（基于TCP的局域网设备连接）
 builder.Services.AddSingleton<IOneHopService, OneHopService>();

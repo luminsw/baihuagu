@@ -1,10 +1,11 @@
 @page "/pairing"
 @inject BaihuaguSdk.Services.PairingServiceImpl PairingService
+@inject MobileContract.Services.IDeviceRegistrationService DeviceRegistration
 @inject BaihuaguSdk.Storage.IServerConfigStore ServerStore
 @inject BaihuaguSdk.Signing.IRequestSigner Signer
 @inject BaihuaguSdk.Storage.ISecureStore SecureStore
 @inject MobileApp.Maui.Services.IQrScanner QrScanner
-@inject BaihuaguSdk.Services.LogServiceImpl Logger
+@inject MobileContract.Services.IRemoteLogService Logger
 @inject BaihuaguSdk.Push.PushWebSocketService PushService
 
 <PageTitle>百花谷 - 配对</PageTitle>
@@ -64,7 +65,7 @@
     private string? _qrError;
     private string? _manualError;
     private bool _isLoading;
-    private BaihuaguSdk.Models.RegisterDeviceResult? _result;
+    private MobileContract.Pairing.RegisterDeviceResult? _result;
 
     private async Task ScanQrCode()
     {
@@ -105,7 +106,7 @@
             if (content == null) { _qrError = "无法解析二维码内容"; StateHasChanged(); return; }
 
             var addrs = BaihuaguSdk.Services.PairingServiceImpl.GetServerAddresses(content);
-            _result = await PairingService.RegisterDeviceAsync(addrs.HttpUrl);
+            _result = await DeviceRegistration.RegisterDeviceAsync(addrs.HttpUrl);
             await SaveResult(addrs.ServerId, addrs.HostName, addrs.HttpUrl);
         }
         catch (Exception ex) { _qrError = ex.Message; }
@@ -120,7 +121,7 @@
         try
         {
             var url = BaihuaguSdk.Transport.HttpTransport.NormalizeBaseUrl(_manualUrl);
-            _result = await PairingService.RegisterDeviceAsync(url);
+            _result = await DeviceRegistration.RegisterDeviceAsync(url);
             var serverId = $"manual-{DateTimeOffset.UtcNow.ToUnixTimeMilliseconds()}";
             await SaveResult(serverId, new Uri(url).Host, url);
         }

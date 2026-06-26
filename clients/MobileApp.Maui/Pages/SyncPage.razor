@@ -1,6 +1,6 @@
 @page "/sync"
-@inject BaihuaguSdk.Services.SyncServiceImpl SyncService
-@inject BaihuaguSdk.Services.PairingServiceImpl PairingService
+@inject MobileContract.Services.ISyncService SyncService
+@inject MobileContract.Services.IDeviceRegistrationService DeviceRegistration
 @inject BaihuaguSdk.Signing.RequestSigner Signer
 @inject BaihuaguSdk.Storage.IServerConfigStore ServerStore
 @inject BaihuaguSdk.Storage.ISecureStore SecureStore
@@ -94,7 +94,7 @@ else
     private bool _isLoading;
     private string? _syncingVault;
     private MobileContract.VaultSync.SyncResult? _syncResult;
-    private BaihuaguSdk.Models.RegisterDeviceResult? _regResult;
+    private MobileContract.Pairing.RegisterDeviceResult? _regResult;
     private bool _hasSecret;
     private string? _error;
 
@@ -130,7 +130,7 @@ else
         StateHasChanged();
         try
         {
-            _regResult = await PairingService.RegisterDeviceAsync(_selectedServer.HttpUrl);
+            _regResult = await DeviceRegistration.RegisterDeviceAsync(_selectedServer.HttpUrl);
             if (_regResult is { Success: true, Authorized: true, SharedSecret: not null })
             {
                 Signer.SetServerSecret(_selectedServer.HttpUrl, _regResult.SharedSecret);

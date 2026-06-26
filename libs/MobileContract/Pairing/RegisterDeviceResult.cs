@@ -1,14 +1,18 @@
-namespace BaihuaguSdk.Models;
+namespace MobileContract.Pairing;
 
 /// <summary>
-/// 设备注册结果。
-/// 对应 Kotlin DeviceRegistrationService.kt 中的 RegisterDeviceResult。
+/// 移动设备通过 OneHop HTTP 注册到服务器的结果。
+/// 与 Kotlin DeviceRegistrationService / ArkTS ServerRegistrationHelper 对齐。
 /// </summary>
 public record RegisterDeviceResult
 {
     public bool Success { get; init; }
+
     public bool Authorized { get; init; }
+
     public string? SharedSecret { get; init; }
+
     public string? RequestId { get; init; }
+
     public string? DeviceName { get; init; }
 }

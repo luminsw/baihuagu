@@ -1,4 +1,5 @@
 using TaskRunner.Core.Shared;
+using MobileContract.Admin;
 using MobileContract.Devices;
 using MobileContract.Pairing;
 using MobileContract.Services;
@@ -10,9 +11,9 @@ namespace TaskRunner.Services.Adapters;
 /// 设备服务适配器 — 将 MobileGateway 的 DeviceService 适配到 MobileContract 接口
 /// </summary>
 public class MobileDeviceServiceAdapter :
-    IDeviceService,
+    IDeviceAdminService,
     IPairingService,
-    IPushNotificationService
+    IPushAdminService
 {
     private readonly DeviceService _deviceService;
     private readonly ILogger<MobileDeviceServiceAdapter> _logger;
@@ -110,7 +111,7 @@ public class MobileDeviceServiceAdapter :
 
     #endregion
 
-    #region IDeviceService
+    #region IDeviceAdminService
 
     public Task<IReadOnlyList<PendingDeviceDto>> GetPendingDevicesAsync(CancellationToken cancellationToken = default)
     {
@@ -160,32 +161,6 @@ public class MobileDeviceServiceAdapter :
         return Task.FromResult(_deviceService.RevokeDevice(request.DeviceId ?? ""));
     }
 
-    public Task<bool> PushSyncToDeviceAsync(PushToVaultRequest request, CancellationToken cancellationToken = default)
-    {
-        _deviceService.AddPushRequest(
-            request.DeviceId ?? "",
-            deviceName: null,
-            request.VaultId,
-            vaultName: null,
-            request.Action ?? "sync");
-        return Task.FromResult(true);
-    }
-
-    public Task<IReadOnlyList<MPushSyncRequest>> GetPendingPushRequestsAsync(string deviceId, bool wait = false, CancellationToken cancellationToken = default)
-    {
-        var pending = _deviceService.GetPendingPushRequests(deviceId);
-        var result = pending.Select(p => new MPushSyncRequest
-        {
-            RequestId = p.RequestId,
-            DeviceId = p.DeviceId,
-            VaultId = p.VaultId,
-            Action = p.Action,
-            CreatedAt = p.CreatedAt
-        }).ToList();
-
-        return Task.FromResult<IReadOnlyList<MPushSyncRequest>>(result);
-    }
-
     public Task<MobileStats> GetStatsAsync(CancellationToken cancellationToken = default)
     {
         var stats = _deviceService.GetMobileStats();
@@ -215,17 +190,12 @@ public class MobileDeviceServiceAdapter :
 
     #endregion
 
-    #region IPushNotificationService
+    #region IPushAdminService
 
     public Task<bool> PushSyncAsync(string deviceId, string? vaultId, string action, CancellationToken cancellationToken = default)
     {
         _deviceService.AddPushRequest(deviceId, deviceName: null, vaultId, vaultName: null, action);
         return Task.FromResult(true);
-    }
-
-    public Task<IReadOnlyList<MPushSyncRequest>> PollPendingAsync(string deviceId, bool wait = false, CancellationToken cancellationToken = default)
-    {
-        return GetPendingPushRequestsAsync(deviceId, wait, cancellationToken);
     }
 
     #endregion

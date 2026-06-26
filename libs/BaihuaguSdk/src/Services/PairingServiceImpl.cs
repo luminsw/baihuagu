@@ -1,5 +1,4 @@
 using System.Text.Json;
-using BaihuaguSdk.Models;
 using BaihuaguSdk.Signing;
 using BaihuaguSdk.Transport;
 using MobileContract.Pairing;
@@ -12,7 +11,7 @@ namespace BaihuaguSdk.Services;
 /// 处理二维码解析、设备注册、配对码流程。
 /// 与 Kotlin PairingService.kt + DeviceRegistrationService.kt 逻辑对齐。
 /// </summary>
-public class PairingServiceImpl : IPairingService
+public class PairingServiceImpl : IPairingService, IDeviceRegistrationService
 {
     private readonly HttpClient _httpClient;
     private readonly IRequestSigner _signer;
@@ -80,7 +79,7 @@ public class PairingServiceImpl : IPairingService
     // ---- OneHop QR Registration (not part of IPairingService) ----
 
     /// <summary>向服务器注册本机设备（OneHop 二维码流程）</summary>
-    public async Task<RegisterDeviceResult> RegisterDeviceAsync(string serverUrl)
+    public async Task<RegisterDeviceResult> RegisterDeviceAsync(string serverUrl, CancellationToken cancellationToken = default)
     {
         try
         {
