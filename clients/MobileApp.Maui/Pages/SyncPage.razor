@@ -207,13 +207,14 @@ else
         else if (_regResult is { Success: true, Authorized: false })
         {
             await EnsurePushConnectionAsync();
-            if (!_pushConnected)
+            if (_pushConnected)
             {
-                StartPolling(source);
+                StopPolling();
+                Logger.Info($"[{source}] WebSocket 已连接，停止轮询并等待授权推送", "SyncPage");
             }
             else
             {
-                Logger.Info($"[{source}] WebSocket 已连接，等待授权推送，不启动轮询", "SyncPage");
+                StartPolling(source);
             }
         }
         else
@@ -313,7 +314,12 @@ else
     {
         _pushConnected = connected;
         Logger.Info($"[WebSocket] 连接状态变化: {(connected ? "已连接" : "已断开")}", "SyncPage");
-        if (!connected && _selectedServer != null && !_hasSecret)
+        if (connected)
+        {
+            // WebSocket 已连接，停止轮询
+            StopPolling();
+        }
+        else if (_selectedServer != null && !_hasSecret)
         {
             // WebSocket 断开且仍未授权，启用轮询兜底
             StartPolling("WebSocket断开");

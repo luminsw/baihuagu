@@ -17,9 +17,9 @@ public class PushWebSocketService : IDisposable
     private const int PollIntervalMs = 60000;
 
     private readonly HttpClient _httpClient;
-    private readonly Func<string, string, string, CancellationToken, Task>? _onSyncRequest;
+    private Func<string, string, string, CancellationToken, Task>? _onSyncRequest;
 
-    private ClientWebSocket? _webSocket;
+    private WebSocket? _webSocket;
     private CancellationTokenSource? _connectCts;
     private volatile bool _disposed;
     private int _reconnectAttempts;
@@ -32,7 +32,7 @@ public class PushWebSocketService : IDisposable
     public Func<string, string, string, CancellationToken, Task>? OnSyncRequest
     {
         get => _onSyncRequest;
-        init => _onSyncRequest = value;
+        set => _onSyncRequest = value;
     }
 
     /// <summary>连接状态变化时触发</summary>
@@ -104,14 +104,20 @@ public class PushWebSocketService : IDisposable
 
     // ---- internal ----
 
+    /// <summary>创建并连接 WebSocket。子类可重写以支持测试替身。</summary>
+    protected virtual async Task<WebSocket> CreateAndConnectWebSocketAsync(string wsUrl, CancellationToken ct)
+    {
+        var ws = new ClientWebSocket();
+        await ws.ConnectAsync(new Uri(wsUrl), ct);
+        return ws;
+    }
+
     private async Task ConnectLoopAsync(string wsUrl, CancellationToken ct)
     {
         try
         {
-            using var ws = new ClientWebSocket();
+            using var ws = await CreateAndConnectWebSocketAsync(wsUrl, ct);
             _webSocket = ws;
-
-            await ws.ConnectAsync(new Uri(wsUrl), ct);
             Log("PushWebSocket connected");
             _reconnectAttempts = 0;
             ConnectionStateChanged?.Invoke(true);
