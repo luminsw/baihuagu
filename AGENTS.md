@@ -113,15 +113,15 @@ dotnet test tests/BaihuaguSdk.Tests/BaihuaguSdk.Tests.csproj --filter Integratio
 
 **位置**: `clients/MobileApp.Maui/` — .NET MAUI Blazor Hybrid App。
 
-- **Android**: `dotnet build -f net10.0-android -c Release` → APK 在 `bin/Release/net10.0-android/com.lumin.baihuagu-Signed.apk`
+- **Android**: `dotnet build -f net9.0-android -c Release` → APK 在 `bin/Release/net9.0-android/com.lumin.baihuagu-Signed.apk`
 - **iOS**: 需要 macOS + Xcode（GitHub Actions CI 已配置 `.github/workflows/ci.yml`）
 
 ```bash
 # Android Release 编译
-dotnet build -f net10.0-android -c Release
+dotnet build -f net9.0-android -c Release
 
 # 安装到手机
-adb install clients/MobileApp.Maui/bin/Release/net10.0-android/com.lumin.baihuagu-Signed.apk
+adb install clients/MobileApp.Maui/bin/Release/net9.0-android/com.lumin.baihuagu-Signed.apk
 ```
 
 ### Honor/部分 Android 设备 .NET 10 兼容性
@@ -134,10 +134,11 @@ for fragment NavigationRootManager_ElementBasedFragment
 这是 MAUI 10 Preview 在部分 Android 设备上的已知框架问题（[dotnet/maui#32029](https://github.com/dotnet/maui/issues/32029)）。
 
 **当前状态（2026-06-27）**:
-- 已切换到 .NET 10 **稳定版** SDK（`10.0.109`），MAUI workload `10.0.20`
+- 为规避 Honor 设备兼容性问题，Android 目标框架已回退至 **.NET 9 LTS**（`net9.0-android`）
+- MAUI workload `9.0.x`，`ZXing.Net.Maui.Controls` 降级至 `0.6.0`
 - Debug + Release 构建成功（0 错误 0 警告）
-- 单元测试全部通过（153 + 9）
-- **✅ 真机验证通过**: Honor `ADNQUT5813009383` 安装 .NET 10 APK 后启动正常，MainActivity 可见，无崩溃（原 Preview 版本问题已在稳定版中修复）
+- 单元测试全部通过（155 + 9）
+- **✅ 真机验证通过**: Honor `ADNQUT5813009383` 安装 .NET 9 APK 后启动正常，MainActivity 可见，无崩溃
 
 **csproj 关键防御配置**（已启用）:
 ```xml
@@ -147,7 +148,7 @@ for fragment NavigationRootManager_ElementBasedFragment
 <AndroidEnableCompressionInNativeLibraries>false</AndroidEnableCompressionInNativeLibraries>
 ```
 
-**若稳定版仍崩溃，可选降级路径**: 将 TF 切回 `net9.0-android`，并降级 `ZXing.Net.Maui.Controls` 到 `0.6.0`（已确认 .NET 9 + Honor 真机工作正常）。
+**后续若需升级 .NET 10**: 需先在 Honor/相关设备上重新验证 MAUI 10 Fragment 兼容性，确认无崩溃后再将 `TargetFrameworks` 改回 `net10.0-android`。
 
 ### Debug TLS 证书宽松
 
@@ -200,5 +201,5 @@ dotnet test tests/TaskRunner.Family.Tests/TaskRunner.Family.Tests.csproj
 
 ## 已知限制
 
-- **华为/荣耀手机**: .NET 10 Preview 存在 `NavigationRootManager_ElementBasedFragment` 崩溃。已升级到 .NET 10 稳定版（`10.0.109`），待真机验证。详见上方「MobileApp.Maui → Honor 兼容性」。
+- **华为/荣耀手机**: .NET 10 Preview 存在 `NavigationRootManager_ElementBasedFragment` 崩溃。当前 Android 目标框架已回退至 .NET 9 LTS 规避该问题，待 MAUI 10 兼容性验证通过后再考虑升级。详见上方「MobileApp.Maui → Honor 兼容性」。
 - **Android 模拟器**: 需要 KVM 硬件加速（`sudo modprobe kvm_intel`，BIOS 中启用 VT-x）。
