@@ -121,6 +121,14 @@ else
         {
             _selectedServerId = current.Id;
             _selectedServer = current;
+            // 从 SecureStore 恢复密钥到内存（避免 app 重启后内存丢失），并同步 _hasSecret 状态
+            if (!Signer.HasServerSecret(current.HttpUrl))
+            {
+                var secret = await SecureStore.GetAsync($"secret_{current.HttpUrl}");
+                if (!string.IsNullOrEmpty(secret))
+                    Signer.SetServerSecret(current.HttpUrl, secret);
+            }
+            _hasSecret = Signer.HasServerSecret(current.HttpUrl);
         }
     }
 
