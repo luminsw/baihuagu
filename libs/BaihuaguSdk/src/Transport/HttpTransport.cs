@@ -157,8 +157,10 @@ public class HttpTransport
 
     private void InjectSignature(HttpRequestMessage request, string? body)
     {
+        // 必须使用 OriginalString（保留 URL 编码），避免 Uri.ToString() 解码中文/特殊字符导致签名字符串不一致
+        var signUrl = request.RequestUri!.OriginalString;
         var headers = _signer.SignRequest(
-            request.Method.Method, request.RequestUri!.ToString(), body, _baseUrl);
+            request.Method.Method, signUrl, body, _baseUrl);
         foreach (var (k, v) in headers)
             request.Headers.TryAddWithoutValidation(k, v);
     }

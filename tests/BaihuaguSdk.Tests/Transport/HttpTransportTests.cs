@@ -171,4 +171,48 @@ public class HttpTransportTests
         Assert.Contains("vaultId=vault-1", url);
         Assert.Contains("deviceId=device-1", url);
     }
+
+    [Fact]
+    public void BuildUrl_ChinesePath_PercentEncodes()
+    {
+        var client = new HttpClient();
+        var signerMock = new Mock<IRequestSigner>();
+        var transport = new HttpTransport(client, signerMock.Object, "http://localhost:8788", "vault-1", "device-1");
+
+        var url = transport.BuildUrl("/file", new Dictionary<string, string>
+        {
+            ["path"] = "关联与区别/测试.md"
+        });
+
+        var uri = new Uri(url);
+        Assert.NotEqual(uri.ToString(), uri.OriginalString);
+        Assert.Contains("%E5%85%B3", url);
+    }
+
+    [Fact]
+    public void InjectSignature_UsesOriginalString_ForChinesePath()
+    {
+        var capturedUrl = "";
+        var signerMock = new Mock<IRequestSigner>();
+        signerMock.Setup(s => s.SignRequest(
+                It.IsAny<string>(), It.IsAny<string>(), It.IsAny<string?>(), It.IsAny<string?>()))
+            .Callback<string, string, string?, string?>((method, url, body, serverUrl) => capturedUrl = url)
+            .Returns(new Dictionary<string, string>());
+
+        var handler = new HttpsToHttpFallbackHandler();
+        var client = new HttpClient(handler);
+        var transport = new HttpTransport(client, signerMock.Object, "http://localhost:8788", "vault-1", "device-1");
+
+        var url = transport.BuildUrl("/file", new Dictionary<string, string>
+        {
+            ["path"] = "关联与区别/测试.md"
+        });
+
+        var request = new HttpRequestMessage(HttpMethod.Get, url);
+        var method = typeof(HttpTransport).GetMethod("InjectSignature", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance)!;
+        method.Invoke(transport, new object?[] { request, null });
+
+        Assert.Contains("%E5%85%B3", capturedUrl);
+        Assert.DoesNotContain("关联与区别", capturedUrl);
+    }
 }
