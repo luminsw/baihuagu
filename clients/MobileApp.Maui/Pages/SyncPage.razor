@@ -40,11 +40,8 @@ else
                         @(_pushConnected ? "🟢 WebSocket 已连接" : "🔴 WebSocket 未连接")
                     </span>
                 </div>
-                <button class="btn primary" @onclick="RegisterDevice" disabled="@_isLoading">
-                    @(_isLoading ? "注册中..." : "注册设备")
-                </button>
-                <button class="btn small" @onclick="RegisterDevice" disabled="@_isLoading">
-                    🔄 刷新状态
+                <button class="btn primary" @onclick="CheckAuthorizationStatus" disabled="@_isLoading">
+                    @(_isLoading ? "检查中..." : "🔍 检查授权状态")
                 </button>
                 @if (_regResult != null)
                 {
@@ -161,7 +158,7 @@ else
         StateHasChanged();
     }
 
-    private async Task RegisterDevice()
+    private async Task CheckAuthorizationStatus()
     {
         if (_selectedServer == null) return;
         await WatchAuthorizationAsync("按钮");

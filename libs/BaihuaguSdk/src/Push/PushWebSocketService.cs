@@ -154,7 +154,7 @@ public class PushWebSocketService : IDisposable
         ConnectionStateChanged?.Invoke(false);
 
         if (!_disposed && !ct.IsCancellationRequested)
-            ScheduleReconnect(ct);
+            _ = ScheduleReconnectAsync(ct);
     }
 
     private void HandleMessage(string text)
@@ -186,7 +186,11 @@ public class PushWebSocketService : IDisposable
         }
     }
 
-    private async void ScheduleReconnect(CancellationToken ct)
+    /// <summary>
+    /// 调度 WebSocket 重连。返回 <see cref="Task"/>，调用方负责决定如何处理（通常丢弃）。
+    /// 使用显式 Task 而非 async void，避免未观察异常和测试困难。
+    /// </summary>
+    private async Task ScheduleReconnectAsync(CancellationToken ct)
     {
         if (_disposed) return;
 

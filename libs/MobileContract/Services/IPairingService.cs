@@ -25,15 +25,27 @@ public interface IPairingService
     /// <summary>
     /// 检查配对/授权状态
     /// </summary>
+    /// <remarks>
+    /// [后端未实现] 对应端点 /mg/pair/status 暂未向移动端暴露。
+    /// 在服务端实现该端点前，实现类应抛出 <see cref="NotSupportedException"/>。
+    /// </remarks>
     Task<PairResponse> CheckPairStatusAsync(string requestId, CancellationToken cancellationToken = default);
 
     /// <summary>
     /// 验证访问令牌是否有效
     /// </summary>
+    /// <remarks>
+    /// [后端未实现] 对应端点 /mg/verify-token 暂未实现。
+    /// 在服务端实现该端点前，实现类应抛出 <see cref="NotSupportedException"/>。
+    /// </remarks>
     Task<bool> VerifyTokenAsync(VerifyTokenRequest request, CancellationToken cancellationToken = default);
 
     /// <summary>
     /// 获取认证配置（共享密钥等）
     /// </summary>
+    /// <remarks>
+    /// [后端未实现] 对应端点 /mg/auth/config 暂未实现。
+    /// 在服务端实现该端点前，实现类应抛出 <see cref="NotSupportedException"/>。
+    /// </remarks>
     Task<AuthConfigResponse> GetAuthConfigAsync(AuthConfigRequest request, CancellationToken cancellationToken = default);
 }

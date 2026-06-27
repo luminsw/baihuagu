@@ -7,13 +7,17 @@ namespace BaihuaguSdk.Services;
 /// <summary>
 /// 授权等待器。
 /// 封装「注册设备 → 连接 WebSocket → 等待授权推送 → 轮询兜底」的完整流程。
+/// WebSocket 连接成功时只依赖推送，断开或连接失败时才启动轮询兜底。
 /// </summary>
 public class AuthorizationWatcher : IDisposable
 {
     private readonly IDeviceRegistrationService _deviceRegistration;
     private readonly PushWebSocketService _pushService;
+    private readonly object _pollLock = new();
 
+    private CancellationTokenSource? _watchCts;
     private CancellationTokenSource? _pollCts;
+    private volatile bool _webSocketEverConnected;
 
     public AuthorizationWatcher(IDeviceRegistrationService deviceRegistration, PushWebSocketService pushService)
     {
@@ -29,7 +33,7 @@ public class AuthorizationWatcher : IDisposable
 
     /// <summary>
     /// 等待设备被授权。
-    /// 优先使用 WebSocket 实时推送，WebSocket 不可用时回退到轮询。
+    /// 优先使用 WebSocket 实时推送；WebSocket 连接失败或断开后回退到轮询。
     /// </summary>
     /// <param name="serverUrl">服务器地址。</param>
     /// <param name="deviceName">设备名称，用于 WebSocket 连接标识。</param>
@@ -47,40 +51,58 @@ public class AuthorizationWatcher : IDisposable
         var immediate = await CheckAuthorizationAsync(serverUrl, ct);
         if (immediate.IsAuthorized) return immediate;
 
-        // 2. 连接 WebSocket
-        var connected = await TryConnectWebSocketAsync(serverUrl, deviceName, webSocketConnectionTimeout ?? TimeSpan.FromSeconds(5), ct);
-        WebSocketConnectionStateChanged?.Invoke(connected);
+        StopWatching();
+        _watchCts = CancellationTokenSource.CreateLinkedTokenSource(ct);
+        var watchCt = _watchCts.Token;
 
-        // 3. 同时监听 WebSocket 授权事件和启动轮询，任一触发即返回
         var authorizedTcs = new TaskCompletionSource<AuthorizationResult>();
+        var pollIntervalResolved = pollInterval ?? TimeSpan.FromSeconds(3);
+        var connectionTimeout = webSocketConnectionTimeout ?? TimeSpan.FromSeconds(5);
 
-        async void OnPushAuthorized(object? sender, EventArgs e)
+        // 2. 监听 WebSocket 授权推送
+        EventHandler pushAuthorizedHandler = (s, e) =>
+            OnPushAuthorized(s, e, serverUrl, authorizedTcs, watchCt);
+        _pushService.Authorized += pushAuthorizedHandler;
+
+        // 3. 监听 WebSocket 连接状态，连上时不轮询，断开后才启动轮询兜底
+        void OnConnectionStateChange(bool connected)
         {
-            try
+            WebSocketConnectionStateChanged?.Invoke(connected);
+            if (connected)
             {
-                var result = await _deviceRegistration.RegisterDeviceAsync(serverUrl, ct);
-                if (result is { Success: true, Authorized: true, SharedSecret: not null })
-                {
-                    authorizedTcs.TrySetResult(AuthorizationResult.Authorized(result.SharedSecret));
-                }
+                _webSocketEverConnected = true;
+                StopPolling();
             }
-            catch (Exception ex)
+            else if (_webSocketEverConnected)
             {
-                authorizedTcs.TrySetException(ex);
+                StartPolling(serverUrl, pollIntervalResolved, authorizedTcs, watchCt);
             }
         }
-
-        if (connected)
-        {
-            _pushService.Authorized += OnPushAuthorized;
-        }
-
-        _pollCts = CancellationTokenSource.CreateLinkedTokenSource(ct);
-        _ = RunPollingAsync(serverUrl, pollInterval ?? TimeSpan.FromSeconds(3), authorizedTcs, _pollCts.Token);
+        _pushService.ConnectionStateChanged += OnConnectionStateChange;
 
         try
         {
-            var result = await authorizedTcs.Task.WaitAsync(ct);
+            // 4. 启动 WebSocket 连接
+            await _pushService.ConnectAsync(serverUrl, deviceName, watchCt);
+
+            // 5. 若 WebSocket 在指定超时内仍未连上，启动轮询兜底
+            _ = Task.Run(async () =>
+            {
+                try
+                {
+                    await Task.Delay(connectionTimeout, watchCt);
+                    if (!authorizedTcs.Task.IsCompleted)
+                    {
+                        StartPolling(serverUrl, pollIntervalResolved, authorizedTcs, watchCt, fallbackFromTimeout: true);
+                    }
+                }
+                catch (OperationCanceledException)
+                {
+                    // 正常取消
+                }
+            }, watchCt);
+
+            var result = await authorizedTcs.Task.WaitAsync(watchCt);
             if (result.IsAuthorized)
             {
                 Authorized?.Invoke();
@@ -89,11 +111,9 @@ public class AuthorizationWatcher : IDisposable
         }
         finally
         {
-            StopPolling();
-            if (connected)
-            {
-                _pushService.Authorized -= OnPushAuthorized;
-            }
+            _pushService.Authorized -= pushAuthorizedHandler;
+            _pushService.ConnectionStateChanged -= OnConnectionStateChange;
+            StopWatching();
         }
     }
 
@@ -114,34 +134,48 @@ public class AuthorizationWatcher : IDisposable
         return AuthorizationResult.Failed(result?.ErrorMessage ?? "注册失败");
     }
 
-    private async Task<bool> TryConnectWebSocketAsync(string serverUrl, string deviceName, TimeSpan timeout, CancellationToken ct)
+    /// <summary>
+    /// WebSocket 授权推送事件处理器。
+    /// 注：事件处理器签名本身必须是 void；所有异常已通过 TrySetException/TrySetCanceled 捕获，不会逃逸。
+    /// </summary>
+    private async void OnPushAuthorized(
+        object? sender,
+        EventArgs e,
+        string serverUrl,
+        TaskCompletionSource<AuthorizationResult> authorizedTcs,
+        CancellationToken ct)
     {
-        if (_pushService.IsConnected) return true;
-
-        var connectedTcs = new TaskCompletionSource<bool>();
-        void OnConnectionStateChange(bool connected)
-        {
-            if (connected) connectedTcs.TrySetResult(true);
-        }
-
-        _pushService.ConnectionStateChanged += OnConnectionStateChange;
         try
         {
-            await _pushService.ConnectAsync(serverUrl, deviceName, ct);
-            using var timeoutCts = new CancellationTokenSource(timeout);
-            using var linked = CancellationTokenSource.CreateLinkedTokenSource(ct, timeoutCts.Token);
-            try
+            var result = await _deviceRegistration.RegisterDeviceAsync(serverUrl, ct);
+            if (result is { Success: true, Authorized: true, SharedSecret: not null })
             {
-                return await connectedTcs.Task.WaitAsync(linked.Token);
-            }
-            catch (OperationCanceledException)
-            {
-                return false;
+                authorizedTcs.TrySetResult(AuthorizationResult.Authorized(result.SharedSecret));
             }
         }
-        finally
+        catch (OperationCanceledException)
         {
-            _pushService.ConnectionStateChanged -= OnConnectionStateChange;
+            authorizedTcs.TrySetCanceled();
+        }
+        catch (Exception ex)
+        {
+            authorizedTcs.TrySetException(ex);
+        }
+    }
+
+    private void StartPolling(
+        string serverUrl,
+        TimeSpan interval,
+        TaskCompletionSource<AuthorizationResult> authorizedTcs,
+        CancellationToken ct,
+        bool fallbackFromTimeout = false)
+    {
+        lock (_pollLock)
+        {
+            if (_pollCts != null) return; // 已在轮询
+            if (fallbackFromTimeout && _webSocketEverConnected) return; // WebSocket 已连上，无需超时兜底
+            _pollCts = CancellationTokenSource.CreateLinkedTokenSource(ct);
+            _ = RunPollingAsync(serverUrl, interval, authorizedTcs, _pollCts.Token);
         }
     }
 
@@ -181,16 +215,34 @@ public class AuthorizationWatcher : IDisposable
 
     private void StopPolling()
     {
-        if (_pollCts != null)
+        CancellationTokenSource? cts;
+        lock (_pollLock)
         {
-            _pollCts.Cancel();
-            _pollCts.Dispose();
+            cts = _pollCts;
             _pollCts = null;
         }
+
+        if (cts != null)
+        {
+            cts.Cancel();
+            cts.Dispose();
+        }
+    }
+
+    private void StopWatching()
+    {
+        StopPolling();
+        if (_watchCts != null)
+        {
+            _watchCts.Cancel();
+            _watchCts.Dispose();
+            _watchCts = null;
+        }
+        _webSocketEverConnected = false;
     }
 
     public void Dispose()
     {
-        StopPolling();
+        StopWatching();
     }
 }

@@ -188,24 +188,33 @@ public class PairingServiceImpl : IPairingService, IDeviceRegistrationService
     }
 
     /// <inheritdoc />
+    /// <remarks>
+    /// [后端未实现 /mg/pair/status] 当前服务端未向移动端暴露独立的配对状态查询端点，
+    /// 因此直接抛出 <see cref="NotSupportedException"/>。待后端实现后可移除。
+    /// </remarks>
     public Task<PairResponse> CheckPairStatusAsync(string requestId, CancellationToken cancellationToken = default)
     {
-        // 后端暂未向移动端暴露独立的配对状态查询端点
-        throw new NotSupportedException("移动端 SDK 暂不支持查询配对状态，请通过 PairDeviceAsync 的结果或 /mg/pair 重试。");
+        throw new NotSupportedException("[后端未实现 /mg/pair/status] 移动端 SDK 暂不支持查询配对状态，请通过 PairDeviceAsync 的结果或 /mg/pair 重试。");
     }
 
     /// <inheritdoc />
+    /// <remarks>
+    /// [后端未实现 /mg/verify-token] 当前服务端未实现令牌验证端点，
+    /// 因此直接抛出 <see cref="NotSupportedException"/>。待后端实现后可移除。
+    /// </remarks>
     public Task<bool> VerifyTokenAsync(VerifyTokenRequest request, CancellationToken cancellationToken = default)
     {
-        // 后端暂未实现 /mg/verify-token 端点
-        throw new NotSupportedException("移动端 SDK 暂不支持令牌验证端点。");
+        throw new NotSupportedException("[后端未实现 /mg/verify-token] 移动端 SDK 暂不支持令牌验证端点。");
     }
 
     /// <inheritdoc />
+    /// <remarks>
+    /// [后端未实现 /mg/auth/config] 当前服务端未实现认证配置端点，
+    /// 因此直接抛出 <see cref="NotSupportedException"/>。待后端实现后可移除。
+    /// </remarks>
     public Task<AuthConfigResponse> GetAuthConfigAsync(AuthConfigRequest request, CancellationToken cancellationToken = default)
     {
-        // 后端暂未实现 /mg/auth/config 端点
-        throw new NotSupportedException("移动端 SDK 暂不支持获取认证配置端点。");
+        throw new NotSupportedException("[后端未实现 /mg/auth/config] 移动端 SDK 暂不支持获取认证配置端点。");
     }
 
     // ---- helpers ----

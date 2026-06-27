@@ -16,6 +16,12 @@ public static class MauiProgram
         builder
             .UseMauiApp<App>()
             .UseBarcodeReader()
+            .ConfigureMauiHandlers(handlers =>
+            {
+                handlers.AddHandler<
+                    Microsoft.AspNetCore.Components.WebView.Maui.BlazorWebView,
+                    Microsoft.AspNetCore.Components.WebView.Maui.BlazorWebViewHandler>();
+            })
             .ConfigureFonts(fonts =>
             {
                 fonts.AddFont("OpenSans-Regular.ttf", "OpenSansRegular");
@@ -23,8 +29,8 @@ public static class MauiProgram
 
         builder.Services.AddMauiBlazorWebView();
 
-        // 先初始化设备 ID，避免后续在 UI 线程反复阻塞 SecureStorage
-        DeviceInfoHelper.InitializeAsync().GetAwaiter().GetResult();
+        // 后台初始化设备 ID，避免在 CreateMauiApp 期间阻塞 UI 线程
+        _ = Task.Run(DeviceInfoHelper.InitializeAsync);
 
         // Platform services
         builder.Services.AddSingleton<ISecureStore, MauiSecureStore>();

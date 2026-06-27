@@ -30,12 +30,19 @@ public static class DeviceInfoHelper
     }
 
     /// <summary>
-    /// 获取设备 ID。调用前必须先执行 <see cref="InitializeAsync"/>。
+    /// 获取设备 ID。首次调用时会自动完成初始化（同步等待）。
     /// </summary>
     public static string GetDeviceId()
     {
         if (_cachedDeviceId == null)
-            throw new InvalidOperationException("DeviceInfoHelper 尚未初始化，请先调用 InitializeAsync()。");
+        {
+            // 在 MauiProgram 中改为后台延迟初始化；若仍有同步调用场景，兜底同步等待一次
+            InitializeAsync().GetAwaiter().GetResult();
+        }
+
+        if (_cachedDeviceId == null)
+            throw new InvalidOperationException("DeviceInfoHelper 初始化失败，无法获取设备 ID。");
+
         return _cachedDeviceId;
     }
 
