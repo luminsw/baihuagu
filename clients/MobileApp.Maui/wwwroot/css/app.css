@@ -110,5 +110,63 @@ a.btn.primary { color: white; }
 
 .file-content { background: #f8f9fa; padding: 16px; border-radius: 8px; font-size: 14px; line-height: 1.7; white-space: pre-wrap; word-break: break-word; max-height: 70vh; overflow-y: auto; }
 
+/* VaultsPage 导航头部 */
+.view-header, .vault-header { display: flex; align-items: center; gap: 10px; margin-bottom: 12px; }
+.view-header .view-path { font-size: 14px; color: #666; overflow: hidden; text-overflow: ellipsis; }
+.vault-header h2 { margin: 0; flex: 1; }
+.vault-header .file-count { font-size: 14px; }
+
+/* 目录分组 */
+.folder-list { display: flex; flex-direction: column; gap: 8px; }
+.folder-group { background: white; border-radius: 10px; overflow: hidden; }
+.folder-header { display: flex; align-items: center; gap: 10px; padding: 12px 14px; cursor: pointer; background: #f8f9fa; }
+.folder-header:active { background: #eee; }
+.folder-icon { font-size: 20px; }
+.folder-name { flex: 1; font-weight: 500; }
+.folder-group .file-list { padding: 0 14px 12px; }
+.folder-group .file-item:first-child { border-top: 1px solid #eee; }
+
+/* 同步状态标签 */
+.sync-status-tag { font-size: 12px; padding: 2px 8px; border-radius: 12px; margin-left: 8px; display: inline-block; }
+.sync-status-tag.synced { background: #e8f5e9; color: #2e7d32; }
+.sync-status-tag.not-synced { background: #fff3e0; color: #f57c00; }
+.vault-card.synced { border-left: 4px solid #34c759; }
+.btn.secondary { background: #e0e0e0; color: #333; }
+
+/* Markdown 渲染样式 */
+.markdown-content {
+    background: white;
+    padding: 20px 16px;
+    border-radius: 10px;
+    font-size: 15px;
+    line-height: 1.8;
+    color: #333;
+    max-height: 70vh;
+    overflow-y: auto;
+}
+.markdown-content :deep(h1) { font-size: 24px; font-weight: bold; margin: 24px 0 12px; padding-bottom: 8px; border-bottom: 1px solid #eee; }
+.markdown-content :deep(h2) { font-size: 20px; font-weight: bold; margin: 20px 0 10px; }
+.markdown-content :deep(h3) { font-size: 18px; font-weight: bold; margin: 16px 0 8px; }
+.markdown-content :deep(h4), .markdown-content :deep(h5), .markdown-content :deep(h6) { font-size: 16px; font-weight: bold; margin: 14px 0 8px; }
+.markdown-content :deep(p) { margin: 10px 0; }
+.markdown-content :deep(strong) { font-weight: bold; }
+.markdown-content :deep(em) { font-style: italic; }
+.markdown-content :deep(s) { text-decoration: line-through; }
+.markdown-content :deep(code) { background: #f4f4f4; padding: 2px 6px; border-radius: 4px; font-family: monospace; font-size: 14px; }
+.markdown-content :deep(pre) { background: #2d2d2d; color: #ccc; padding: 16px; border-radius: 8px; overflow-x: auto; margin: 12px 0; }
+.markdown-content :deep(pre code) { background: transparent; padding: 0; color: inherit; }
+.markdown-content :deep(blockquote) { border-left: 4px solid #1a73e8; padding-left: 14px; margin: 12px 0; color: #666; background: #f8f9ff; padding: 10px 14px; border-radius: 0 6px 6px 0; }
+.markdown-content :deep(ul), .markdown-content :deep(ol) { padding-left: 24px; margin: 10px 0; }
+.markdown-content :deep(li) { margin: 6px 0; }
+.markdown-content :deep(li ul), .markdown-content :deep(li ol) { padding-left: 20px; margin: 4px 0; }
+.markdown-content :deep(a) { color: #1a73e8; text-decoration: none; }
+.markdown-content :deep(a:hover) { text-decoration: underline; }
+.markdown-content :deep(hr) { border: none; border-top: 1px solid #eee; margin: 20px 0; }
+.markdown-content :deep(table) { width: 100%; border-collapse: collapse; margin: 12px 0; font-size: 14px; }
+.markdown-content :deep(th), .markdown-content :deep(td) { border: 1px solid #ddd; padding: 8px 12px; text-align: left; }
+.markdown-content :deep(th) { background: #f5f5f5; font-weight: bold; }
+.markdown-content :deep(tr:nth-child(even)) { background: #f9f9f9; }
+.markdown-content :deep(img) { max-width: 100%; height: auto; border-radius: 6px; margin: 8px 0; }
+
 /* Debug: big red text for test button feedback */
 .debug-msg { font-size: 20px; color: red; font-weight: bold; margin-top: 12px; padding: 16px; background: #fff3cd; border-radius: 8px; }

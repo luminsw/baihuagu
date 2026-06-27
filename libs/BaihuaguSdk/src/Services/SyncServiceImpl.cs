@@ -111,11 +111,11 @@ public class SyncServiceImpl : ISyncService
         string serverUrl, string vaultId, string deviceId,
         IVaultStorageAdapter storage, CancellationToken ct = default)
     {
-        // 1. Fetch manifest
         var manifest = await FetchManifestAsync(serverUrl, vaultId, deviceId, ct: ct);
         var files = manifest.Files ?? Array.Empty<ManifestFile>();
 
         int downloaded = 0, deleted = 0, failed = 0;
+        var errors = new List<string>();
 
         foreach (var file in files)
         {
@@ -129,11 +129,14 @@ public class SyncServiceImpl : ISyncService
                     await storage.DeleteFileIfExistsAsync(file.RelPath);
                     deleted++;
                 }
-                catch { failed++; }
+                catch (Exception ex)
+                {
+                    failed++;
+                    errors.Add($"删除 {file.RelPath} 失败: {ex.Message}");
+                }
                 continue;
             }
 
-            // upsert
             var ext = Path.GetExtension(file.RelPath).ToLowerInvariant();
             if (!_allowedExtensions.Contains(ext)) continue;
 
@@ -158,7 +161,11 @@ public class SyncServiceImpl : ISyncService
             {
                 // 服务端文件已不存在，跳过
             }
-            catch { failed++; }
+            catch (Exception ex)
+            {
+                failed++;
+                errors.Add($"{file.RelPath}: {ex.Message}");
+            }
         }
 
         return new SyncResult(
@@ -167,7 +174,8 @@ public class SyncServiceImpl : ISyncService
             Downloaded: downloaded,
             Skipped: 0,
             Deleted: deleted,
-            Failed: failed);
+            Failed: failed,
+            Errors: errors.Count > 0 ? errors : null);
     }
 
     /// <summary>清空知识库列表缓存（服务器切换时调用）</summary>

@@ -9,4 +9,5 @@ public record SyncResult(
     int Downloaded = 0,
     int Skipped = 0,
     int Deleted = 0,
-    int Failed = 0);
+    int Failed = 0,
+    IReadOnlyList<string>? Errors = null);

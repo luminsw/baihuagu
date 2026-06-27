@@ -14,53 +14,81 @@
     <p class="sync-status">🔄 正在同步...</p>
 }
 
-@if (_vaults.Count == 0)
+@if (_viewContent != null)
 {
-    <p class="empty-hint">还没有同步过知识库。</p>
-    <button class="btn small primary" @onclick="GoSync">去同步</button>
+    <!-- 文件内容预览页 -->
+    <div class="view-header">
+        <button class="btn small" @onclick="BackToFileList">← 返回列表</button>
+        <span class="view-path">@_viewFilePath</span>
+    </div>
+    <div class="markdown-content">@((MarkupString)_viewContent)</div>
+}
+else if (_selectedVault != null)
+{
+    <!-- 文件列表页 -->
+    <div class="vault-header">
+        <button class="btn small" @onclick="BackToVaultList">← 返回知识库</button>
+        <h2>@_selectedVault.DisplayName <span class="file-count">@_selectedVault.Files.Count 个文件</span></h2>
+    </div>
+    
+    @if (_selectedVault.Files.Count == 0)
+    {
+        <p class="empty-hint">该知识库没有文件。</p>
+    }
+    else
+    {
+        <div class="folder-list">
+            @foreach (var folder in _selectedFolders)
+            {
+                <div class="folder-group">
+                    <div class="folder-header" @onclick="() => ToggleFolder(folder.Name)">
+                        <span class="folder-icon">@(folder.IsExpanded ? "📂" : "📁")</span>
+                        <span class="folder-name">@folder.Name</span>
+                        <span class="file-count">@folder.Files.Count 个文件</span>
+                    </div>
+                    @if (folder.IsExpanded)
+                    {
+                        <div class="file-list">
+                            @foreach (var file in folder.Files)
+                            {
+                                <div class="file-item" @onclick="() => ViewFile(file)">
+                                    <span class="file-icon">📄</span>
+                                    <span class="file-path">@file.RelPath</span>
+                                    <span class="file-size">@file.SizeDisplay</span>
+                                </div>
+                            }
+                        </div>
+                    }
+                </div>
+            }
+        </div>
+    }
 }
 else
 {
-    <div class="toolbar">
-        <button class="btn small" @onclick="RefreshVaultsAsync">🔄 刷新</button>
-        @if (_currentServer != null)
+    <!-- 知识库列表页 -->
+    @if (_vaults.Count == 0)
+    {
+        <p class="empty-hint">还没有同步过知识库。</p>
+        <button class="btn small primary" @onclick="GoSync">去同步</button>
+    }
+    else
+    {
+        <div class="toolbar">
+            <button class="btn small" @onclick="RefreshVaultsAsync">🔄 刷新</button>
+            @if (_currentServer != null)
+            {
+                <button class="btn small primary" @onclick="SyncAll">📥 同步全部</button>
+            }
+        </div>
+
+        @foreach (var vault in _vaults)
         {
-            <button class="btn small primary" @onclick="SyncAll">📥 同步全部</button>
+            <div class="vault-card" @onclick="() => OpenVault(vault)">
+                <strong>@vault.DisplayName</strong>
+                <span class="file-count">@vault.Files.Count 个文件</span>
+            </div>
         }
-    </div>
-
-    @foreach (var vault in _vaults)
-    {
-        <div class="vault-card" @onclick="() => OpenVault(vault.DisplayName)">
-            <strong>@vault.DisplayName</strong>
-            <span class="file-count">@vault.Files.Count 个文件</span>
-        </div>
-    }
-}
-
-@if (_selectedName != null)
-{
-    <h2 style="margin-top:20px">
-        <button class="btn small" @onclick="() => _selectedName = null">← 返回</button>
-        @_selectedName
-    </h2>
-
-    @foreach (var file in _selectedFiles)
-    {
-        <div class="file-item" @onclick="() => ViewFile(file)">
-            <span class="file-icon">📄</span>
-            <span class="file-path">@file.RelPath</span>
-            <span class="file-size">@file.SizeDisplay</span>
-        </div>
-    }
-
-    @if (_viewContent != null)
-    {
-        <h3 style="margin-top:16px">
-            <button class="btn small" @onclick="() => _viewContent = null">← 返回</button>
-            @_viewFilePath
-        </h3>
-        <pre class="file-content">@_viewContent</pre>
     }
 }
 
@@ -71,8 +99,8 @@ else
 
 @code {
     private List<VaultEntry> _vaults = new();
-    private string? _selectedName;
-    private List<FileEntry> _selectedFiles = new();
+    private VaultEntry? _selectedVault;
+    private List<FolderEntry> _selectedFolders = new();
     private string? _viewContent;
     private string? _viewFilePath;
     private bool _syncing = false;
@@ -84,6 +112,12 @@ else
     {
         public string SizeDisplay => Size < 1024 ? $"{Size} B" :
             Size < 1024 * 1024 ? $"{Size / 1024.0:F1} KB" : $"{Size / (1024.0 * 1024):F1} MB";
+    }
+    private class FolderEntry
+    {
+        public string Name { get; init; } = "";
+        public List<FileEntry> Files { get; } = new();
+        public bool IsExpanded { get; set; } = false;
     }
 
     private record VaultInfoFile(string Id, string Name, string Industry, string Source);
@@ -100,7 +134,6 @@ else
         var baseDir = System.IO.Path.Combine(FileSystem.AppDataDirectory, "vaults");
         if (!Directory.Exists(baseDir)) return;
 
-        // 尝试从服务器获取名称映射（兼容已同步但未生成 .vault-info.json 的历史数据）
         var nameMap = await FetchServerVaultNameMapAsync();
 
         foreach (var vaultDir in Directory.GetDirectories(baseDir))
@@ -148,14 +181,53 @@ else
                     return info.Name;
             }
         }
-        catch { /* 忽略元数据读取失败，回退到目录名 */ }
+        catch { /* 忽略元数据读取失败 */ }
         return fallbackId;
     }
 
-    private void OpenVault(string name)
+    private void OpenVault(VaultEntry vault)
     {
-        _selectedName = name;
-        _selectedFiles = _vaults.First(v => v.DisplayName == name).Files;
+        _selectedVault = vault;
+        _selectedFolders = BuildFolderTree(vault.Files);
+        _viewContent = null;
+    }
+
+    /// <summary>按顶层目录分组文件</summary>
+    private List<FolderEntry> BuildFolderTree(List<FileEntry> files)
+    {
+        var folders = new Dictionary<string, FolderEntry>();
+
+        foreach (var file in files)
+        {
+            var parts = file.RelPath.Split('/');
+            var folderName = parts.Length > 1 ? parts[0] : "根目录";
+
+            if (!folders.TryGetValue(folderName, out var folder))
+            {
+                folder = new FolderEntry { Name = folderName, IsExpanded = true };
+                folders[folderName] = folder;
+            }
+            folder.Files.Add(file);
+        }
+
+        return folders.Values.OrderBy(f => f.Name == "根目录" ? "" : f.Name).ToList();
+    }
+
+    private void ToggleFolder(string folderName)
+    {
+        var folder = _selectedFolders.FirstOrDefault(f => f.Name == folderName);
+        if (folder != null)
+            folder.IsExpanded = !folder.IsExpanded;
+    }
+
+    private void BackToVaultList()
+    {
+        _selectedVault = null;
+        _selectedFolders.Clear();
+    }
+
+    private void BackToFileList()
+    {
         _viewContent = null;
     }
 
@@ -219,7 +291,11 @@ else
     private void ViewFile(FileEntry file)
     {
         _viewFilePath = file.RelPath;
-        try { _viewContent = File.ReadAllText(file.FullPath); }
-        catch { _viewContent = "[无法预览]"; }
+        try
+        {
+            var markdown = File.ReadAllText(file.FullPath);
+            _viewContent = Markdig.Markdown.ToHtml(markdown);
+        }
+        catch { _viewContent = "<p>[无法预览]</p>"; }
     }
 }
