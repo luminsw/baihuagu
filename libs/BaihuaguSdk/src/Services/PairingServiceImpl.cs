@@ -267,9 +267,6 @@ public class PairingServiceImpl : IPairingService, IDeviceRegistrationService
 
     private static int GetInt(JsonElement el, string key) =>
         el.TryGetProperty(key, out var v) && v.ValueKind == JsonValueKind.Number ? v.GetInt32() : 0;
-
-    private static string NormalizeUrl(string url) =>
-        url.TrimEnd('/').ToLowerInvariant();
 }
 
 /// <summary>二维码内容（与 Kotlin QRCodeContent 对齐）</summary>

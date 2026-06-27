@@ -21,6 +21,7 @@ public class PushWebSocketService : IDisposable
 
     private WebSocket? _webSocket;
     private CancellationTokenSource? _connectCts;
+    private CancellationTokenSource? _pollCts;
     private volatile bool _disposed;
     private int _reconnectAttempts;
 
@@ -80,6 +81,8 @@ public class PushWebSocketService : IDisposable
         _connectCts?.Dispose();
         _connectCts = null;
 
+        StopPolling();
+
         if (_webSocket?.State == WebSocketState.Open)
         {
             try
@@ -99,6 +102,7 @@ public class PushWebSocketService : IDisposable
         _disposed = true;
         _connectCts?.Cancel();
         _connectCts?.Dispose();
+        StopPolling();
         _webSocket?.Dispose();
     }
 
@@ -118,6 +122,7 @@ public class PushWebSocketService : IDisposable
         {
             using var ws = await CreateAndConnectWebSocketAsync(wsUrl, ct);
             _webSocket = ws;
+            StopPolling(); // WebSocket 重连成功，停止轮询
             Log("PushWebSocket connected");
             _reconnectAttempts = 0;
             ConnectionStateChanged?.Invoke(true);
@@ -224,25 +229,48 @@ public class PushWebSocketService : IDisposable
     {
         if (_disposed || string.IsNullOrEmpty(_serverBaseUrl)) return;
 
+        _pollCts?.Cancel();
+        _pollCts?.Dispose();
+        _pollCts = new CancellationTokenSource();
+
         _pendingPollUrl = $"{_serverBaseUrl}/mg/devices/push-pending?deviceName={Uri.EscapeDataString(_deviceName)}&wait=false";
-        _ = PollLoopAsync();
+        _ = PollLoopAsync(_pollCts.Token);
     }
 
-    private async Task PollLoopAsync()
+    private async Task PollLoopAsync(CancellationToken ct)
     {
-        while (!_disposed && _webSocket == null)
+        while (!_disposed && _webSocket == null && !ct.IsCancellationRequested)
         {
-            await Task.Delay(PollIntervalMs);
-            if (_disposed || _webSocket != null) break;
+            try
+            {
+                await Task.Delay(PollIntervalMs, ct);
+            }
+            catch (OperationCanceledException)
+            {
+                break;
+            }
+
+            if (_disposed || _webSocket != null || ct.IsCancellationRequested) break;
 
             try
             {
-                var resp = await _httpClient.GetStringAsync(_pendingPollUrl);
+                var resp = await _httpClient.GetStringAsync(_pendingPollUrl, ct);
                 if (!string.IsNullOrEmpty(resp))
                     HandleMessage(resp);
             }
+            catch (OperationCanceledException)
+            {
+                break;
+            }
             catch { /* best effort */ }
         }
+    }
+
+    private void StopPolling()
+    {
+        _pollCts?.Cancel();
+        _pollCts?.Dispose();
+        _pollCts = null;
     }
 
     private void Log(string msg) => OnLog?.Invoke(msg);

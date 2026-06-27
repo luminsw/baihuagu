@@ -14,6 +14,7 @@ public class MauiSecureStore : ISecureStore
     public async Task SetAsync(string key, string value)
         => await SecureStorage.Default.SetAsync(key, value);
 
+    // 注：MAUI SecureStorage.Remove 是同步操作，无需 await
     public Task RemoveAsync(string key)
     {
         SecureStorage.Default.Remove(key);

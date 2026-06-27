@@ -50,9 +50,13 @@
         _vaultsPath = Path.Combine(FileSystem.AppDataDirectory, "vaults");
     }
 
-    private void ClearCache()
+    private async Task ClearCache()
     {
-        BaihuaguSdk.Services.SyncServiceImpl.ClearVaultListCache("");
+        var current = await ServerStore.GetCurrentServerAsync();
+        if (current != null)
+        {
+            BaihuaguSdk.Services.SyncServiceImpl.ClearVaultListCache(current.HttpUrl);
+        }
         _message = "✅ 缓存已清除";
         StateHasChanged();
     }

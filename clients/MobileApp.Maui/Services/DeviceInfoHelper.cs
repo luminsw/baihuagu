@@ -36,8 +36,9 @@ public static class DeviceInfoHelper
     {
         if (_cachedDeviceId == null)
         {
-            // 在 MauiProgram 中改为后台延迟初始化；若仍有同步调用场景，兜底同步等待一次
-            InitializeAsync().GetAwaiter().GetResult();
+            // 在 MauiProgram 中改为后台延迟初始化；若仍有同步调用场景，
+            // 通过 Task.Run 在线程池上执行以避免 UI SynchronizationContext 死锁。
+            Task.Run(() => InitializeAsync()).GetAwaiter().GetResult();
         }
 
         if (_cachedDeviceId == null)

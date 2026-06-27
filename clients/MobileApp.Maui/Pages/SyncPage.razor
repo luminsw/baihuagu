@@ -8,7 +8,6 @@
 @inject NavigationManager Nav
 @inject IJSRuntime JS
 @inject MobileContract.Services.IRemoteLogService Logger
-@inject BaihuaguSdk.Push.PushWebSocketService PushService
 @implements IDisposable
 
 <PageTitle>百花谷 - 同步</PageTitle>
@@ -115,7 +114,6 @@ else
 
     protected override async Task OnInitializedAsync()
     {
-        PushService.OnLog = msg => Logger?.Info(msg, "PushWebSocket");
         Watcher.WebSocketConnectionStateChanged += OnWebSocketConnectionStateChange;
         _servers = await ServerStore.GetServersAsync();
         var current = await ServerStore.GetCurrentServerAsync();

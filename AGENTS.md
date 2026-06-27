@@ -24,7 +24,7 @@
 - `services/TaskRunner.Contracts/`：共享 DTO 与接口契约
 - `services/Core.Shared/`：共享服务层（含 VaultSettingsService、DeviceService 等）
 - `services/TaskRunner.Data/`：共享 EF Core 数据层
-- `libs/BaihuaguSdk/`：跨平台移动端 SDK（net9.0;net10.0，零 MAUI 依赖）
+- `libs/BaihuaguSdk/`：跨平台移动端 SDK（net9.0;net10.0，零 MAUI 依赖，主要 target net10.0）
 - `libs/MobileContract/`：移动端契约（DTO、接口定义）
 - `clients/MobileApp.Maui/`：MAUI Blazor Hybrid 移动客户端
 - `bhg`：极简 CLI 工具（Linux/Mac）
@@ -113,16 +113,45 @@ dotnet test tests/BaihuaguSdk.Tests/BaihuaguSdk.Tests.csproj --filter Integratio
 
 **位置**: `clients/MobileApp.Maui/` — .NET MAUI Blazor Hybrid App。
 
-- **Android**: `dotnet build -f net10.0-android` → APK 在 `bin/Release/net10.0-android/com.lumin.baihuagu-Signed.apk`
+- **Android**: `dotnet build -f net10.0-android -c Release` → APK 在 `bin/Release/net10.0-android/com.lumin.baihuagu-Signed.apk`
 - **iOS**: 需要 macOS + Xcode（GitHub Actions CI 已配置 `.github/workflows/ci.yml`）
 
 ```bash
-# Android 编译
+# Android Release 编译
 dotnet build -f net10.0-android -c Release
 
 # 安装到手机
 adb install clients/MobileApp.Maui/bin/Release/net10.0-android/com.lumin.baihuagu-Signed.apk
 ```
+
+### Honor/部分 Android 设备 .NET 10 兼容性
+
+**已知问题**: 2026-06 期间，Honor 真机（`ADNQUT5813009383`）安装 .NET 10 Preview APK 后启动崩溃：
+```
+java.lang.IllegalArgumentException: No view found for id 0x7f0800ff
+for fragment NavigationRootManager_ElementBasedFragment
+```
+这是 MAUI 10 Preview 在部分 Android 设备上的已知框架问题（[dotnet/maui#32029](https://github.com/dotnet/maui/issues/32029)）。
+
+**当前状态（2026-06-27）**:
+- 已切换到 .NET 10 **稳定版** SDK（`10.0.109`），MAUI workload `10.0.20`
+- Debug + Release 构建成功（0 错误 0 警告）
+- 单元测试全部通过（153 + 9）
+- **✅ 真机验证通过**: Honor `ADNQUT5813009383` 安装 .NET 10 APK 后启动正常，MainActivity 可见，无崩溃（原 Preview 版本问题已在稳定版中修复）
+
+**csproj 关键防御配置**（已启用）:
+```xml
+<AndroidEnableFastDeployment>false</AndroidEnableFastDeployment>
+<EmbedAssembliesIntoApk>true</EmbedAssembliesIntoApk>
+<AndroidStoreUncompressedFileExtensions>.so;.dll</AndroidStoreUncompressedFileExtensions>
+<AndroidEnableCompressionInNativeLibraries>false</AndroidEnableCompressionInNativeLibraries>
+```
+
+**若稳定版仍崩溃，可选降级路径**: 将 TF 切回 `net9.0-android`，并降级 `ZXing.Net.Maui.Controls` 到 `0.6.0`（已确认 .NET 9 + Honor 真机工作正常）。
+
+### Debug TLS 证书宽松
+
+Debug 构建跳过 TLS 证书验证（方便本地自签名证书开发），Release 构建严格校验证书。见 `MauiProgram.cs` 中的 `#if DEBUG` 条件判断。
 
 页面：首页（服务器列表）、配对（扫码/手动注册）、同步（知识库拉取+文件下载）、已同步（文件浏览器）。
 
@@ -171,5 +200,5 @@ dotnet test tests/TaskRunner.Family.Tests/TaskRunner.Family.Tests.csproj
 
 ## 已知限制
 
-- **华为/荣耀手机**：HarmonyOS 底层的 Android 与 MAUI 的 native lib 打包格式不兼容（`.so` 文件检查过于严格），标准 Android 设备正常。
-- **Android 模拟器**：需要 KVM 硬件加速（`sudo modprobe kvm_intel`，BIOS 中启用 VT-x）。
+- **华为/荣耀手机**: .NET 10 Preview 存在 `NavigationRootManager_ElementBasedFragment` 崩溃。已升级到 .NET 10 稳定版（`10.0.109`），待真机验证。详见上方「MobileApp.Maui → Honor 兼容性」。
+- **Android 模拟器**: 需要 KVM 硬件加速（`sudo modprobe kvm_intel`，BIOS 中启用 VT-x）。

@@ -24,24 +24,22 @@ public class FileSystemVaultStorage : IVaultStorageAdapter
         return Task.CompletedTask;
     }
 
-    public Task WriteTextFileAsync(string relPath, string content, long mtime = 0)
+    public async Task WriteTextFileAsync(string relPath, string content, long mtime = 0)
     {
         var fullPath = Path.Combine(_vaultRoot, relPath);
-        EnsureDirForFileAsync(relPath).Wait();
-        File.WriteAllText(fullPath, content, System.Text.Encoding.UTF8);
+        await EnsureDirForFileAsync(relPath).ConfigureAwait(false);
+        await File.WriteAllTextAsync(fullPath, content, System.Text.Encoding.UTF8).ConfigureAwait(false);
         if (mtime > 0)
             File.SetLastWriteTimeUtc(fullPath, DateTimeOffset.FromUnixTimeMilliseconds(mtime).UtcDateTime);
-        return Task.CompletedTask;
     }
 
-    public Task WriteBinaryFileAsync(string relPath, byte[] content, long mtime = 0)
+    public async Task WriteBinaryFileAsync(string relPath, byte[] content, long mtime = 0)
     {
         var fullPath = Path.Combine(_vaultRoot, relPath);
-        EnsureDirForFileAsync(relPath).Wait();
-        File.WriteAllBytes(fullPath, content);
+        await EnsureDirForFileAsync(relPath).ConfigureAwait(false);
+        await File.WriteAllBytesAsync(fullPath, content).ConfigureAwait(false);
         if (mtime > 0)
             File.SetLastWriteTimeUtc(fullPath, DateTimeOffset.FromUnixTimeMilliseconds(mtime).UtcDateTime);
-        return Task.CompletedTask;
     }
 
     public Task DeleteFileIfExistsAsync(string relPath)

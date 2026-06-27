@@ -29,9 +29,6 @@ public class LogServiceImpl : IRemoteLogService, IDisposable
     private string _ooUrl = "";
     private string _ooAuth = "";
     private volatile bool _ooEnabled;
-#pragma warning disable CS0414
-    private volatile bool _disposed;
-#pragma warning restore CS0414
 
     public LogServiceImpl(
         HttpClient httpClient, IRequestSigner signer,
@@ -108,9 +105,6 @@ public class LogServiceImpl : IRemoteLogService, IDisposable
     /// <summary>停止后台刷新并清空缓冲区</summary>
     public void Dispose()
     {
-        if (_disposed) return;
-        _disposed = true;
-
         try { _cts.Cancel(); } catch { }
         try { _ = FlushBatchAsync(); } catch { }
         try { _cts.Dispose(); } catch { }

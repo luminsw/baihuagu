@@ -153,7 +153,6 @@
         Logger.Initialize(httpUrl);
         Logger.Info($"设备已配对: {serverName} ({httpUrl})", "PairingPage");
 
-        PushService.OnLog = msg => Logger?.Info(msg, "PushWebSocket");
         await PushService.ConnectAsync(httpUrl, DeviceInfoHelper.GetDeviceName());
         Logger.Info("已启动 WebSocket 推送连接", "PairingPage");
     }

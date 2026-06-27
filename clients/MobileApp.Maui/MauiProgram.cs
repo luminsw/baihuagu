@@ -52,10 +52,11 @@ public static class MauiProgram
 
         builder.Services.AddSingleton(sp =>
         {
-            var handler = new HttpClientHandler
-            {
-                ServerCertificateCustomValidationCallback = (_, _, _, _) => true
-            };
+            var handler = new HttpClientHandler();
+#if DEBUG
+            // Debug 构建跳过证书验证，方便本地开发 / 自签名证书场景
+            handler.ServerCertificateCustomValidationCallback = (_, _, _, _) => true;
+#endif
             var client = new HttpClient(handler) { Timeout = TimeSpan.FromSeconds(30) };
             return client;
         });
@@ -84,7 +85,11 @@ public static class MauiProgram
         builder.Services.AddSingleton(sp =>
         {
             var client = sp.GetRequiredService<HttpClient>();
-            return new PushWebSocketService(client);
+            var pushService = new PushWebSocketService(client);
+            // 统一设置 WebSocket 日志回调（避免各页面重复配置）
+            var logger = sp.GetRequiredService<IRemoteLogService>();
+            pushService.OnLog = msg => logger.Info(msg, "PushWebSocket");
+            return pushService;
         });
         builder.Services.AddTransient<AuthorizationWatcher>(sp =>
         {
