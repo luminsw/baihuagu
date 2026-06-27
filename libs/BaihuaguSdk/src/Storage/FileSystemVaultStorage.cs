@@ -15,6 +15,8 @@ public class FileSystemVaultStorage : IVaultStorageAdapter
         _vaultRoot = vaultRoot;
     }
 
+    public string RootPath => _vaultRoot;
+
     public Task EnsureDirForFileAsync(string relPath)
     {
         var fullPath = Path.Combine(_vaultRoot, relPath);

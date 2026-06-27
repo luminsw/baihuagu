@@ -86,7 +86,7 @@ else
                                 <span class="industry">@v.Industry</span>
                             </div>
                             <button class="btn small"
-                                    @onclick="() => SyncVault(v.Id)" disabled="@(_syncingVault == v.Id)">
+                                    @onclick="() => SyncVault(v)" disabled="@(_syncingVault == v.Id)">
                                 @(_syncingVault == v.Id ? "⏳ 同步中..." : "🔄 同步")
                             </button>
                         </div>
@@ -277,18 +277,21 @@ else
         Watcher.Dispose();
     }
 
-    private async Task SyncVault(string vaultId)
+    private async Task SyncVault(MobileContract.VaultSync.VaultInfo vault)
     {
-        if (_selectedServer == null) return;
-        _syncingVault = vaultId; _error = null;
+        if (_selectedServer == null || vault == null) return;
+        _syncingVault = vault.Id; _error = null;
         StateHasChanged();
         try
         {
-            var storage = VaultStorageFactory.CreateForVault(vaultId);
+            var storage = VaultStorageFactory.CreateForVault(vault.Id);
             var deviceId = Signer.DeviceId;
 
             _syncResult = await SyncService.SyncVaultAsync(
-                _selectedServer.HttpUrl, vaultId, deviceId, storage);
+                _selectedServer.HttpUrl, vault.Id, deviceId, storage);
+
+            // 保存知识库元数据到本地，便于「已同步」页显示名称而非 ID
+            await WriteVaultMetadataAsync(storage, vault);
 
             await ServerStore.AddOrUpdateServerAsync(_selectedServer with
             {
@@ -304,6 +307,27 @@ else
             {
                 try { await JS.InvokeVoidAsync("scrollIntoView", _resultRef); } catch { }
             }
+        }
+    }
+
+    private async Task WriteVaultMetadataAsync(MobileContract.Services.IVaultStorageAdapter storage, MobileContract.VaultSync.VaultInfo vault)
+    {
+        try
+        {
+            var metadataPath = System.IO.Path.Combine(storage.RootPath, ".vault-info.json");
+            var json = System.Text.Json.JsonSerializer.Serialize(new
+            {
+                vault.Id,
+                vault.Name,
+                vault.Industry,
+                vault.Source,
+                SyncedAt = DateTimeOffset.UtcNow
+            });
+            await System.IO.File.WriteAllTextAsync(metadataPath, json, System.Text.Encoding.UTF8);
+        }
+        catch (Exception ex)
+        {
+            Logger.Info($"保存知识库元数据失败: {ex.Message}", "SyncPage");
         }
     }
 }

@@ -22,7 +22,7 @@
 else
 {
     <div class="toolbar">
-        <button class="btn small" @onclick="RefreshVaults">🔄 刷新</button>
+        <button class="btn small" @onclick="RefreshVaultsAsync">🔄 刷新</button>
         @if (_currentServer != null)
         {
             <button class="btn small primary" @onclick="SyncAll">📥 同步全部</button>
@@ -31,8 +31,8 @@ else
 
     @foreach (var vault in _vaults)
     {
-        <div class="vault-card" @onclick="() => OpenVault(vault.Name)">
-            <strong>@vault.Name</strong>
+        <div class="vault-card" @onclick="() => OpenVault(vault.DisplayName)">
+            <strong>@vault.DisplayName</strong>
             <span class="file-count">@vault.Files.Count 个文件</span>
         </div>
     }
@@ -79,43 +79,83 @@ else
     private string? _error;
     private BaihuaguSdk.Models.ServerConfig? _currentServer;
 
-    private record VaultEntry(string Name, List<FileEntry> Files);
+    private record VaultEntry(string Id, string DisplayName, List<FileEntry> Files);
     private record FileEntry(string RelPath, long Size, string FullPath)
     {
         public string SizeDisplay => Size < 1024 ? $"{Size} B" :
             Size < 1024 * 1024 ? $"{Size / 1024.0:F1} KB" : $"{Size / (1024.0 * 1024):F1} MB";
     }
 
+    private record VaultInfoFile(string Id, string Name, string Industry, string Source);
+
     protected override async Task OnInitializedAsync()
     {
         _currentServer = await ServerStore.GetCurrentServerAsync();
-        RefreshVaults();
+        await RefreshVaultsAsync();
     }
 
-    private void RefreshVaults()
+    private async Task RefreshVaultsAsync()
     {
         _vaults.Clear();
         var baseDir = System.IO.Path.Combine(FileSystem.AppDataDirectory, "vaults");
         if (!Directory.Exists(baseDir)) return;
 
+        // 尝试从服务器获取名称映射（兼容已同步但未生成 .vault-info.json 的历史数据）
+        var nameMap = await FetchServerVaultNameMapAsync();
+
         foreach (var vaultDir in Directory.GetDirectories(baseDir))
         {
-            var name = System.IO.Path.GetFileName(vaultDir);
+            var id = System.IO.Path.GetFileName(vaultDir);
+            var displayName = ReadVaultDisplayName(vaultDir, id);
+            if (displayName == id && nameMap.TryGetValue(id, out var serverName))
+                displayName = serverName;
+
             var files = Directory.GetFiles(vaultDir, "*.*", SearchOption.AllDirectories)
+                .Where(f => !System.IO.Path.GetFileName(f).Equals(".vault-info.json", StringComparison.OrdinalIgnoreCase))
                 .Select(f => new FileEntry(
                     System.IO.Path.GetRelativePath(vaultDir, f),
                     new System.IO.FileInfo(f).Length, f))
                 .OrderBy(f => f.RelPath)
                 .ToList();
-            _vaults.Add(new VaultEntry(name, files));
+            _vaults.Add(new VaultEntry(id, displayName, files));
         }
         StateHasChanged();
+    }
+
+    private async Task<Dictionary<string, string>> FetchServerVaultNameMapAsync()
+    {
+        if (_currentServer == null) return new();
+        if (!Signer.HasServerSecret(_currentServer.HttpUrl)) return new();
+
+        try
+        {
+            var vaults = await SyncService.FetchVaultListAsync(_currentServer.HttpUrl);
+            return vaults.ToDictionary(v => v.Id, v => v.Name);
+        }
+        catch { return new(); }
+    }
+
+    private string ReadVaultDisplayName(string vaultDir, string fallbackId)
+    {
+        try
+        {
+            var infoPath = System.IO.Path.Combine(vaultDir, ".vault-info.json");
+            if (System.IO.File.Exists(infoPath))
+            {
+                var json = System.IO.File.ReadAllText(infoPath);
+                var info = System.Text.Json.JsonSerializer.Deserialize<VaultInfoFile>(json);
+                if (!string.IsNullOrWhiteSpace(info?.Name))
+                    return info.Name;
+            }
+        }
+        catch { /* 忽略元数据读取失败，回退到目录名 */ }
+        return fallbackId;
     }
 
     private void OpenVault(string name)
     {
         _selectedName = name;
-        _selectedFiles = _vaults.First(v => v.Name == name).Files;
+        _selectedFiles = _vaults.First(v => v.DisplayName == name).Files;
         _viewContent = null;
     }
 
@@ -140,8 +180,9 @@ else
                     vault.Id,
                     Signer.DeviceId,
                     storage);
+                await WriteVaultMetadataAsync(storage, vault);
             }
-            RefreshVaults();
+            await RefreshVaultsAsync();
         }
         catch (Exception ex)
         {
@@ -151,6 +192,27 @@ else
         {
             _syncing = false;
             StateHasChanged();
+        }
+    }
+
+    private async Task WriteVaultMetadataAsync(MobileContract.Services.IVaultStorageAdapter storage, MobileContract.VaultSync.VaultInfo vault)
+    {
+        try
+        {
+            var metadataPath = System.IO.Path.Combine(storage.RootPath, ".vault-info.json");
+            var json = System.Text.Json.JsonSerializer.Serialize(new
+            {
+                vault.Id,
+                vault.Name,
+                vault.Industry,
+                vault.Source,
+                SyncedAt = DateTimeOffset.UtcNow
+            });
+            await System.IO.File.WriteAllTextAsync(metadataPath, json, System.Text.Encoding.UTF8);
+        }
+        catch (Exception ex)
+        {
+            System.Diagnostics.Debug.WriteLine($"保存知识库元数据失败: {ex.Message}");
         }
     }
 

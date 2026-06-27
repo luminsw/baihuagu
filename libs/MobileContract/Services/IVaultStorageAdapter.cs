@@ -6,6 +6,9 @@ namespace MobileContract.Services;
 /// </summary>
 public interface IVaultStorageAdapter
 {
+    /// <summary>存储根目录（平台层实现提供，用于元数据读写）</summary>
+    string RootPath { get; }
+
     Task EnsureDirForFileAsync(string relPath);
     Task WriteTextFileAsync(string relPath, string content, long mtime = 0);
     Task WriteBinaryFileAsync(string relPath, byte[] content, long mtime = 0);
