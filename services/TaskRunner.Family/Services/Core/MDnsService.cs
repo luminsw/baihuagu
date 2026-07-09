@@ -98,7 +98,7 @@ namespace TaskRunner.Services
             EnsureAvahiDaemonRunning();
 
             // 安全：mDNS 广播不再包含 serverId 和完整 apiUrl，减少信息泄露
-            var args = $"-s {hostName} {_serviceType} {port} \"serviceId=com.lumin.baihuagu\" \"hostName={hostName}\"";
+            var args = $"-s {hostName} {_serviceType} {port} \"serviceId=com.lumin.huaji.sync\" \"hostName={hostName}\"";
             _logger.LogInformation("Starting avahi-publish-service: {Args}", args);
 
             // Use nohup to keep the process running even if parent's stdout closes
@@ -195,7 +195,7 @@ namespace TaskRunner.Services
                 });
             }
 
-            _serviceProfile.AddProperty("serviceId", "com.lumin.baihuagu");
+            _serviceProfile.AddProperty("serviceId", "com.lumin.huaji.sync");
             _serviceProfile.AddProperty("hostName", hostName);
 
             _multicastService = new MulticastService();

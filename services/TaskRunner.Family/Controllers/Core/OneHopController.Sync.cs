@@ -52,7 +52,7 @@ public partial class OneHopController
 
                 return Ok(new
                 {
-                    serviceId = "com.lumin.baihuagu",
+                    serviceId = "com.lumin.huaji.sync",
                     deviceName = hostName,
                     ipAddress = ipAddress,
                     port = 8788,
@@ -95,7 +95,7 @@ public partial class OneHopController
                     oneHop = new
                     {
                         enabled = _oneHopService.IsAvailable && _oneHopService.IsRunning,
-                        serviceId = "com.lumin.baihuagu",
+                        serviceId = "com.lumin.huaji.sync",
                         deviceId = Environment.MachineName,
                         deviceName = hostName,
                         ipAddress = ipAddress,

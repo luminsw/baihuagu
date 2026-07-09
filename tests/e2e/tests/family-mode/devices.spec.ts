@@ -14,7 +14,7 @@ test.describe('移动端管理', () => {
     const res = await request.get(`http://localhost:${apiPort}/mg/discovery`);
     expect(res.status()).toBe(200);
     const json = await res.json();
-    expect(json.serviceId).toBe('com.doctornotes.sync');
+    expect(json.serviceId).toBe('com.lumin.huaji.sync');
     expect(json.oneHopEnabled).toBe(true);
     expect(json.oneHopPort).toBe(oneHopPort);
   });

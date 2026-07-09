@@ -100,7 +100,7 @@ namespace TaskRunner.Controllers
             {
                 serviceName = "baihuagu",
                 serviceType = "_http._tcp.local",
-                serviceId = "com.lumin.baihuagu",
+                serviceId = "com.lumin.huaji.sync",
                 serverId = _oneHopService.DeviceId,
                 url = url,
                 hostName = hostName,
@@ -147,7 +147,7 @@ namespace TaskRunner.Controllers
             
             return Ok(new
             {
-                serviceId = "com.lumin.baihuagu",
+                serviceId = "com.lumin.huaji.sync",
                 serverId = _oneHopService.DeviceId,
                 baseUrl = url,
                 httpUrl = url,

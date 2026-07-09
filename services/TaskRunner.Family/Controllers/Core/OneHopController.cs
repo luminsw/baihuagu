@@ -42,7 +42,7 @@ public partial class OneHopController : ControllerBase
             {
                 IsAvailable = _oneHopService.IsAvailable,
                 IsRunning = _oneHopService.IsRunning,
-                ServiceId = "com.lumin.baihuagu",
+                ServiceId = "com.lumin.huaji.sync",
                 Port = _oneHopService is OneHopService ohs ? ohs.Port : 0,
                 DiscoveredDevicesCount = devices.Count,
                 CurrentConnection = connection != null ? new OneHopConnectionResponse

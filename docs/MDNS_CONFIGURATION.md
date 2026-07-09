@@ -51,7 +51,7 @@ mDNS服务广告以下信息：
 - **IP地址**：本机局域网IP
 - **端口**：从Kestrel配置获取（默认8788）
 - **API地址**：`http://{ip}:{port}`
-- **服务ID**：`com.doctornotes.sync`
+- **服务ID**：`com.lumin.huaji.sync`
 
 ## 移动端配置（HarmonyOS）
 

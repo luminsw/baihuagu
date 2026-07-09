@@ -18,7 +18,7 @@ namespace TaskRunner.Services
         private readonly IOneHopService _oneHopService;
         private readonly ServerAddressService _serverAddressService;
         private bool _isInitialized = false;
-        private string _serviceId = "com.lumin.baihuagu";
+        private string _serviceId = "com.lumin.huaji.sync";
 
         public OneHopManager(
             ILogger<OneHopManager> logger,
