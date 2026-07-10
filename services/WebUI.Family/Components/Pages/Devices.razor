@@ -309,7 +309,7 @@
                                                         <div class="mt-1">
                                                             @foreach (var sv in device.SyncedVaultIds)
                                                             {
-                                                                var svName = availableVaults.FirstOrDefault(v => v.Id == sv)?.Name ?? sv;
+                                                                var svName = _allVaultNames.TryGetValue(sv, out var foundName) ? foundName : sv;
                                                                 <span class="badge bg-success bg-opacity-75 me-1" style="font-size: 0.65rem;">@svName</span>
                                                             }
                                                         </div>
@@ -344,6 +344,7 @@
     private List<PendingDeviceInfo> pendingDevices = new();
     private List<AuthorizedDeviceInfo> authorizedDevices = new();
     private List<VaultInfo> availableVaults = new();
+    private Dictionary<string, string> _allVaultNames = new();
 
     // OneHop 发现
     private bool isDiscovering;
@@ -486,6 +487,11 @@
             var response = await HttpClient.GetFromJsonAsync<VaultsListResponse>("api/settings/vaults");
             if (response?.Vaults != null)
             {
+                // 构建全量名称映射（含 mobile 来源），供已同步徽章解析中文名
+                _allVaultNames = response.Vaults
+                    .Where(v => !string.IsNullOrEmpty(v.Id) && !string.IsNullOrEmpty(v.Name))
+                    .ToDictionary(v => v.Id!, v => v.Name!);
+
                 // 过滤掉移动端推送来的知识库（Source=mobile），避免向移动端推送它自己的知识库
                 availableVaults = response.Vaults
                     .Where(v => v.Source != "mobile")
