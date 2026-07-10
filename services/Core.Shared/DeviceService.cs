@@ -39,6 +39,8 @@ namespace TaskRunner.Core.Shared;
         public DateTime? FirstSyncTime { get; set; }
         /// <summary>最近30天内同步过的知识库ID列表</summary>
         public List<string> SyncedVaultIds { get; set; } = new();
+        /// <summary>已同步知识库的 ID→名称 映射</summary>
+        public Dictionary<string, string> SyncedVaultNames { get; set; } = new();
     }
 
     /// <summary>
@@ -396,15 +398,25 @@ namespace TaskRunner.Core.Shared;
                 .Where(l => l.SyncTime >= since && !string.IsNullOrEmpty(l.VaultId))
                 .ToList();
 
+            // 构建知识库 ID→名称 映射（包含已删除的知识库，确保名称可解析）
+            var allVaultIds = syncLogs.Select(l => l.VaultId!).Distinct().ToHashSet();
+            var vaultNameMap = dbContext.Vaults
+                .Where(v => allVaultIds.Contains(v.VaultId))
+                .ToDictionary(v => v.VaultId, v => v.Name);
+
             var result = new List<DeviceInfo>();
             foreach (var device in devices)
             {
                 var info = MapToDeviceInfo(device);
-                info.SyncedVaultIds = syncLogs
+                var syncedIds = syncLogs
                     .Where(l => l.DeviceId == device.DeviceId)
                     .Select(l => l.VaultId!)
                     .Distinct()
                     .ToList();
+                info.SyncedVaultIds = syncedIds;
+                info.SyncedVaultNames = syncedIds
+                    .Where(id => vaultNameMap.ContainsKey(id))
+                    .ToDictionary(id => id, id => vaultNameMap[id]);
                 result.Add(info);
             }
             return result;

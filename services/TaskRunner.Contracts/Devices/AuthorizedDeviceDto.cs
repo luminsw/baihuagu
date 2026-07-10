@@ -30,4 +30,10 @@ public class AuthorizedDeviceDto
 
     [JsonPropertyName("syncedVaultIds")]
     public List<string> SyncedVaultIds { get; set; } = new();
+
+    /// <summary>
+    /// 已同步知识库的 ID→名称 映射，用于前端直接显示中文名称
+    /// </summary>
+    [JsonPropertyName("syncedVaultNames")]
+    public Dictionary<string, string> SyncedVaultNames { get; set; } = new();
 }

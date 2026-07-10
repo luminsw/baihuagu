@@ -2,16 +2,26 @@
 @rendermode @(new InteractiveServerRenderMode(prerender: false))
 @inject IApiService ApiService
 @inject VaultsService VaultsService
+@inject DevicesService DevicesService
 @inject NavigationManager Navigation
 @inject ILogger<BrowseVault> Logger
 @using Markdig
 @using Microsoft.JSInterop
 @using TaskRunner.Contracts.Vaults
+@using TaskRunner.Contracts.Devices
 
 <PageTitle>知识库浏览</PageTitle>
 
 <div class="container mt-4">
     <h2 class="mb-4">📚 知识库浏览</h2>
+
+    @if (!string.IsNullOrEmpty(pushMessage))
+    {
+        <div class="alert @(pushMessageSuccess ? "alert-success" : "alert-warning") alert-dismissible fade show" role="alert">
+            @pushMessage
+            <button type="button" class="btn-close" @onclick="() => pushMessage = null"></button>
+        </div>
+    }
 
     @if (isLoadingVaults)
     {
@@ -70,14 +80,24 @@
             @foreach (var v in FilteredVaults)
             {
                 <div class="col-md-3 col-sm-4 col-6">
-                    <div class="card h-100 vault-folder-card" @onclick="() => SelectVault(v.Id)">
-                        <div class="card-body text-center py-4">
+                    <div class="card h-100 vault-folder-card">
+                        <div class="card-body text-center py-4" @onclick="() => SelectVault(v.Id)" style="cursor:pointer;">
                             <div class="fs-1 mb-2">📚</div>
                             <div class="fw-bold text-truncate">@v.Name</div>
-                            @if (!string.IsNullOrWhiteSpace(v.Industry))
-                            {
-                                <span class="badge bg-secondary mt-1" style="font-size: 0.65em;">@v.Industry</span>
-                            }
+                            <div class="mt-1 d-flex flex-wrap justify-content-center gap-1">
+                                @if (v.Source == "mobile")
+                                {
+                                    <span class="badge bg-info" style="font-size: 0.6em;">📱 移动端推送</span>
+                                }
+                                else
+                                {
+                                    <span class="badge bg-light text-dark border" style="font-size: 0.6em;">🏠 本地</span>
+                                }
+                                @if (!string.IsNullOrWhiteSpace(v.Industry))
+                                {
+                                    <span class="badge bg-secondary" style="font-size: 0.6em;">@v.Industry</span>
+                                }
+                            </div>
                             @if (v.Tags?.Any() == true)
                             {
                                 <div class="mt-1 d-flex flex-wrap justify-content-center gap-1">
@@ -88,6 +108,14 @@
                                 </div>
                             }
                         </div>
+                        @if (v.Source != "mobile")
+                        {
+                            <div class="card-footer bg-transparent border-top-0 pt-0 pb-2 text-center">
+                                <button class="btn btn-sm btn-outline-primary" @onclick="() => OpenPushModal(v)" style="font-size: 0.75em;">
+                                    📤 推送到设备
+                                </button>
+                            </div>
+                        }
                     </div>
                 </div>
             }
@@ -212,6 +240,65 @@
     </div>
 }
 
+<!-- 推送到设备弹窗 -->
+@if (showPushModal && pushVault != null)
+{
+    <div class="modal fade show" style="display:block; background:rgba(0,0,0,0.5);" tabindex="-1">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">📤 推送「@pushVault.Name」到设备</h5>
+                    <button type="button" class="btn-close" @onclick="ClosePushModal"></button>
+                </div>
+                <div class="modal-body">
+                    @if (isLoadingDevices)
+                    {
+                        <div class="text-center py-3">
+                            <div class="spinner-border spinner-border-sm text-primary"></div>
+                            <span class="ms-2 text-muted">加载设备列表...</span>
+                        </div>
+                    }
+                    else if (!authorizedDevices.Any())
+                    {
+                        <div class="alert alert-info mb-0">
+                            暂无已授权设备，请先在<a href="/devices" class="alert-link">移动端管理</a>页面授权设备。
+                        </div>
+                    }
+                    else
+                    {
+                        <p class="text-muted small mb-2">选择要推送的目标设备：</p>
+                        @foreach (var device in authorizedDevices)
+                        {
+                            <div class="form-check mb-2">
+                                <input class="form-check-input" type="checkbox" 
+                                    @onchange="() => ToggleDeviceSelection(device.DeviceId)" />
+                                <label class="form-check-label">
+                                    <strong>@device.DeviceName</strong>
+                                    <span class="text-muted small ms-1">(@device.IpAddress)</span>
+                                    @if (device.SyncedVaultNames.ContainsKey(pushVault.Id))
+                                    {
+                                        <span class="badge bg-success ms-1" style="font-size: 0.6em;">已同步</span>
+                                    }
+                                </label>
+                            </div>
+                        }
+                    }
+                </div>
+                <div class="modal-footer">
+                    <button class="btn btn-secondary" @onclick="ClosePushModal" disabled="@isPushing">取消</button>
+                    <button class="btn btn-primary" @onclick="PushToSelectedDevices" disabled="@isPushingOrNoDevices">
+                        @if (isPushing)
+                        {
+                            <span class="spinner-border spinner-border-sm me-1"></span>
+                        }
+                        推送 (@selectedDeviceIds.Count 台设备)
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+}
+
 <style>
     .vault-folder-card, .vault-note-card {
         cursor: pointer;
@@ -294,6 +381,18 @@
     private bool showNoteModal = false;
     private VaultBrowseItem? selectedNoteItem = null;
     private VaultNoteResponse? noteContent = null;
+
+    // 推送到设备相关状态
+    private bool showPushModal = false;
+    private VaultConfig? pushVault;
+    private List<AuthorizedDeviceDto> authorizedDevices = new();
+    private HashSet<string> selectedDeviceIds = new();
+    private bool isLoadingDevices = false;
+    private bool isPushing = false;
+    private string? pushMessage;
+    private bool pushMessageSuccess;
+
+    private bool isPushingOrNoDevices => isPushing || !selectedDeviceIds.Any();
 
     protected override async Task OnInitializedAsync()
     {
@@ -416,6 +515,86 @@
         if (selectedNoteItem == null) return;
         var vaultParam = string.IsNullOrEmpty(selectedVaultId) ? "" : $"&vaultId={Uri.EscapeDataString(selectedVaultId)}";
         Navigation.NavigateTo($"note?id={Uri.EscapeDataString(selectedNoteItem.Path)}{vaultParam}");
+    }
+
+    // 推送到设备相关方法
+    private async Task OpenPushModal(VaultConfig vault)
+    {
+        pushVault = vault;
+        showPushModal = true;
+        selectedDeviceIds.Clear();
+        isLoadingDevices = true;
+
+        try
+        {
+            authorizedDevices = await DevicesService.GetAuthorizedDevicesAsync();
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "加载设备列表失败");
+            authorizedDevices = new();
+        }
+
+        isLoadingDevices = false;
+    }
+
+    private void ClosePushModal()
+    {
+        showPushModal = false;
+        pushVault = null;
+        selectedDeviceIds.Clear();
+    }
+
+    private void ToggleDeviceSelection(string deviceId)
+    {
+        if (selectedDeviceIds.Contains(deviceId))
+            selectedDeviceIds.Remove(deviceId);
+        else
+            selectedDeviceIds.Add(deviceId);
+        StateHasChanged();
+    }
+
+    private async Task PushToSelectedDevices()
+    {
+        if (pushVault == null || !selectedDeviceIds.Any()) return;
+
+        isPushing = true;
+        var successCount = 0;
+        var failCount = 0;
+        try
+        {
+            foreach (var deviceId in selectedDeviceIds)
+            {
+                var device = authorizedDevices.FirstOrDefault(d => d.DeviceId == deviceId);
+                var deviceName = device?.DeviceName ?? deviceId;
+                var (success, msg) = await DevicesService.PushVaultToDeviceAsync(deviceId, pushVault.Id, pushVault.Name);
+                if (success) successCount++;
+                else failCount++;
+                Logger.LogInformation("推送 {Vault} 到 {Device}: {Msg}", pushVault.Name, deviceName, msg);
+            }
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "推送知识库到设备失败");
+            failCount++;
+        }
+
+        isPushing = false;
+        showPushModal = false;
+
+        if (failCount == 0)
+        {
+            pushMessage = $"已通知 {successCount} 台设备同步「{pushVault.Name}」";
+            pushMessageSuccess = true;
+        }
+        else
+        {
+            pushMessage = $"推送完成：{successCount} 台成功，{failCount} 台失败";
+            pushMessageSuccess = false;
+        }
+
+        pushVault = null;
+        selectedDeviceIds.Clear();
     }
 
     private static string RenderMarkdown(string markdown)

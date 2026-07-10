@@ -266,7 +266,7 @@
                                             <th>首次同步</th>
                                             <th>最后同步</th>
                                             <th>同步次数</th>
-                                            <th>推送知识库</th>
+                                            <th>已同步知识库</th>
                                             <th>操作</th>
                                         </tr>
                                     </thead>
@@ -292,27 +292,19 @@
                                                     <span class="badge bg-info">@(device.SyncCount)</span>
                                                 </td>
                                                 <td>
-                                                    <div class="input-group input-group-sm" style="width: 220px;">
-                                                        <select class="form-select form-select-sm" @bind="device.SelectedVaultId">
-                                                            @foreach (var vault in availableVaults)
-                                                            {
-                                                                var isSynced = device.SyncedVaultIds.Contains(vault.Id);
-                                                                <option value="@vault.Id">@(isSynced ? "✅ " : "")@vault.Name</option>
-                                                            }
-                                                        </select>
-                                                        <button class="btn btn-outline-primary" @onclick="() => PushToVaultAsync(device.DeviceId, device.SelectedVaultId)" disabled="@device.IsPushing">
-                                                            @(device.IsPushing ? "推送中..." : "推送")
-                                                        </button>
-                                                    </div>
                                                     @if (device.SyncedVaultIds.Any())
                                                     {
-                                                        <div class="mt-1">
+                                                        <div class="d-flex flex-wrap gap-1">
                                                             @foreach (var sv in device.SyncedVaultIds)
                                                             {
-                                                                var svName = _allVaultNames.TryGetValue(sv, out var foundName) ? foundName : sv;
-                                                                <span class="badge bg-success bg-opacity-75 me-1" style="font-size: 0.65rem;">@svName</span>
+                                                                var svName = device.SyncedVaultNames.TryGetValue(sv, out var foundName) ? foundName : sv;
+                                                                <span class="badge bg-success bg-opacity-75" style="font-size: 0.65rem;">@svName</span>
                                                             }
                                                         </div>
+                                                    }
+                                                    else
+                                                    {
+                                                        <span class="text-muted small">-</span>
                                                     }
                                                 </td>
                                                 <td>
@@ -343,8 +335,41 @@
     private bool isProcessingDevice;
     private List<PendingDeviceInfo> pendingDevices = new();
     private List<AuthorizedDeviceInfo> authorizedDevices = new();
-    private List<VaultInfo> availableVaults = new();
-    private Dictionary<string, string> _allVaultNames = new();
+
+    private readonly Dictionary<string, string> _vaultNameTranslations = new()
+    {
+        { "Grade-8 Physics", "八年级物理" },
+        { "Grade-8 Chemistry", "八年级化学" },
+        { "Grade-8 Biology", "八年级生物" },
+        { "Grade-8 Mathematics", "八年级数学" },
+        { "Grade-8 English", "八年级英语" },
+        { "Grade-8 Chinese", "八年级语文" },
+        { "Physics", "物理" },
+        { "Chemistry", "化学" },
+        { "Biology", "生物" },
+        { "Mathematics", "数学" },
+        { "English", "英语" },
+        { "Chinese", "语文" },
+        { "Grade-7 Physics", "七年级物理" },
+        { "Grade-7 Chemistry", "七年级化学" },
+        { "Grade-7 Biology", "七年级生物" },
+        { "Grade-7 Mathematics", "七年级数学" },
+        { "Grade-7 English", "七年级英语" },
+        { "Grade-7 Chinese", "七年级语文" },
+        { "Grade-9 Physics", "九年级物理" },
+        { "Grade-9 Chemistry", "九年级化学" },
+        { "Grade-9 Biology", "九年级生物" },
+        { "Grade-9 Mathematics", "九年级数学" },
+        { "Grade-9 English", "九年级英语" },
+        { "Grade-9 Chinese", "九年级语文" }
+    };
+
+    private string TranslateVaultName(string name)
+    {
+        if (_vaultNameTranslations.TryGetValue(name, out var translated))
+            return translated;
+        return name;
+    }
 
     // OneHop 发现
     private bool isDiscovering;
@@ -371,8 +396,7 @@
             {
                 await Task.WhenAll(
                     StartDiscoveryAsync(),
-                    LoadDevicesAsync(),
-                    LoadVaultsAsync()
+                    LoadDevicesAsync()
                 );
             }
             catch (Exception ex)
@@ -455,7 +479,6 @@
                 IpAddress = d.IpAddress
             }).ToList();
 
-            var prevDeviceMap = authorizedDevices.ToDictionary(d => d.DeviceId);
             authorizedDevices = (authorizedResult ?? new()).Select(d => new AuthorizedDeviceInfo
             {
                 DeviceId = d.DeviceId ?? "",
@@ -466,8 +489,7 @@
                 SyncCount = d.SyncCount,
                 FirstSyncTime = d.FirstSyncTime,
                 SyncedVaultIds = d.SyncedVaultIds ?? new List<string>(),
-                SelectedVaultId = prevDeviceMap.TryGetValue(d.DeviceId ?? "", out var prev) ? prev.SelectedVaultId : null,
-                IsPushing = prevDeviceMap.TryGetValue(d.DeviceId ?? "", out var prev2) && prev2.IsPushing
+                SyncedVaultNames = d.SyncedVaultNames ?? new Dictionary<string, string>()
             }).ToList();
         }
         catch (Exception ex)
@@ -477,49 +499,6 @@
         finally
         {
             isLoadingDevices = false;
-        }
-    }
-
-    private async Task LoadVaultsAsync()
-    {
-        try
-        {
-            var response = await HttpClient.GetFromJsonAsync<VaultsListResponse>("api/settings/vaults");
-            if (response?.Vaults != null)
-            {
-                // 构建全量名称映射（含 mobile 来源），供已同步徽章解析中文名
-                _allVaultNames = response.Vaults
-                    .Where(v => !string.IsNullOrEmpty(v.Id) && !string.IsNullOrEmpty(v.Name))
-                    .ToDictionary(v => v.Id!, v => v.Name!);
-
-                // 过滤掉移动端推送来的知识库（Source=mobile），避免向移动端推送它自己的知识库
-                availableVaults = response.Vaults
-                    .Where(v => v.Source != "mobile")
-                    .Select(v => new VaultInfo
-                    {
-                        Id = v.Id ?? "",
-                        Name = v.Name ?? ""
-                    })
-                    .Where(v => !string.IsNullOrEmpty(v.Id))
-                    .ToList();
-            }
-
-            // 默认选中第一个知识库，避免下拉框显示第一个但绑定值为 null
-            if (availableVaults.Any())
-            {
-                var firstVaultId = availableVaults.First().Id;
-                foreach (var device in authorizedDevices)
-                {
-                    if (string.IsNullOrEmpty(device.SelectedVaultId))
-                    {
-                        device.SelectedVaultId = firstVaultId;
-                    }
-                }
-            }
-        }
-        catch (Exception ex)
-        {
-            Logger.LogError(ex, "加载知识库列表失败");
         }
     }
 
@@ -612,54 +591,6 @@
         finally
         {
             isProcessingDevice = false;
-        }
-    }
-
-    private async Task PushToVaultAsync(string deviceId, string? vaultId)
-    {
-        var device = authorizedDevices.FirstOrDefault(d => d.DeviceId == deviceId);
-        if (device == null) return;
-
-        if (string.IsNullOrWhiteSpace(vaultId))
-        {
-            message = "请选择要推送的知识库";
-            isSuccess = false;
-            return;
-        }
-
-        try
-        {
-            device.IsPushing = true;
-
-            var request = new
-            {
-                deviceId,
-                vaultId = vaultId,
-                action = "sync"
-            };
-            var response = await HttpClient.PostAsJsonAsync("api/devices/push", request);
-
-            var vaultName = availableVaults.FirstOrDefault(v => v.Id == vaultId)?.Name ?? vaultId;
-            if (response.IsSuccessStatusCode)
-            {
-                message = $"已通知 {device.DeviceName} 同步 {vaultName}";
-            }
-            else
-            {
-                message = $"请在 {device.DeviceName} 上手动同步 {vaultName}（推送通知服务暂不可用）";
-            }
-            isSuccess = true;
-        }
-        catch (Exception ex)
-        {
-            Logger.LogError(ex, "推送知识库到设备失败，DeviceId: {DeviceId}", deviceId);
-            var vaultName = availableVaults.FirstOrDefault(v => v.Id == vaultId)?.Name ?? vaultId;
-            message = $"请在 {device.DeviceName} 上手动同步 {vaultName}（推送通知暂不可用）";
-            isSuccess = true;
-        }
-        finally
-        {
-            device.IsPushing = false;
         }
     }
 
@@ -875,20 +806,9 @@
         [System.Text.Json.Serialization.JsonPropertyName("syncedVaultIds")]
         public List<string>? SyncedVaultIds { get; set; }
 
-    }
+        [System.Text.Json.Serialization.JsonPropertyName("syncedVaultNames")]
+        public Dictionary<string, string>? SyncedVaultNames { get; set; }
 
-    private class VaultsListResponse
-    {
-        public List<VaultItemResponse>? Vaults { get; set; }
-    }
-
-    private class VaultItemResponse
-    {
-        public string? Id { get; set; }
-        public string? Name { get; set; }
-        public string? Path { get; set; }
-        public string? Source { get; set; }
-        public bool IsActive { get; set; }
     }
 
     private class PendingDeviceInfo
@@ -908,15 +828,8 @@
         public string? IpAddress { get; set; }
         public int SyncCount { get; set; }
         public DateTime? FirstSyncTime { get; set; }
-        public string? SelectedVaultId { get; set; }
-        public bool IsPushing { get; set; }
         public List<string> SyncedVaultIds { get; set; } = new();
-    }
-
-    private class VaultInfo
-    {
-        public string Id { get; set; } = "";
-        public string Name { get; set; } = "";
+        public Dictionary<string, string> SyncedVaultNames { get; set; } = new();
     }
 
     private class OneHopStatusResponse
@@ -936,7 +849,6 @@
         public int SignalStrength { get; set; }
         public DateTime DiscoveredAt { get; set; }
         public Dictionary<string, string> ExtraData { get; set; } = new();
-        public string? SelectedVaultId { get; set; }
     }
 
     private class OneHopConnectionResponse

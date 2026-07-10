@@ -52,7 +52,8 @@ namespace TaskRunner.Controllers
                 IpAddress = d.IpAddress,
                 SyncCount = d.SyncCount,
                 FirstSyncTime = d.FirstSyncTime,
-                SyncedVaultIds = d.SyncedVaultIds
+                SyncedVaultIds = d.SyncedVaultIds,
+                SyncedVaultNames = d.SyncedVaultNames
             }).ToList();
             return Ok(dtos);
         }
