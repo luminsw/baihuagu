@@ -3,7 +3,7 @@
 @inject IHttpClientFactory HttpClientFactory
 
 <div class="qr-tool-container">
-    <!-- 服务器配对二维码 -->
+    <!-- 服务器配对二维码 (紧凑横排) -->
     <div class="card mb-4">
         <div class="card-header d-flex justify-content-between align-items-center">
             <h5 class="mb-0">🏠 服务器配对码</h5>
@@ -19,93 +19,107 @@
                 }
             </button>
         </div>
-        <div class="card-body text-center">
+        <div class="card-body">
             @if (_serverQRCode != null)
             {
-                <div class="qr-code-wrapper" @ref="_serverQrContainer"></div>
-                <p class="qr-hint mt-2">使用手机扫描上方二维码，自动添加此服务器</p>
-                <div class="server-info text-start mt-3">
-                    <div class="row g-2">
-                        <div class="col-6"><small class="text-muted">服务器名称</small><div class="fw-medium">@_serverQRCode.HostName</div></div>
-                        <div class="col-6"><small class="text-muted">ServerId</small><div class="fw-medium text-truncate" title="@_serverQRCode.ServerId">@_serverQRCode.ServerId</div></div>
-                        <div class="col-12"><small class="text-muted">地址</small><div class="fw-medium">@_serverQRCode.Url</div></div>
+                <div class="server-qr-compact">
+                    <div class="qr-code-wrapper qr-compact" @ref="_serverQrContainer"></div>
+                    <div class="server-info-compact">
+                        <div class="info-row">
+                            <span class="info-label">名称</span>
+                            <span class="info-value">@_serverQRCode.HostName</span>
+                        </div>
+                        <div class="info-row">
+                            <span class="info-label">ServerId</span>
+                            <span class="info-value text-truncate" title="@_serverQRCode.ServerId">@_serverQRCode.ServerId</span>
+                        </div>
+                        <div class="info-row">
+                            <span class="info-label">地址</span>
+                            <span class="info-value text-truncate" title="@_serverQRCode.Url">@_serverQRCode.Url</span>
+                        </div>
                     </div>
                 </div>
             }
             else if (!string.IsNullOrEmpty(_serverQRError))
             {
-                <div class="alert alert-warning">@_serverQRError</div>
+                <div class="alert alert-warning mb-0">@_serverQRError</div>
             }
             else
             {
-                <p class="text-muted">点击「刷新」加载服务器配对二维码</p>
+                <p class="text-muted mb-0">点击「刷新」加载服务器配对二维码</p>
             }
         </div>
     </div>
 
     <!-- 主 AI API Key 二维码 -->
     <div class="card mb-4">
-        <div class="card-header d-flex justify-content-between align-items-center">
+        <div class="card-header d-flex justify-content-between align-items-center" @onclick="ToggleAiKey" role="button" tabindex="0">
             <h5 class="mb-0">🤖 主 AI API Key</h5>
-            <button class="btn btn-sm btn-outline-primary" @onclick="LoadMainAiApiKey" disabled="@_isLoadingAiKey">
-                @if (_isLoadingAiKey)
-                {
-                    <span class="spinner-border spinner-border-sm me-1"></span>
-                    <span>加载中...</span>
-                }
-                else
-                {
-                    <span>🔄 刷新</span>
-                }
-            </button>
+            <div class="d-flex align-items-center gap-2">
+                <button class="btn btn-sm btn-outline-primary" @onclick="LoadMainAiApiKey" disabled="@_isLoadingAiKey" @onclick:stopPropagation>
+                    @if (_isLoadingAiKey)
+                    {
+                        <span class="spinner-border spinner-border-sm me-1"></span>
+                        <span>加载中...</span>
+                    }
+                    else
+                    {
+                        <span>🔄 刷新</span>
+                    }
+                </button>
+                <span class="collapse-indicator">@(_showAiKey ? "▲" : "▼")</span>
+            </div>
         </div>
-        <div class="card-body text-center">
+        <div class="card-body collapse @(_showAiKey ? "show" : "")">
             @if (_aiKeyQRCode != null)
             {
-                <div class="qr-code-wrapper" @ref="_aiKeyQrContainer"></div>
-                <p class="qr-hint mt-2">使用手机扫描上方二维码，自动填入 DeepSeek API Key</p>
-                <div class="server-info text-start mt-3">
-                    <div class="row g-2">
-                        <div class="col-6"><small class="text-muted">提供商</small><div class="fw-medium">@_aiKeyQRCode.ProviderName</div></div>
-                        <div class="col-6"><small class="text-muted">ProviderId</small><div class="fw-medium">@_aiKeyQRCode.ProviderId</div></div>
+                <div class="server-qr-compact">
+                    <div class="qr-code-wrapper qr-compact" @ref="_aiKeyQrContainer"></div>
+                    <div class="server-info-compact">
+                        <div class="info-row">
+                            <span class="info-label">提供商</span>
+                            <span class="info-value">@_aiKeyQRCode.ProviderName</span>
+                        </div>
+                        <div class="info-row">
+                            <span class="info-label">ProviderId</span>
+                            <span class="info-value text-truncate" title="@_aiKeyQRCode.ProviderId">@_aiKeyQRCode.ProviderId</span>
+                        </div>
                     </div>
                 </div>
             }
             else if (!string.IsNullOrEmpty(_aiKeyQRError))
             {
-                <div class="alert alert-warning">@_aiKeyQRError</div>
+                <div class="alert alert-warning mb-0">@_aiKeyQRError</div>
             }
             else
             {
-                <p class="text-muted">点击「刷新」加载主 AI API Key 二维码</p>
+                <p class="text-muted mb-0">点击「刷新」加载主 AI API Key 二维码</p>
             }
         </div>
     </div>
 
     <!-- 通用二维码生成 -->
     <div class="card">
-        <div class="card-header">
+        <div class="card-header d-flex justify-content-between align-items-center" @onclick="ToggleGeneralQR" role="button" tabindex="0">
             <h5 class="mb-0">📝 通用二维码</h5>
+            <span class="collapse-indicator">@(_showGeneralQR ? "▲" : "▼")</span>
         </div>
-        <div class="card-body">
-            <div class="form-group">
-                <label>输入内容</label>
-                <textarea class="form-control" @bind="_inputText" rows="3" placeholder="粘贴要转成二维码的内容，如 API Key..."></textarea>
-            </div>
-
-            <div class="form-actions">
-                <button class="btn btn-primary" @onclick="GenerateQR">生成二维码</button>
-                <button class="btn btn-secondary" @onclick="ClearAll">清空</button>
-            </div>
-
-            @if (!string.IsNullOrEmpty(_errorMessage))
-            {
-                <div class="alert alert-error">@_errorMessage</div>
-            }
-
-            <div class="qr-result @(_showQR ? "" : "qr-hidden")">
-                <div class="qr-code-wrapper" @ref="_qrContainer"></div>
-                <p class="qr-hint">使用手机扫描上方二维码，内容将自动填入</p>
+        <div class="card-body collapse @(_showGeneralQR ? "show" : "")">
+            <div class="server-qr-compact">
+                <div class="qr-form-left">
+                    <textarea class="form-control" @bind="_inputText" rows="2" placeholder="粘贴要转成二维码的内容..."></textarea>
+                    <div class="form-actions mt-2">
+                        <button class="btn btn-primary btn-sm" @onclick="GenerateQR">生成二维码</button>
+                        <button class="btn btn-secondary btn-sm" @onclick="ClearAll">清空</button>
+                    </div>
+                    @if (!string.IsNullOrEmpty(_errorMessage))
+                    {
+                        <div class="alert alert-error mt-2 mb-0">@_errorMessage</div>
+                    }
+                </div>
+                <div class="qr-result-compact @(_showQR ? "" : "d-none")">
+                    <div class="qr-code-wrapper qr-compact" @ref="_qrContainer"></div>
+                </div>
             </div>
         </div>
     </div>
@@ -123,6 +137,13 @@
     private AiKeyQRResponse? _aiKeyQRCode;
     private bool _isLoadingAiKey = false;
     private string _aiKeyQRError = "";
+
+    // 折叠状态
+    private bool _showAiKey = false;
+    private bool _showGeneralQR = false;
+
+    private void ToggleAiKey() => _showAiKey = !_showAiKey;
+    private void ToggleGeneralQR() => _showGeneralQR = !_showGeneralQR;
 
     // 通用二维码
     private string _inputText = "";
@@ -150,7 +171,7 @@
             if (_aiKeyQRCode != null && !string.IsNullOrEmpty(_aiKeyQRCode.ApiKey))
             {
                 await Task.Yield();
-                await JS.InvokeVoidAsync("generateQRCode", _aiKeyQrContainer, _aiKeyQRCode.ApiKey);
+                await JS.InvokeVoidAsync("generateCompactQRCode", _aiKeyQrContainer, _aiKeyQRCode.ApiKey);
             }
         }
         catch (Exception ex)
@@ -174,7 +195,7 @@
             if (_serverQRCode != null && !string.IsNullOrEmpty(_serverQRCode.QrCodeData))
             {
                 await Task.Yield();
-                await JS.InvokeVoidAsync("generateQRCode", _serverQrContainer, _serverQRCode.QrCodeData);
+                await JS.InvokeVoidAsync("generateCompactQRCode", _serverQrContainer, _serverQRCode.QrCodeData);
             }
         }
         catch (Exception ex)
@@ -198,7 +219,7 @@
         }
         _showQR = true;
         await Task.Yield();
-        await JS.InvokeVoidAsync("generateQRCode", _qrContainer, _inputText.Trim());
+        await JS.InvokeVoidAsync("generateCompactQRCode", _qrContainer, _inputText.Trim());
     }
 
     private void ClearAll()
@@ -303,5 +324,72 @@
         padding: 0.75rem;
         border-radius: 6px;
         font-size: 0.9rem;
+    }
+    .collapse-indicator {
+        font-size: 0.75rem;
+        color: #888;
+        transition: transform 0.2s;
+    }
+    .card-header[role="button"] {
+        cursor: pointer;
+        user-select: none;
+    }
+    .card-header[role="button"]:hover {
+        background-color: rgba(0,0,0,0.02);
+    }
+
+    /* 紧凑横排布局：二维码左 + 信息右 */
+    .server-qr-compact {
+        display: flex;
+        align-items: center;
+        gap: 1rem;
+    }
+    .qr-code-wrapper.qr-compact {
+        flex-shrink: 0;
+        min-height: auto;
+        min-width: auto;
+        padding: 0.5rem;
+    }
+    .qr-code-wrapper.qr-compact canvas,
+    .qr-code-wrapper.qr-compact img {
+        display: block;
+        width: 180px;
+        height: 180px;
+    }
+    .server-info-compact {
+        flex: 1;
+        min-width: 0;
+        font-size: 0.85rem;
+    }
+    .info-row {
+        display: flex;
+        align-items: baseline;
+        gap: 0.5rem;
+        padding: 0.2rem 0;
+    }
+    .info-row + .info-row {
+        border-top: 1px solid #eee;
+    }
+    .info-label {
+        flex-shrink: 0;
+        color: #888;
+        min-width: 4.5em;
+    }
+    .info-value {
+        font-weight: 500;
+        overflow: hidden;
+        text-overflow: ellipsis;
+    }
+
+    /* 通用二维码紧凑横排：输入区左 + 二维码右 */
+    .qr-form-left {
+        flex: 1;
+        min-width: 0;
+    }
+    .qr-result-compact {
+        flex-shrink: 0;
+    }
+    .qr-result-compact.d-none {
+        display: none;
     }
 </style>
