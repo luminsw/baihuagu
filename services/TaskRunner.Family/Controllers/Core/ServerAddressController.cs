@@ -36,7 +36,8 @@ namespace TaskRunner.Controllers
                 domain = settings.Domain,
                 url = settings.Url,
                 actualUrl = url,
-                hostName = hostName
+                hostName = hostName,
+                displayName = settings.DisplayName
             });
         }
 
@@ -48,7 +49,7 @@ namespace TaskRunner.Controllers
         {
             try
             {
-                var settings = await _serverAddressService.UpdateSettings(request.Domain ?? "");
+                var settings = await _serverAddressService.UpdateSettings(request.Domain ?? "", request.DisplayName ?? "");
 
                 var (url, hostName) = _serverAddressService.GetQrCodeAddresses();
 
@@ -58,7 +59,8 @@ namespace TaskRunner.Controllers
                     domain = settings.Domain,
                     url = settings.Url,
                     actualUrl = url,
-                    hostName = hostName
+                    hostName = hostName,
+                    displayName = settings.DisplayName
                 });
             }
             catch (Exception ex)
@@ -78,5 +80,10 @@ namespace TaskRunner.Controllers
         /// 域名（广域网场景）。留空则使用局域网 HTTP 自动获取
         /// </summary>
         public string? Domain { get; set; }
+
+        /// <summary>
+        /// 服务器显示名称（如"百花谷服务器"），用于移动端展示。留空则使用系统 hostname。
+        /// </summary>
+        public string? DisplayName { get; set; }
     }
 }

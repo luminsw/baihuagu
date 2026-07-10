@@ -194,8 +194,8 @@ public class MobileDeviceServiceAdapter :
 
     public Task<bool> PushSyncAsync(string deviceId, string? vaultId, string action, CancellationToken cancellationToken = default)
     {
-        _deviceService.AddPushRequest(deviceId, deviceName: null, vaultId, vaultName: null, action);
-        return Task.FromResult(true);
+        // 服务器→移动端推送已移除，返回 false
+        return Task.FromResult(false);
     }
 
     #endregion

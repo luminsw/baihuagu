@@ -300,12 +300,18 @@ builder.Services.AddCors(options =>
     {
         policy.SetIsOriginAllowed(origin =>
             {
-                // 仅允许 localhost / 127.0.0.1 / ::1（Family 版内网部署）
+                // 允许 localhost / 127.0.0.1 / ::1（Family 版内网部署）
                 if (Uri.TryCreate(origin, UriKind.Absolute, out var uri))
                 {
-                    return uri.Host is "localhost" or "127.0.0.1" or "::1";
+                    if (uri.Host is "localhost" or "127.0.0.1" or "::1")
+                        return true;
+                    // 也允许局域网 IP（192.168.x.x, 10.x.x.x, 172.16-31.x.x）
+                    // 移动端原生 WebSocket 客户端有时会发送 Origin 头
+                    if (IsPrivateIpAddress(uri.Host))
+                        return true;
                 }
-                return false;
+                // 无 Origin 头的原生请求（如 ArkTS webSocket）也放行
+                return string.IsNullOrEmpty(origin);
             })
               .AllowAnyMethod()
               .AllowAnyHeader()
@@ -439,12 +445,11 @@ app.Use(async (context, next) =>
         "/vault/manifest", "/vault/file", "/vault/file_chunk",
         "/api/vaults", "/vault/pair", "/pair",
         "/api/sync/notes", "/api/sync/system", "/api/sync",
-        "/api/devices/push-pending",
         "/api/test",
         "/mobile-vaults/push",
         // MobileGateway 风格路径别名
         "/mg/manifest", "/mg/file", "/mg/cards",
-        "/mg/vaults", "/mg/pair", "/mg/devices/push-pending"
+        "/mg/vaults", "/mg/pair"
     };
 
     // 以下路径为公开路径，无需 HMAC 签名（设备注册、密钥获取等初始化流程）
@@ -543,7 +548,7 @@ app.Use(async (context, next) =>
         "/vault/manifest", "/vault/file", "/vault/file_chunk",
         "/api/vaults", "/vault/pair", "/pair",
         "/api/sync/notes", "/api/sync/system", "/api/sync",
-        "/api/devices/push-pending", "/api/onehop/register-device",
+        "/api/onehop/register-device",
         "/api/discovery", "/mg/discovery",
         "/api/test",
         "/mobile-vaults/push",
@@ -551,10 +556,9 @@ app.Use(async (context, next) =>
         // MobileGateway 风格路径别名（Family 版兼容）
         "/mg/vaults", "/mg/manifest", "/mg/file", "/mg/cards",
         "/mg/pair", "/mg/pair/check", "/mg/pair/code",
-        "/mg/devices/push-pending", "/mg/onehop/register-device",
+        "/mg/onehop/register-device",
         "/mg/auth/config", "/mg/verify-token",
-        "/mg/mobile-logs", "/mg/mobile-logs/batch",
-        "/ws/push"
+        "/mg/mobile-logs", "/mg/mobile-logs/batch"
     };
 
     if (publicPaths.Any(p => path.StartsWith(p)))
@@ -705,31 +709,6 @@ app.MapGet("/api/test", () =>
 
 app.MapHub<TaskProgressHub>("/hubs/task-progress");
 app.MapHub<DeviceHub>("/hubs/devices");
-
-// WebSocket 推送端点（移动端实时接收同步通知）
-app.UseWebSockets();
-app.Map("/ws/push", async (HttpContext context, DeviceService deviceService, ILogger<Program> logger) =>
-{
-    if (!context.WebSockets.IsWebSocketRequest)
-    {
-        context.Response.StatusCode = 400;
-        await context.Response.WriteAsync("Expected WebSocket request");
-        return;
-    }
-
-    var deviceName = context.Request.Query["deviceName"].FirstOrDefault();
-    if (string.IsNullOrWhiteSpace(deviceName))
-    {
-        context.Response.StatusCode = 400;
-        await context.Response.WriteAsJsonAsync(new { error = "deviceName is required" });
-        return;
-    }
-
-    var socket = await context.WebSockets.AcceptWebSocketAsync();
-    // RegisterPushSocket 内部运行接收循环并在连接关闭时完成；await 以保持 Kestrel 请求存活
-    await deviceService.RegisterPushSocket(deviceName, socket);
-    logger.LogInformation("[WebSocket] 设备 {DeviceName} 连接结束", deviceName);
-});
 
 // 启动信息
 var host = app.Services.GetRequiredService<IHostEnvironment>().ContentRootPath;
@@ -896,6 +875,27 @@ static string ResolveConfiguredListenUrl(IConfiguration configuration)
     }
 
     return "http://localhost:8788";
+}
+
+// 检查是否为私有 IP 地址（局域网地址）
+static bool IsPrivateIpAddress(string host)
+{
+    if (System.Net.IPAddress.TryParse(host, out var ip))
+    {
+        var bytes = ip.GetAddressBytes();
+        if (bytes.Length == 4)
+        {
+            // 10.0.0.0/8
+            if (bytes[0] == 10) return true;
+            // 172.16.0.0/12
+            if (bytes[0] == 172 && bytes[1] >= 16 && bytes[1] <= 31) return true;
+            // 192.168.0.0/16
+            if (bytes[0] == 192 && bytes[1] == 168) return true;
+            // 127.0.0.0/8 (loopback)
+            if (bytes[0] == 127) return true;
+        }
+    }
+    return false;
 }
 
 // 将 0.0.0.0 / + / * 等绑定地址转为日志中可点击的 localhost 提示

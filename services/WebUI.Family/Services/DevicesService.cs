@@ -153,28 +153,4 @@ public class DevicesService
         }
     }
 
-    /// <summary>
-    /// 推送知识库到设备
-    /// </summary>
-    public async Task<(bool success, string? message)> PushVaultToDeviceAsync(string deviceId, string vaultId, string vaultName)
-    {
-        try
-        {
-            var client = _httpClientFactory.CreateClient("TaskRunnerApi");
-            var request = new { deviceId, vaultId, action = "sync" };
-            var response = await client.PostAsJsonAsync("api/devices/push", request);
-
-            if (response.IsSuccessStatusCode)
-            {
-                return (true, $"已通知设备同步 {vaultName}");
-            }
-
-            return (true, $"请在设备上手动同步 {vaultName}（推送通知服务暂不可用）");
-        }
-        catch (Exception ex)
-        {
-            _logger.LogError(ex, "推送知识库到设备失败，DeviceId: {DeviceId}, VaultId: {VaultId}", deviceId, vaultId);
-            return (true, $"请在设备上手动同步 {vaultName}（推送通知暂不可用）");
-        }
-    }
 }

@@ -336,41 +336,6 @@
     private List<PendingDeviceInfo> pendingDevices = new();
     private List<AuthorizedDeviceInfo> authorizedDevices = new();
 
-    private readonly Dictionary<string, string> _vaultNameTranslations = new()
-    {
-        { "Grade-8 Physics", "八年级物理" },
-        { "Grade-8 Chemistry", "八年级化学" },
-        { "Grade-8 Biology", "八年级生物" },
-        { "Grade-8 Mathematics", "八年级数学" },
-        { "Grade-8 English", "八年级英语" },
-        { "Grade-8 Chinese", "八年级语文" },
-        { "Physics", "物理" },
-        { "Chemistry", "化学" },
-        { "Biology", "生物" },
-        { "Mathematics", "数学" },
-        { "English", "英语" },
-        { "Chinese", "语文" },
-        { "Grade-7 Physics", "七年级物理" },
-        { "Grade-7 Chemistry", "七年级化学" },
-        { "Grade-7 Biology", "七年级生物" },
-        { "Grade-7 Mathematics", "七年级数学" },
-        { "Grade-7 English", "七年级英语" },
-        { "Grade-7 Chinese", "七年级语文" },
-        { "Grade-9 Physics", "九年级物理" },
-        { "Grade-9 Chemistry", "九年级化学" },
-        { "Grade-9 Biology", "九年级生物" },
-        { "Grade-9 Mathematics", "九年级数学" },
-        { "Grade-9 English", "九年级英语" },
-        { "Grade-9 Chinese", "九年级语文" }
-    };
-
-    private string TranslateVaultName(string name)
-    {
-        if (_vaultNameTranslations.TryGetValue(name, out var translated))
-            return translated;
-        return name;
-    }
-
     // OneHop 发现
     private bool isDiscovering;
     private OneHopStatusResponse? oneHopStatus;

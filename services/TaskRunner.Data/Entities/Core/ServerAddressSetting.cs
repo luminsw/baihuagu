@@ -24,6 +24,12 @@ namespace TaskRunner.Data.Entities
         public string Url { get; set; } = "";
 
         /// <summary>
+        /// 服务器显示名称（如"百花谷服务器"），用于移动端展示。留空则使用系统 hostname。
+        /// </summary>
+        [MaxLength(200)]
+        public string DisplayName { get; set; } = "";
+
+        /// <summary>
         /// 服务器实例唯一标识，首次运行时生成并持久化，用于移动端可靠区分不同服务器
         /// </summary>
         [MaxLength(100)]

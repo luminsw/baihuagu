@@ -46,11 +46,25 @@ namespace TaskRunner.Services
                         Domain TEXT NOT NULL DEFAULT '',
                         Url TEXT NOT NULL DEFAULT '',
                         ServerInstanceId TEXT NOT NULL DEFAULT '',
+                        DisplayName TEXT NOT NULL DEFAULT '',
                         CreatedAt TEXT NOT NULL DEFAULT (datetime('now')),
                         UpdatedAt TEXT NOT NULL DEFAULT (datetime('now'))
                     );
                 ";
                 command.ExecuteNonQuery();
+
+                // 兼容迁移：为旧版本数据库添加 DisplayName 列
+                try
+                {
+                    using var alterCmd = connection.CreateCommand();
+                    alterCmd.CommandText = "ALTER TABLE ServerAddressSettings ADD COLUMN DisplayName TEXT NOT NULL DEFAULT '';";
+                    alterCmd.ExecuteNonQuery();
+                    _logger.LogInformation("已为旧数据库添加 DisplayName 列");
+                }
+                catch
+                {
+                    // 列已存在，忽略
+                }
 
                 _logger.LogDebug("ServerAddressSettings 表已确保存在");
             }
@@ -98,7 +112,7 @@ namespace TaskRunner.Services
         /// <summary>
         /// 更新服务器地址配置（使用域名）
         /// </summary>
-        public async Task<ServerAddressSetting> UpdateSettings(string? domain)
+        public async Task<ServerAddressSetting> UpdateSettings(string? domain, string? displayName = null)
         {
             var normalizedDomain = NormalizeDomain(domain ?? "");
 
@@ -111,6 +125,7 @@ namespace TaskRunner.Services
                     setting = new ServerAddressSetting
                     {
                         Domain = normalizedDomain,
+                        DisplayName = displayName ?? "",
                         Url = "",
                         ServerInstanceId = GenerateServerInstanceId()
                     };
@@ -119,6 +134,10 @@ namespace TaskRunner.Services
                 else
                 {
                     setting.Domain = normalizedDomain;
+                    if (displayName != null)
+                    {
+                        setting.DisplayName = displayName;
+                    }
                 }
 
                 await dbContext.SaveChangesAsync();
@@ -144,6 +163,7 @@ namespace TaskRunner.Services
                             Domain TEXT NOT NULL DEFAULT '',
                             Url TEXT NOT NULL DEFAULT '',
                             ServerInstanceId TEXT NOT NULL DEFAULT '',
+                            DisplayName TEXT NOT NULL DEFAULT '',
                             CreatedAt TEXT NOT NULL DEFAULT (datetime('now')),
                             UpdatedAt TEXT NOT NULL DEFAULT (datetime('now'))
                         );
@@ -226,7 +246,10 @@ namespace TaskRunner.Services
             try
             {
                 var settings = GetSettings();
-                var hostName = System.Net.Dns.GetHostName();
+                // 优先使用配置的 DisplayName，否则使用系统 hostname
+                var hostName = !string.IsNullOrWhiteSpace(settings.DisplayName)
+                    ? settings.DisplayName
+                    : System.Net.Dns.GetHostName();
 
                 // 优先使用 Domain（广域网 HTTPS）
                 if (!string.IsNullOrWhiteSpace(settings.Domain))
@@ -245,7 +268,11 @@ namespace TaskRunner.Services
             {
                 _logger.LogError(ex, "获取二维码地址失败，使用默认地址");
                 var localIp = GetLocalIpAddress();
-                var hostName = System.Net.Dns.GetHostName();
+                var displayName = "";
+                try { displayName = GetSettings().DisplayName ?? ""; } catch { }
+                var hostName = !string.IsNullOrWhiteSpace(displayName)
+                    ? displayName
+                    : System.Net.Dns.GetHostName();
                 return ($"http://{localIp}:8788", hostName);
             }
         }
