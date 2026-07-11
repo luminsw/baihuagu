@@ -144,6 +144,7 @@ services:
       - OpenObserve__Enabled=true
       - TASKRUNNER_VAULT_ROOT=${VAULTS_DIR:-/home/lumin/Vaults}
       - YJ_ENCRYPTION_KEY=${YJ_ENCRYPTION_KEY:-}
+      - MobileAuth__SharedSecret=${MOBILE_AUTH_SECRET:-}
     healthcheck:
       test: ["CMD", "curl", "-f", "http://127.0.0.1:8790/health"]
       interval: 30s

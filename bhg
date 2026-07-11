@@ -12,6 +12,11 @@
 
 set -e
 
+# 加载本地密钥配置（如 MOBILE_AUTH_SECRET、AI API Key 等）
+if [ -f "$HOME/.env.secrets" ]; then
+  source "$HOME/.env.secrets"
+fi
+
 BHG_ROOT="$(cd "$(dirname "$0")" && pwd)"
 TASK_RUNNER_DIR="$BHG_ROOT/services/TaskRunner.Family"
 PID_FILE="/tmp/bhg-service.pid"
