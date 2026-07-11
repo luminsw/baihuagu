@@ -58,7 +58,7 @@ namespace TaskRunner.Controllers
 
                 _ = Task.Run(async () =>
                 {
-                    using var cts = _taskManager.CreateTaskCts(taskId, TimeSpan.FromMinutes(_aiSettings.AiRequestTimeoutMinutes * 4));
+                    using var cts = _taskManager.CreateTaskCts(taskId, null); // 不设超时，用户通过进度条感知进度
                     using var linkedCts = CancellationTokenSource.CreateLinkedTokenSource(_appLifetime.ApplicationStopping, cts.Token);
 
                     var totalSteps = 4 + 30; // AI 决定笔记数量，用 30 估算进度
