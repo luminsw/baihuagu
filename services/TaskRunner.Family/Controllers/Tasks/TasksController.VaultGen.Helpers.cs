@@ -61,7 +61,7 @@ namespace TaskRunner.Controllers
                     using var cts = _taskManager.CreateTaskCts(taskId, TimeSpan.FromMinutes(_aiSettings.AiRequestTimeoutMinutes * 4));
                     using var linkedCts = CancellationTokenSource.CreateLinkedTokenSource(_appLifetime.ApplicationStopping, cts.Token);
 
-                    var totalSteps = 4 + noteCount;
+                    var totalSteps = 4 + 30; // AI 决定笔记数量，用 30 估算进度
                     var currentStep = 0;
 
                     try
@@ -84,8 +84,8 @@ namespace TaskRunner.Controllers
 
                         // Step 3: 生成笔记列表
                         currentStep++;
-                        await _taskManager.UpdateProgress(taskId, currentStep, totalSteps, $"生成笔记大纲 ({noteCount} 条)...");
-                        var outline = await GenerateNoteListAsync(provider, modelName, vaultName, request.Industry, request.Keyword, systemPrompt, noteCount, options, linkedCts.Token);
+                        await _taskManager.UpdateProgress(taskId, currentStep, totalSteps, "生成笔记大纲...");
+                        var outline = await GenerateNoteListAsync(provider, modelName, vaultName, request.Industry, request.Keyword, systemPrompt, options, linkedCts.Token);
                         _logger.LogInformation("[AiVaultGeneration] 任务 {TaskId} 生成大纲: {Count} 条", taskId, outline.Count);
 
                         if (outline.Count == 0)
@@ -253,9 +253,9 @@ namespace TaskRunner.Controllers
 
         private async Task<List<NoteOutlineItem>> GenerateNoteListAsync(
             AiProviderConfig provider, string model, string vaultName, string industry, string keyword,
-            string systemPrompt, int noteCount, ChatOptions options, CancellationToken ct)
+            string systemPrompt, ChatOptions options, CancellationToken ct)
         {
-            var prompt = $"{systemPrompt}\n\n请为知识库\"{vaultName}\"（{industry}-{keyword}）生成 {noteCount} 条笔记的大纲。每条笔记包含：title（标题，简洁专业）、category（分类，2-4字）。\n\n要求：\n1. 覆盖{keyword}的核心知识点，由浅入深\n2. 标题要具体，避免过于笼统\n3. 分类要合理，同一知识库内分类不宜超过5个\n4. 必须严格返回 JSON 数组格式，不要加 markdown 代码块标记\n\n格式示例：\n[{{\"title\": \"示例标题\", \"category\": \"示例分类\"}}]";
+            var prompt = $"{systemPrompt}\n\n请为知识库\"{vaultName}\"（{industry}-{keyword}）生成一份全面覆盖核心知识点的大纲，由 AI 自主决定笔记数量。每条笔记包含：title（标题，简洁专业）、category（分类，2-4字）。\n\n要求：\n1. 覆盖{keyword}的核心知识点，由浅入深\n2. 标题要具体，避免过于笼统\n3. 分类要合理，同一知识库内分类不宜超过5个\n4. 必须严格返回 JSON 数组格式，不要加 markdown 代码块标记\n\n格式示例：\n[{{\"title\": \"示例标题\", \"category\": \"示例分类\"}}]";
 
             var messages = new List<ChatMessage>
             {
@@ -275,7 +275,7 @@ namespace TaskRunner.Controllers
             {
                 var outline = JsonSerializer.Deserialize<List<NoteOutlineItem>>(jsonStr, JsonHelper.CaseInsensitive);
                 if (outline == null || outline.Count == 0) throw new Exception("解析为空");
-                return outline.Take(noteCount).ToList();
+                return outline.ToList();
             }
             catch (Exception ex)
             {
@@ -296,7 +296,7 @@ namespace TaskRunner.Controllers
                         });
                     }
                 }
-                return fallback.Take(noteCount).ToList();
+                return fallback.ToList();
             }
         }
 
