@@ -35,13 +35,12 @@ test.describe('听知识库功能', () => {
     
     await page.waitForTimeout(2000);
     
-    const modal = page.locator('.modal.show');
+    const modal = page.locator('.modal-overlay');
     const modalVisible = await modal.isVisible().catch(() => false);
     console.log(`模态框可见: ${modalVisible}`);
     
     if (!modalVisible) {
       console.log('页面 HTML:', await page.content());
-      console.log('控制台日志:', await page.evaluate(() => window.console.logs?.join('\n') || '无日志'));
     }
     
     await expect(modal).toBeVisible({ timeout: 10000 });
@@ -69,10 +68,10 @@ test.describe('听知识库功能', () => {
     await listenButtons.first().click();
     await page.waitForTimeout(3000);
     
-    const modal = page.locator('.modal.show');
+    const modal = page.locator('.modal-overlay');
     await expect(modal).toBeVisible({ timeout: 10000 });
     
-    const playlistItems = page.locator('.list-group-item');
+    const playlistItems = page.locator('.playlist-item');
     const itemCount = await playlistItems.count();
     console.log(`播放列表项数量: ${itemCount}`);
     
@@ -104,7 +103,7 @@ test.describe('听知识库功能', () => {
     await listenButtons.first().click();
     await page.waitForTimeout(3000);
     
-    const modal = page.locator('.modal.show');
+    const modal = page.locator('.modal-overlay');
     await expect(modal).toBeVisible({ timeout: 10000 });
     
     const playButton = page.locator('button', { hasText: '播放' });
@@ -113,10 +112,10 @@ test.describe('听知识库功能', () => {
     
     if (playButtonVisible) {
       await page.evaluate(() => {
-        window.speakTextCalls = [];
-        const originalSpeak = window.speakText;
-        window.speakText = function(text: string) {
-          window.speakTextCalls.push(text);
+        (window as any).speakTextCalls = [];
+        const originalSpeak = (window as any).speakText;
+        (window as any).speakText = function(text: string, dotNetRef?: any) {
+          (window as any).speakTextCalls.push(text);
           console.log('speakText 被调用，文本长度:', text.length);
         };
       });

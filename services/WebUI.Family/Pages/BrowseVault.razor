@@ -9,6 +9,7 @@
 @using Markdig
 @using Microsoft.JSInterop
 @using TaskRunner.Contracts.Vaults
+@implements IAsyncDisposable
 
 <PageTitle>知识库浏览</PageTitle>
 
@@ -263,7 +264,7 @@
                         <button @onclick="PlayPrev" disabled="@(listeningCurrentIndex == 0)" style="padding:8px 16px;border:1px solid #ccc;border-radius:4px;background:white;cursor:pointer;" @class="{ 'opacity-50 cursor-not-allowed': listeningCurrentIndex == 0 }">
                             ← 上一篇
                         </button>
-                        <button @onclick="() => { if (isPlaying) StopPlaying(); else PlayCurrentNote(); }" style="padding:8px 24px;border:none;border-radius:4px;background:#0d6efd;color:white;cursor:pointer;font-size:16px;">
+                        <button @onclick="TogglePlayPause" style="padding:8px 24px;border:none;border-radius:4px;background:#0d6efd;color:white;cursor:pointer;font-size:16px;">
                             @(isPlaying ? "⏸ 暂停" : "▶ 播放")
                         </button>
                         <button @onclick="PlayNext" disabled="@(listeningCurrentIndex >= listeningPlaylist.Count - 1)" style="padding:8px 16px;border:1px solid #ccc;border-radius:4px;background:white;cursor:pointer;" @class="{ 'opacity-50 cursor-not-allowed': listeningCurrentIndex >= listeningPlaylist.Count - 1 }">
@@ -275,7 +276,7 @@
                         <div style="padding:8px 16px;color:#666;font-size:14px;border-bottom:1px solid #eee;">播放列表</div>
                         @foreach (var (index, item) in listeningPlaylist.Select((item, index) => (index, item)))
                         {
-                            <button @onclick="() => { listeningCurrentIndex = index; PlayCurrentNote(); }" 
+                            <button @onclick="() => JumpToNote(index)" 
                                     class="playlist-item @(index == listeningCurrentIndex ? "playlist-active" : "")">
                                 <span>@(index + 1). @item.Title</span>
                                 @if (index == listeningCurrentIndex && isPlaying)
@@ -604,67 +605,187 @@
         }
     }
 
-    private async void PlayCurrentNote()
+    private DotNetObjectReference<BrowseVault>? _dotNetRef = null;
+    private int _speakSeq = 0; // 递增序号，防止过快的 onend 回调导致无限循环
+    private bool _isPlayingSpeech = false; // 防止 OnSpeechEnded 重入
+
+    private async Task TogglePlayPause()
+    {
+        if (isPlaying)
+        {
+            await StopPlaying();
+        }
+        else
+        {
+            await PlayCurrentNote();
+        }
+    }
+
+    private async Task JumpToNote(int index)
+    {
+        listeningCurrentIndex = index;
+        await PlayCurrentNote();
+    }
+
+    private async Task PlayCurrentNote()
     {
         if (listeningCurrentIndex >= listeningPlaylist.Count)
         {
             isPlaying = false;
+            _isPlayingSpeech = false;
+            await InvokeAsync(StateHasChanged);
             return;
         }
 
+        _speakSeq++; // 递增序号，使之前的 OnSpeechEnded 回调失效
+        var currentSeq = _speakSeq;
+        _isPlayingSpeech = true;
+
         var item = listeningPlaylist[listeningCurrentIndex];
         var textToSpeak = $"{item.Title}. {StripMarkdown(item.Content ?? "")}";
-        
-        await JSRuntime.InvokeVoidAsync("speakText", textToSpeak);
+
+        _dotNetRef ??= DotNetObjectReference.Create(this);
+        await JSRuntime.InvokeVoidAsync("speakText", textToSpeak, _dotNetRef, currentSeq);
         isPlaying = true;
+        await InvokeAsync(StateHasChanged);
     }
 
-    private void PlayNext()
+    [JSInvokable]
+    public async Task OnSpeechEnded(int seq)
+    {
+        // 序号不匹配说明是旧的回调（用户已点击下一篇/暂停等），忽略
+        if (seq != _speakSeq) return;
+        
+        // 防止重入
+        if (!_isPlayingSpeech) return;
+        _isPlayingSpeech = false;
+
+        isPlaying = false;
+        if (listeningCurrentIndex < listeningPlaylist.Count - 1)
+        {
+            listeningCurrentIndex++;
+            await PlayCurrentNote();
+        }
+        else
+        {
+            await InvokeAsync(StateHasChanged);
+        }
+    }
+
+    private async Task PlayNext()
     {
         if (listeningCurrentIndex < listeningPlaylist.Count - 1)
         {
             listeningCurrentIndex++;
-            PlayCurrentNote();
+            await PlayCurrentNote();
         }
         else
         {
             isPlaying = false;
+            await InvokeAsync(StateHasChanged);
         }
     }
 
-    private void PlayPrev()
+    private async Task PlayPrev()
     {
         if (listeningCurrentIndex > 0)
         {
             listeningCurrentIndex--;
-            PlayCurrentNote();
+            await PlayCurrentNote();
         }
     }
 
-    private async void StopPlaying()
+    private async Task StopPlaying()
     {
+        _speakSeq++; // 使正在进行的 OnSpeechEnded 回调失效
+        _isPlayingSpeech = false;
         await JSRuntime.InvokeVoidAsync("stopSpeaking");
         isPlaying = false;
+        await InvokeAsync(StateHasChanged);
     }
 
-    private void CloseListening()
+    private async Task CloseListening()
     {
-        StopPlaying();
+        await StopPlaying();
         showListeningModal = false;
         listeningPlaylist.Clear();
+        _dotNetRef?.Dispose();
+        _dotNetRef = null;
+    }
+
+    public async ValueTask DisposeAsync()
+    {
+        if (isPlaying)
+        {
+            try
+            {
+                await JSRuntime.InvokeVoidAsync("stopSpeaking");
+            }
+            catch { }
+        }
+        _dotNetRef?.Dispose();
+        _dotNetRef = null;
     }
 
     private static string StripMarkdown(string markdown)
     {
         if (string.IsNullOrWhiteSpace(markdown)) return "";
-        var result = markdown
-            .Replace("# ", "").Replace("## ", "").Replace("### ", "").Replace("#### ", "").Replace("##### ", "")
-            .Replace("*", "").Replace("_", "").Replace("**", "").Replace("__", "")
-            .Replace("[", "").Replace("]", "").Replace("(", "").Replace(")", "")
-            .Replace("`", "").Replace("~", "")
-            .Replace("> ", "")
-            .Replace("\n\n", "\n")
-            .Trim();
+
+        var result = markdown;
+
+        // 1. 移除代码块（```...```），包括语言标识
+        result = System.Text.RegularExpressions.Regex.Replace(result, @"```[\s\S]*?```", "", System.Text.RegularExpressions.RegexOptions.Multiline);
+
+        // 2. 移除行内代码（`code`）
+        result = System.Text.RegularExpressions.Regex.Replace(result, @"`[^`]+`", m => m.Value.Trim('`'));
+
+        // 3. 移除表格分隔行（|:---|:---|...）
+        result = System.Text.RegularExpressions.Regex.Replace(result, @"^\|[\s:|-]+\|$", "", System.Text.RegularExpressions.RegexOptions.Multiline);
+
+        // 4. 处理表格行：移除首尾 |，中间 | 替换为逗号
+        result = System.Text.RegularExpressions.Regex.Replace(result, @"^\|(.+)\|$", m =>
+        {
+            var cells = m.Groups[1].Value.Split('|');
+            return string.Join("，", cells.Select(c => c.Trim()).Where(c => !string.IsNullOrWhiteSpace(c)));
+        }, System.Text.RegularExpressions.RegexOptions.Multiline);
+
+        // 5. 移除 wikilink [[分类/标题]]，只保留标题部分
+        result = System.Text.RegularExpressions.Regex.Replace(result, @"\[\[([^\]]*\/)?([^\]]+)\]\]", "$2");
+
+        // 6. 处理 Markdown 链接 [text](url)，只保留 text
+        result = System.Text.RegularExpressions.Regex.Replace(result, @"\[([^\]]+)\]\([^)]+\)", "$1");
+
+        // 7. 移除纯 URL（http/https 开头）
+        result = System.Text.RegularExpressions.Regex.Replace(result, @"https?://\S+", "");
+
+        // 8. 移除图片语法 ![alt](url)
+        result = System.Text.RegularExpressions.Regex.Replace(result, @"!\[[^\]]*\]\([^)]+\)", "");
+
+        // 9. 移除标题标记（# 开头）
+        result = System.Text.RegularExpressions.Regex.Replace(result, @"^#{1,6}\s+", "", System.Text.RegularExpressions.RegexOptions.Multiline);
+
+        // 10. 移除引用块标记（> 开头）
+        result = System.Text.RegularExpressions.Regex.Replace(result, @"^>\s*", "", System.Text.RegularExpressions.RegexOptions.Multiline);
+
+        // 11. 移除粗体/斜体标记
+        result = System.Text.RegularExpressions.Regex.Replace(result, @"\*\*(.+?)\*\*", "$1");
+        result = System.Text.RegularExpressions.Regex.Replace(result, @"__(.+?)__", "$1");
+        result = System.Text.RegularExpressions.Regex.Replace(result, @"\*(.+?)\*", "$1");
+        result = System.Text.RegularExpressions.Regex.Replace(result, @"_(.+?)_", "$1");
+
+        // 12. 移除删除线
+        result = System.Text.RegularExpressions.Regex.Replace(result, @"~~(.+?)~~", "$1");
+
+        // 13. 移除 HTML 标签
+        result = System.Text.RegularExpressions.Regex.Replace(result, @"<[^>]+>", "");
+
+        // 14. 移除水平分割线
+        result = System.Text.RegularExpressions.Regex.Replace(result, @"^[-*_]{3,}\s*$", "", System.Text.RegularExpressions.RegexOptions.Multiline);
+
+        // 15. 清理多余空白
+        result = System.Text.RegularExpressions.Regex.Replace(result, @"\n{3,}", "\n\n");
+        result = result.Trim();
+
         return result;
     }
 
