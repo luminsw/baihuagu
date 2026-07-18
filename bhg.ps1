@@ -46,7 +46,7 @@ $Services = @{
 # 服务健康检查 URL（用轻量端点，避免认证拦截）
 $HealthUrls = @{
 	ai         = 'http://127.0.0.1:8791/api/ai/config/providers'
-	vault      = 'http://127.0.0.1:8790/vaults'
+	vault      = 'http://127.0.0.1:8790/mg/vaults'
 	taskrunner = 'http://127.0.0.1:8788/api/capability'
 	webui      = 'http://127.0.0.1:5177/login'
 }
@@ -228,8 +228,8 @@ function Wait-For-Service([string]$name, [int]$timeoutSec = 20){
 		# 检查进程是否还活着
 		$pidFile = Get-PidPath $name
 		if (Test-Path $pidFile){
-			$pid = Get-Content $pidFile -ErrorAction SilentlyContinue
-			if ($pid -and -not (Get-Process -Id $pid -ErrorAction SilentlyContinue)){
+			$srvPid = Get-Content $pidFile -ErrorAction SilentlyContinue
+			if ($srvPid -and -not (Get-Process -Id $srvPid -ErrorAction SilentlyContinue)){
 				Write-Host "  $name : ✗ process crashed" -ForegroundColor Red
 				$errLog = "$(Get-LogPath $name).err"
 				if (Test-Path $errLog) {
@@ -286,8 +286,8 @@ switch ($Command.ToLower()){
 		foreach ($name in $ServiceOrder) {
 			$pidFile = Get-PidPath $name
 			if (Test-Path $pidFile) {
-				$pid = Get-Content $pidFile -ErrorAction SilentlyContinue
-				if ($pid -and -not (Get-Process -Id $pid -ErrorAction SilentlyContinue)) {
+				$srvPid = Get-Content $pidFile -ErrorAction SilentlyContinue
+				if ($srvPid -and -not (Get-Process -Id $srvPid -ErrorAction SilentlyContinue)) {
 					Remove-Item $pidFile -ErrorAction SilentlyContinue
 				}
 			}
