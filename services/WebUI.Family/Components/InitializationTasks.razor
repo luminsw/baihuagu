@@ -4,7 +4,7 @@
 @inject IJSRuntime JSRuntime
 @inject ILogger<InitializationTasks> Logger
 
-@if (isVisible && tasksResponse != null && !tasksResponse.AllCompleted)
+@if (isVisible && tasksResponse != null && tasksResponse.TotalCount > 0 && !tasksResponse.AllCompleted)
 {
     <div class="init-tasks-panel">
         <div class="panel-header">
