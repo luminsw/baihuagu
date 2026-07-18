@@ -11,6 +11,7 @@ public class StartupOrchestratorHostedService : IHostedService
 {
     private readonly IDbContextFactory<AppDbContext> _dbContextFactory;
     private readonly IDbContextFactory<FamilyDbContext> _familyDbContextFactory;
+    private readonly IDbContextFactory<AIDbContext> _aiDbContextFactory;
     private readonly VaultSettingsService _vaultSettings;
     private readonly LocalModelSettingsService _localModelSettings;
     private readonly ILogger<StartupOrchestratorHostedService> _logger;
@@ -18,12 +19,14 @@ public class StartupOrchestratorHostedService : IHostedService
     public StartupOrchestratorHostedService(
         IDbContextFactory<AppDbContext> dbContextFactory,
         IDbContextFactory<FamilyDbContext> familyDbContextFactory,
+        IDbContextFactory<AIDbContext> aiDbContextFactory,
         VaultSettingsService vaultSettings,
         LocalModelSettingsService localModelSettings,
         ILogger<StartupOrchestratorHostedService> logger)
     {
         _dbContextFactory = dbContextFactory;
         _familyDbContextFactory = familyDbContextFactory;
+        _aiDbContextFactory = aiDbContextFactory;
         _vaultSettings = vaultSettings;
         _localModelSettings = localModelSettings;
         _logger = logger;
@@ -43,8 +46,7 @@ public class StartupOrchestratorHostedService : IHostedService
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "启动编排失败");
-            throw;
+            _logger.LogError(ex, "启动编排部分失败，已记录错误但继续启动应用");
         }
 
         return Task.CompletedTask;
@@ -57,28 +59,55 @@ public class StartupOrchestratorHostedService : IHostedService
 
     private void LoadFromDatabase()
     {
-        // 迁移 Core 数据库
-        using var dbContext = _dbContextFactory.CreateDbContext();
-        MigrateDatabase(dbContext, "Core");
+        TryMigrateDatabase("Core", () =>
+        {
+            using var dbContext = _dbContextFactory.CreateDbContext();
+            MigrateDatabase(dbContext, "Core");
+        });
 
-        // 迁移 Family 数据库
-        using var familyDb = _familyDbContextFactory.CreateDbContext();
-        MigrateDatabase(familyDb, "Family");
+        TryMigrateDatabase("Family", () =>
+        {
+            using var familyDb = _familyDbContextFactory.CreateDbContext();
+            MigrateDatabase(familyDb, "Family");
+        });
 
-        // AI 数据库迁移已移交 TaskRunner.AI（见 services/TaskRunner.AI/Program.cs）
+        TryMigrateDatabase("AI", () =>
+        {
+            using var aiDb = _aiDbContextFactory.CreateDbContext();
+            MigrateDatabase(aiDb, "AI");
+        });
+    }
+
+    private void TryMigrateDatabase(string domainName, Action migrateAction)
+    {
+        try
+        {
+            migrateAction();
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "{Domain} 数据库迁移失败，已记录错误但继续启动应用", domainName);
+        }
     }
 
     private void MigrateDatabase(DbContext dbContext, string domainName)
     {
         try
         {
-            _logger.LogDebug("About to migrate {Domain} DB at: {ConnectionString}", domainName, dbContext.Database.GetDbConnection().ConnectionString);
+            try
+            {
+                var conn = dbContext.Database.GetDbConnection()?.ConnectionString;
+                _logger.LogDebug("About to migrate {Domain} DB at: {ConnectionString}", domainName, conn);
+            }
+            catch
+            {
+                _logger.LogDebug("About to migrate {Domain} DB", domainName);
+            }
             dbContext.Database.Migrate();
             _logger.LogDebug("{Domain} migrate completed successfully", domainName);
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "{Domain} migrate FAILED", domainName);
             _logger.LogError(ex, "{Domain} 数据库迁移失败: {Message}", domainName, ex.Message);
             throw;
         }

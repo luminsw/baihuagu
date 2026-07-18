@@ -9,10 +9,10 @@
     <!-- AI 状态显示 -->
     <div class="status-item" @onclick="NavigateToSettings">
         <StatusBadge 
-            IsConfigured="@(AIStatus?.IsConfigured ?? false)"
+            IsConfigured="@(AIStatus?.IsConfigured ?? true)"
             Icon="🤖"
             Title="@AIStatus?.ProviderName"
-            Detail="@(AIStatus?.IsConfigured ?? false ? GetShortModelName(AIStatus?.Model) : "点击设置 API Key")"
+            Detail="@(AIStatus?.IsConfigured ?? true ? GetShortModelName(AIStatus?.Model) : "点击设置 API Key")"
             ConfiguredClass="ai-configured"
             NotConfiguredClass="ai-not-configured"
             ConfiguredTitle="AI 已配置 - 点击修改"

@@ -67,6 +67,35 @@ builder.Services.AddDbContextFactory<TaskRunner.Data.AppDbContext>(options =>
            .ConfigureWarnings(w => w.Ignore(Microsoft.EntityFrameworkCore.Diagnostics.RelationalEventId.PendingModelChangesWarning));
 }, ServiceLifetime.Singleton);
 
+// Family 和 AI 域数据库上下文（Core.Shared 中的 TaskManager/AiClientService 依赖）
+builder.Services.AddDbContext<TaskRunner.Data.FamilyDbContext>(options =>
+{
+    var dbPath = TaskRunner.Data.FamilyDbContext.GetDbPath();
+    options.UseSqlite($"Data Source={dbPath};Foreign Keys=True;")
+           .ConfigureWarnings(w => w.Ignore(Microsoft.EntityFrameworkCore.Diagnostics.RelationalEventId.PendingModelChangesWarning));
+}, ServiceLifetime.Scoped, ServiceLifetime.Singleton);
+
+builder.Services.AddDbContextFactory<TaskRunner.Data.FamilyDbContext>(options =>
+{
+    var dbPath = TaskRunner.Data.FamilyDbContext.GetDbPath();
+    options.UseSqlite($"Data Source={dbPath};Foreign Keys=True;")
+           .ConfigureWarnings(w => w.Ignore(Microsoft.EntityFrameworkCore.Diagnostics.RelationalEventId.PendingModelChangesWarning));
+}, ServiceLifetime.Singleton);
+
+builder.Services.AddDbContext<TaskRunner.Data.AIDbContext>(options =>
+{
+    var dbPath = TaskRunner.Data.AIDbContext.GetDbPath();
+    options.UseSqlite($"Data Source={dbPath};Foreign Keys=True;")
+           .ConfigureWarnings(w => w.Ignore(Microsoft.EntityFrameworkCore.Diagnostics.RelationalEventId.PendingModelChangesWarning));
+}, ServiceLifetime.Scoped, ServiceLifetime.Singleton);
+
+builder.Services.AddDbContextFactory<TaskRunner.Data.AIDbContext>(options =>
+{
+    var dbPath = TaskRunner.Data.AIDbContext.GetDbPath();
+    options.UseSqlite($"Data Source={dbPath};Foreign Keys=True;")
+           .ConfigureWarnings(w => w.Ignore(Microsoft.EntityFrameworkCore.Diagnostics.RelationalEventId.PendingModelChangesWarning));
+}, ServiceLifetime.Singleton);
+
 builder.Services.AddHttpClient();
 builder.Services.AddMemoryCache();
 builder.Services.AddDistributedMemoryCache();

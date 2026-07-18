@@ -10,10 +10,10 @@
     <a href="settings" class="ai-status-badge @(GetAiBadgeClass())" title="@GetAiTitle()" style="text-decoration:none;">
         <span class="ai-icon">🤖</span>
         <span class="ai-info">
-            <span class="ai-provider">@(aiStatus?.IsConfigured ?? false ? (aiStatus?.ProviderName ?? "AI") : "AI 未配置")</span>
-            <span class="ai-model">@(aiStatus?.IsConfigured ?? false ? GetShortModelName(aiStatus?.Model) : "点击设置 API Key")</span>
+            <span class="ai-provider">@(IsConfigured(aiStatus) ? (aiStatus?.ProviderName ?? "AI") : "AI 未配置")</span>
+            <span class="ai-model">@(IsConfigured(aiStatus) ? GetShortModelName(aiStatus?.Model) : "点击设置 API Key")</span>
         </span>
-        <span class="ai-indicator @(aiStatus?.IsConfigured ?? false ? "online" : "offline")">●</span>
+        <span class="ai-indicator @(IsConfigured(aiStatus) ? "online" : "offline")">●</span>
     </a>
 </div>
 
@@ -47,8 +47,9 @@
         GlobalStateService.StateChanged -= OnGlobalStateChanged;
     }
 
-    private string GetAiBadgeClass() => aiStatus?.IsConfigured ?? false ? "ai-configured" : "ai-not-configured";
-    private string GetAiTitle() => aiStatus?.IsConfigured ?? false ? "AI 已配置 - 点击修改" : "AI 未配置 - 点击设置";
+    private bool IsConfigured(AIStatusSummary? status) => status?.IsConfigured ?? true;
+    private string GetAiBadgeClass() => IsConfigured(aiStatus) ? "ai-configured" : "ai-not-configured";
+    private string GetAiTitle() => IsConfigured(aiStatus) ? "AI 已配置 - 点击修改" : "AI 未配置 - 点击设置";
 
     private string GetShortModelName(string? fullName)
     {

@@ -51,10 +51,18 @@ namespace TaskRunner.Vault.Controllers
         [HttpGet("vault-root-path-preference")]
         public ActionResult<VaultRootPathPreferenceResponse> GetVaultRootPathPreference()
         {
-            return Ok(new VaultRootPathPreferenceResponse
+            try
             {
-                VaultRootPath = _vaultSettings.VaultRootPathPreference
-            });
+                return Ok(new VaultRootPathPreferenceResponse
+                {
+                    VaultRootPath = _vaultSettings.VaultRootPathPreference
+                });
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "获取 VaultRootPathPreference 失败");
+                return Ok(new VaultRootPathPreferenceResponse { VaultRootPath = string.Empty });
+            }
         }
 
         /// <summary>

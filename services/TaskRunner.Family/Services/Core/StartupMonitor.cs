@@ -46,6 +46,14 @@ namespace TaskRunner.Services
             
             // 读取之前的启动记录
             LoadHistory();
+
+            // Ensure log directory exists
+            try
+            {
+                var dir = Path.GetDirectoryName(LogFilePath);
+                if (!string.IsNullOrEmpty(dir)) Directory.CreateDirectory(dir);
+            }
+            catch { }
             
             // 如果距离上次启动不到 1 分钟，认为是重启
             if (RestartHistory.Count > 0)
@@ -71,10 +79,13 @@ namespace TaskRunner.Services
             
             // 保存到文件
             SaveHistory();
-            
-            // 记录启动日志
-            File.AppendAllText(LogFilePath, 
-                $"[{now:yyyy-MM-dd HH:mm:ss}] 🚀 服务启动，PID: {Environment.ProcessId}\n");
+
+            // 记录启动日志 (确保目录已创建)
+            try
+            {
+                File.AppendAllText(LogFilePath, $"[{now:yyyy-MM-dd HH:mm:ss}] Service started, PID: {Environment.ProcessId}\n");
+            }
+            catch { }
         }
         
         private void LoadHistory()
@@ -110,7 +121,9 @@ namespace TaskRunner.Services
         {
             try
             {
-                var historyFile = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "startup_history.json");
+                var historyFile = Path.Combine(Path.GetDirectoryName(LogFilePath) ?? AppDomain.CurrentDomain.BaseDirectory, "startup_history.json");
+                var historyDir = Path.GetDirectoryName(historyFile);
+                if (!string.IsNullOrEmpty(historyDir)) Directory.CreateDirectory(historyDir);
                 var json = System.Text.Json.JsonSerializer.Serialize(new
                 {
                     StartTime,

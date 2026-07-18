@@ -24,18 +24,23 @@ namespace TaskRunner.Controllers
             {
                 return BadRequest(new { error = "只能重试失败或超时的任务" });
             }
-            if (task.Type != "ai_query")
+            if (task.Type != "ai_query" && task.Type != "ai_vault_generation")
             {
-                return BadRequest(new { error = "目前仅支持重试 AI 查询任务" });
+                return BadRequest(new { error = "目前仅支持重试 AI 查询任务或知识库生成任务" });
             }
 
             // 从原任务参数中提取信息
-            var query = task.Parameters?.GetValueOrDefault("query") ?? "";
+            var query = task.Parameters?.GetValueOrDefault("query") ?? task.Parameters?.GetValueOrDefault("keyword") ?? "";
+            var industry = task.Parameters?.GetValueOrDefault("industry") ?? "";
             var saveToVault = task.Parameters?.GetValueOrDefault("saveToVault") == "True";
             var model = retryRequest?.Model ?? task.Parameters?.GetValueOrDefault("model") ?? "";
             var vaultId = task.Parameters?.GetValueOrDefault("vaultId") ?? "";
-            var industry = task.Parameters?.GetValueOrDefault("industry") ?? "";
             var timeoutMinutes = retryRequest?.TimeoutMinutes > 0 ? retryRequest.TimeoutMinutes : _aiSettings.AiRequestTimeoutMinutes;
+
+            if (task.Type == "ai_vault_generation")
+            {
+                return await HandleRetryVaultGenerationTaskAsync(task, retryRequest);
+            }
 
             _logger.LogInformation("[RetryDebug] taskId={TaskId}, rawModel={RawModel}, industry={Industry}, vaultId={VaultId}, retryRequest.Model={RetryModel}, timeout={Timeout}",
                 taskId, model, industry, vaultId, retryRequest?.Model, timeoutMinutes);
@@ -229,6 +234,35 @@ namespace TaskRunner.Controllers
                 Message = "重试任务已创建",
                 TaskId = newTaskId
             });
+        }
+
+        private async Task<ActionResult<AiTaskResponse>> HandleRetryVaultGenerationTaskAsync(Core.Shared.TaskInfo task, RetryAiTaskRequest? retryRequest)
+        {
+            var industry = task.Parameters?.GetValueOrDefault("industry") ?? "";
+            var keyword = task.Parameters?.GetValueOrDefault("keyword") ?? "";
+            var model = retryRequest?.Model ?? task.Parameters?.GetValueOrDefault("model") ?? "";
+
+            if (string.IsNullOrWhiteSpace(industry) || string.IsNullOrWhiteSpace(keyword))
+            {
+                return BadRequest(new { error = "原任务缺少行业或关键词参数" });
+            }
+
+            var request = new VaultGenerationRequest
+            {
+                Industry = industry,
+                Keyword = keyword,
+                Model = model,
+                NoteCount = 0
+            };
+
+            var result = await HandleCreateVaultGenerationTaskAsync(request);
+            if (result.Result is OkObjectResult ok && ok.Value is VaultGenerationResponse vgr)
+            {
+                return Ok(new AiTaskResponse { Success = vgr.Success, Message = vgr.Message, TaskId = vgr.TaskId });
+            }
+            return result.Result != null
+                ? new ActionResult<AiTaskResponse>(result.Result)
+                : new ActionResult<AiTaskResponse>(new AiTaskResponse { Success = false, Message = "重试失败" });
         }
     }
 }

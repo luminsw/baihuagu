@@ -13,6 +13,17 @@ using Serilog;
 using WebUI.Logging;
 using WebUI.Middleware;
 
+// Initialize native SQLite provider early to avoid Microsoft.Data.Sqlite type initializer issues
+try
+{
+    // Batteries_V2 is provided by SQLitePCLRaw.bundle_e_sqlite3 package
+    SQLitePCL.Batteries_V2.Init();
+}
+catch
+{
+    // Ignore if initialization not required or fails; later errors will show up when opening DB
+}
+
 var builder = WebApplication.CreateBuilder(args);
 
 var dataProtectionKeyPath = Path.Combine(AppContext.BaseDirectory, "data", "dp-keys");
@@ -41,6 +52,9 @@ var openobserveEnabled = builder.Configuration.GetValue<bool?>("OpenObserve:Enab
 var openobserveUrl = builder.Configuration["OpenObserve:WebUrl"] ?? "";
 var openobserveUser = builder.Configuration["OpenObserve:User"] ?? "";
 var openobservePass = builder.Configuration["OpenObserve:Password"] ?? "";
+
+// Diagnostic: print OpenObserve config to console to help debug startup URI issues
+Console.Error.WriteLine($"[WebUI] OpenObserve.Enabled={openobserveEnabled}, WebUrl='{openobserveUrl}'");
 
 // Serilog 仅用于控制台结构化输出
 var serilogConfig = new Serilog.LoggerConfiguration()
@@ -140,33 +154,39 @@ builder.Services.AddScoped<WebUI.Services.GlobalStateService>();
 // Add Simple Status service (简单状态服务，直接从API获取)
 builder.Services.AddScoped<WebUI.Services.SimpleStatusService>();
 
-// OpenTelemetry Metrics 导出到 OpenObserve
-builder.Services.AddOpenTelemetry()
-    .ConfigureResource(resource => resource.AddService("WebUI"))
-    .WithMetrics(metrics =>
+// OpenTelemetry Metrics 导出到 OpenObserve（仅在明确启用时配置 exporter）
+// 使用与 TaskRunner 相同的安全保护：先构建基础的 OpenTelemetry builder，若未启用或 WebUrl 为空则直接返回，不配置导出器。
+{
+    var otelBuilder = builder.Services.AddOpenTelemetry()
+        .ConfigureResource(resource => resource.AddService("WebUI"));
+
+    if (openobserveEnabled && !string.IsNullOrWhiteSpace(openobserveUrl))
     {
-        metrics.AddMeter("TaskRunner.WebUI")
-               .AddOtlpExporter(options =>
-               {
-                   var baseUrl = openobserveUrl.TrimEnd('/');
-                   options.Endpoint = new Uri($"{baseUrl}/api/default/v1/metrics");
-                   options.Protocol = OtlpExportProtocol.HttpProtobuf;
-                   var authValue = Convert.ToBase64String(Encoding.UTF8.GetBytes($"{openobserveUser}:{openobservePass}"));
-                   options.Headers = $"Authorization=Basic {authValue}";
-               });
-    })
-    .WithLogging(logging =>
-    {
-        if (!openobserveEnabled) return;
-        logging.AddOtlpExporter(options =>
+        otelBuilder.WithMetrics(metrics =>
         {
-            var baseUrl = openobserveUrl.TrimEnd('/');
-            options.Endpoint = new Uri($"{baseUrl}/api/default/v1/logs");
-            options.Protocol = OtlpExportProtocol.HttpProtobuf;
-            var authValue = Convert.ToBase64String(Encoding.UTF8.GetBytes($"{openobserveUser}:{openobservePass}"));
-            options.Headers = $"Authorization=Basic {authValue}";
+            metrics.AddMeter("TaskRunner.WebUI")
+                   .AddOtlpExporter(options =>
+                   {
+                       var baseUrl = openobserveUrl.TrimEnd('/');
+                       options.Endpoint = new Uri($"{baseUrl}/api/default/v1/metrics");
+                       options.Protocol = OtlpExportProtocol.HttpProtobuf;
+                       var authValue = Convert.ToBase64String(Encoding.UTF8.GetBytes($"{openobserveUser}:{openobservePass}"));
+                       options.Headers = $"Authorization=Basic {authValue}";
+                   });
+        })
+        .WithLogging(logging =>
+        {
+            logging.AddOtlpExporter(options =>
+            {
+                var baseUrl = openobserveUrl.TrimEnd('/');
+                options.Endpoint = new Uri($"{baseUrl}/api/default/v1/logs");
+                options.Protocol = OtlpExportProtocol.HttpProtobuf;
+                var authValue = Convert.ToBase64String(Encoding.UTF8.GetBytes($"{openobserveUser}:{openobservePass}"));
+                options.Headers = $"Authorization=Basic {authValue}";
+            });
         });
-    });
+    }
+}
 
 // Add Request Metrics service (WebUI incoming requests)
 builder.Services.AddSingleton<WebUI.Services.RequestMetricsService>();
@@ -222,7 +242,17 @@ builder.Services.AddScoped(sp => sp.GetRequiredService<IHttpClientFactory>().Cre
 // Add HttpContextAccessor for accessing HttpContext in Blazor components
 builder.Services.AddHttpContextAccessor();
 
-var app = builder.Build();
+WebApplication app;
+try
+{
+    app = builder.Build();
+}
+catch (Exception ex)
+{
+    // Make sure the startup exception is visible in console/logs for easier debugging
+    Console.Error.WriteLine("[WebUI] Startup build failed: " + ex.ToString());
+    throw;
+}
 
 // Configure the HTTP request pipeline.
 if (!app.Environment.IsDevelopment())
@@ -328,8 +358,8 @@ AppDomain.CurrentDomain.UnhandledException += (s, e) =>
     try
     {
         var ex = e.ExceptionObject as Exception;
-        var logger = app.Services.GetService<ILogger<Program>>();
-        logger?.LogCritical(ex, "Unhandled domain exception occurred");
+        var exLogger = app.Services.GetService<ILogger<Program>>();
+        exLogger?.LogCritical(ex, "Unhandled domain exception occurred");
     }
     catch { }
 };
@@ -338,8 +368,8 @@ TaskScheduler.UnobservedTaskException += (s, e) =>
 {
     try
     {
-        var logger = app.Services.GetService<ILogger<Program>>();
-        logger?.LogError(e.Exception, "Unobserved task exception");
+        var exLogger = app.Services.GetService<ILogger<Program>>();
+        exLogger?.LogError(e.Exception, "Unobserved task exception");
         e.SetObserved();
     }
     catch { }
@@ -368,7 +398,17 @@ app.Lifetime.ApplicationStopped.Register(() =>
     cts.Dispose();
 });
 
-app.Run();
+try
+{
+    app.Run();
+}
+catch (Exception ex)
+{
+    // Ensure unhandled startup/run exceptions are visible in console/logs
+    try { var exLogger = app?.Services?.GetService<ILogger<Program>>(); exLogger?.LogCritical(ex, "Unhandled exception in WebUI Run"); } catch { }
+    Console.Error.WriteLine("[WebUI] Unhandled exception: " + ex.ToString());
+    throw;
+}
 
 public class NotifyStateChangeRequest
 {

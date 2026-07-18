@@ -28,6 +28,16 @@ using TaskRunner.Contracts.Metrics;
 using TaskRunner.Middleware;
 
 
+// Initialize native SQLite provider early to avoid Microsoft.Data.Sqlite type initializer issues
+try
+{
+    SQLitePCL.Batteries_V2.Init();
+}
+catch
+{
+    // Ignore if initialization not required or fails; later errors will show up when opening DB
+}
+
 var builder = WebApplication.CreateBuilder(args);
 
 
@@ -381,15 +391,15 @@ builder.Logging.AddSerilog(serilogConfig.CreateLogger(), dispose: true);
 builder.Services.AddSingleton<LogSinkConfigService>(logSinkConfig);
 
 var openobserveEnabled = builder.Configuration.GetValue<bool?>("OpenObserve:Enabled") ?? true;
-var ooBaseUrl = ooConfig.WebUrl?.TrimEnd('/') ?? "http://localhost:5082/openobserve";
+var ooBaseUrl = string.IsNullOrWhiteSpace(ooConfig.WebUrl) ? "http://localhost:5082/openobserve" : ooConfig.WebUrl.TrimEnd('/');
 
 // 注册业务指标（单例，全局共享）
 builder.Services.AddSingleton<ServiceMetrics>();
 
-// 配置 OpenTelemetry（Metrics + Logs + Traces），通过 OTLP 推送到 OpenObserve
+// 配置 OpenTelemetry（Metrics + Logs + Traces），通过 OTLP 推送到 OpenObserve（受 openobserveEnabled 控制）
 builder.Services.AddOpenObserveTelemetry(
     serviceName: "TaskRunner",
-    meterNames: [AiMetricsService.MeterName, ServiceMetrics.MeterName],
+    meterNames: new[] { AiMetricsService.MeterName, ServiceMetrics.MeterName },
     webUrl: ooBaseUrl,
     user: ooConfig.User,
     password: ooConfig.Password,
@@ -706,6 +716,14 @@ app.MapGet("/api/test", () =>
     logger.LogInformation("[TestEndpoint] Test endpoint called");
     return Results.Ok(new { message = "Test endpoint works", timestamp = DateTime.UtcNow });
 });
+
+// 根路径健康检查（快速响应，供外部探活使用）
+app.MapGet("/health", () => Results.Ok(new
+{
+    status = "healthy",
+    timestamp = DateTime.UtcNow.ToString("o"),
+    message = "Task Runner Service is running"
+}));
 
 app.MapHub<TaskProgressHub>("/hubs/task-progress");
 app.MapHub<DeviceHub>("/hubs/devices");

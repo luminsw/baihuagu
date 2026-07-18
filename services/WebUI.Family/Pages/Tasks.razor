@@ -127,8 +127,8 @@ else
                             <button class="btn btn-outline-warning"
                                     @onclick="(() => RetryTask(task))"
                                     @onclick:stopPropagation="true"
-                                    disabled="@(retryingTaskId != null)">
-                                @if (retryingTaskId == task.Id)
+                                    disabled="@retryingTaskIds.Contains(task.Id)">
+                                @if (retryingTaskIds.Contains(task.Id))
                                 {
                                     <span class="spinner-border spinner-border-sm"></span>
                                 }
@@ -260,7 +260,7 @@ else
     private bool isLoading = true;
     private bool isHubConnected = false;
     private bool showClearConfirm = false;
-    private string? retryingTaskId = null;
+    private HashSet<string> retryingTaskIds = new();
     private Dictionary<string, int> retryTimeouts = new(); // taskId -> timeout minutes
     private readonly SemaphoreSlim _loadTasksLock = new(1, 1);
     private HubConnection? _hubConnection;
@@ -657,7 +657,7 @@ else
 
     private async Task RetryTask(TaskInfo task)
     {
-        retryingTaskId = task.Id;
+        retryingTaskIds.Add(task.Id);
         try
         {
             var timeout = GetRetryTimeout(task.Id);
@@ -667,10 +667,18 @@ else
             {
                 await LoadTasks();
             }
+            else
+            {
+                await JSRuntime.InvokeVoidAsync("alert", string.IsNullOrWhiteSpace(response.Message) ? "重试失败" : response.Message);
+            }
+        }
+        catch (Exception ex)
+        {
+            await JSRuntime.InvokeVoidAsync("alert", $"重试失败：{ex.Message}");
         }
         finally
         {
-            retryingTaskId = null;
+            retryingTaskIds.Remove(task.Id);
         }
     }
 
