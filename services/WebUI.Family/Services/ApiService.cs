@@ -36,7 +36,7 @@ namespace WebUI.Services
 
         Task<List<TaskInfo>> GetTasksAsync();
         Task<TaskInfo?> GetTaskAsync(string taskId);
-        Task<VaultGenerationResponse> CreateVaultGenerationTaskAsync(string industry, string keyword, string? model = null, int noteCount = 30);
+        Task<VaultGenerationResponse> CreateVaultGenerationTaskAsync(string industry, string keyword, string? model = null, int noteCount = 30, bool generateCards = false);
         Task<List<AiProviderInfo>> GetAiProvidersAsync();
         Task<SearchResponse> SearchAsync(string query, string vaultId);
         Task<IndexStatusDto> GetIndexStatusAsync(string vaultId);
@@ -359,7 +359,7 @@ namespace WebUI.Services
             }
         }
 
-        public async Task<VaultGenerationResponse> CreateVaultGenerationTaskAsync(string industry, string keyword, string? model = null, int noteCount = 30)
+        public async Task<VaultGenerationResponse> CreateVaultGenerationTaskAsync(string industry, string keyword, string? model = null, int noteCount = 30, bool generateCards = false)
         {
             try
             {
@@ -367,7 +367,8 @@ namespace WebUI.Services
                 {
                     ["industry"] = industry,
                     ["keyword"] = keyword,
-                    ["noteCount"] = noteCount
+                    ["noteCount"] = noteCount,
+                    ["generateCards"] = generateCards
                 };
                 if (!string.IsNullOrWhiteSpace(model))
                     body["model"] = model;

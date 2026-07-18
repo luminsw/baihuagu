@@ -158,6 +158,18 @@ namespace TaskRunner.Controllers
                             totalElapsedMs = stopwatch.ElapsedMilliseconds
                         });
 
+                        if (request.GenerateCards && !string.IsNullOrEmpty(vaultId))
+                        {
+                            var cardTaskId = _taskManager.CreateTask("anki_generate", new Dictionary<string, string>
+                            {
+                                ["vaultId"] = vaultId,
+                                ["vaultName"] = vaultName,
+                                ["trigger"] = "vault_generation"
+                            });
+                            _taskManager.UpdateProgress(cardTaskId, 0, 1, $"知识库「{vaultName}」笔记生成完成，等待生成记忆卡片...");
+                            _logger.LogInformation("[AiVaultGeneration] 自动创建记忆卡片任务 {CardTaskId}", cardTaskId);
+                        }
+
                         _logger.LogInformation("[AiVaultGeneration] 任务 {TaskId} 完成: {VaultName}, {NoteCount} 条笔记, 耗时 {ElapsedMs}ms",
                             taskId, vaultName, generatedNotes.Count, stopwatch.ElapsedMilliseconds);
                     }

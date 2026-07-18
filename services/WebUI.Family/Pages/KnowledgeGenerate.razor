@@ -548,14 +548,9 @@ else
         processingStep = "提交生成任务中...";
         try
         {
-            var response = await ApiService.CreateVaultGenerationTaskAsync(industry.Trim(), aiQuery.Trim(), selectedModel);
+            var response = await ApiService.CreateVaultGenerationTaskAsync(industry.Trim(), aiQuery.Trim(), selectedModel, generateCards: generateCards);
             if (response.Success && !string.IsNullOrWhiteSpace(response.TaskId))
             {
-                if (generateCards)
-                {
-                    var vaultId = selectedVaultId == "__new__" ? "" : selectedVaultId;
-                    _ = TriggerCardGenerationAfterTaskAsync(response.TaskId, vaultId);
-                }
                 Navigation.NavigateTo("tasks");
             }
             else
@@ -575,21 +570,6 @@ else
         }
     }
 
-    private async Task TriggerCardGenerationAfterTaskAsync(string taskId, string vaultId)
-    {
-        try
-        {
-            await WaitForTaskCompletion(taskId);
-            if (!string.IsNullOrWhiteSpace(vaultId))
-            {
-                await GenerateAnkiCards(vaultId);
-            }
-        }
-        catch (Exception ex)
-        {
-            Logger.LogWarning(ex, "任务完成后生成记忆卡片失败");
-        }
-    }
 
     private async Task GenerateSingleNote(string industry)
     {
