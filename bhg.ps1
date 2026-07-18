@@ -14,19 +14,16 @@
 - 该脚本为简易移植，依赖 PowerShell (推荐 pwsh) 和 dotnet SDK
 - 后台进程 PID 与日志保存在 $env:TEMP\bhg-<service>.*
 #>
-#>
 param(
 	[string]$Command = 'dashboard',
 	[string]$Arg,
 	[string]$Browser = ''
 )
 
-# Ensure console uses UTF-8 output when possible (helps display Chinese in Windows PowerShell / pwsh)
 [Console]::OutputEncoding = [System.Text.Encoding]::UTF8
 Set-StrictMode -Version Latest
 
 function Get-BhgRoot {
-	# Prefer $PSScriptRoot when running as a script; fallback to MyInvocation or current location
 	if ($PSScriptRoot) { return $PSScriptRoot }
 	if ($MyInvocation -and $MyInvocation.MyCommand -and $MyInvocation.MyCommand.Path) {
 		return Split-Path -Parent $MyInvocation.MyCommand.Path
@@ -37,11 +34,21 @@ function Get-BhgRoot {
 $BHG_ROOT = Get-BhgRoot
 $TEMP_DIR = $env:TEMP
 
+# 启动顺序：后端服务先启动，WebUI 最后启动
+$ServiceOrder = @('ai', 'vault', 'taskrunner', 'webui')
 $Services = @{ 
-	taskrunner = "services/TaskRunner.Family";
-	webui      = "services/WebUI.Family";
 	ai         = "services/TaskRunner.AI";
 	vault      = "services/TaskRunner.Vault";
+	taskrunner = "services/TaskRunner.Family";
+	webui      = "services/WebUI.Family";
+}
+
+# 服务健康检查 URL
+$HealthUrls = @{
+	ai         = 'http://127.0.0.1:8791/api/ai/config/providers'
+	vault      = 'http://127.0.0.1:8790/api/settings/vault-root-path-preference'
+	taskrunner = 'http://127.0.0.1:8788/api/capability'
+	webui      = 'http://127.0.0.1:5177/login'
 }
 
 function Get-LogPath($name){ Join-Path $TEMP_DIR "bhg-$name.log" }
@@ -109,18 +116,34 @@ function Stop-ServiceProc($name){
 }
 
 function Show-Status(){
-	foreach ($k in $Services.Keys){
+	foreach ($k in $ServiceOrder){
 		$pidFile = Get-PidPath $k
+		$status = "$k : stopped" 
+		$color = [ConsoleColor]::DarkYellow
 		if (Test-Path $pidFile){
 			$existingPid = Get-Content $pidFile -ErrorAction SilentlyContinue
 			if ($existingPid -and (Get-Process -Id $existingPid -ErrorAction SilentlyContinue)){
-				Write-Host "$k : running (PID $existingPid)" -ForegroundColor Green
+				$healthUrl = $HealthUrls[$k]
+				$healthy = $false
+				if ($healthUrl) {
+					try {
+						$resp = Invoke-WebRequest -Uri $healthUrl -UseBasicParsing -TimeoutSec 2 -ErrorAction Stop
+						$healthy = $resp.StatusCode -ge 200 -and $resp.StatusCode -lt 400
+					} catch { $healthy = $false }
+				}
+				if ($healthy) {
+					$status = "$k : running (PID $existingPid) ✓ healthy"
+					$color = [ConsoleColor]::Green
+				} else {
+					$status = "$k : running (PID $existingPid) ⚠ not ready"
+					$color = [ConsoleColor]::Yellow
+				}
 			} else {
-				Write-Host "$k : pidfile exists but process not found" -ForegroundColor Yellow
+				$status = "$k : pidfile exists but process not found"
+				$color = [ConsoleColor]::Yellow
 			}
-		} else {
-			Write-Host "$k : stopped" -ForegroundColor DarkYellow
 		}
+		Write-Host $status -ForegroundColor $color
 	}
 }
 
@@ -160,7 +183,6 @@ function Open-Dashboard {
 }
 
 function Ensure-ServiceRunning($name){
-	# If service not running, start it
 	$pidFile = Get-PidPath $name
 	$isRunning = $false
 	if (Test-Path $pidFile){
@@ -193,21 +215,37 @@ function Wait-For-Url([string]$url, [int]$timeoutSec = 30){
 	return $false
 }
 
+function Wait-For-Service([string]$name, [int]$timeoutSec = 45){
+	$healthUrl = $HealthUrls[$name]
+	if (-not $healthUrl) { 
+		Write-Host "  $name : no health check URL, skipping wait"
+		return $true 
+	}
+	Write-Host "  Waiting for $name to become ready..."
+	$ok = Wait-For-Url $healthUrl $timeoutSec
+	if ($ok) {
+		Write-Host "  $name : ✓ ready" -ForegroundColor Green
+	} else {
+		Write-Host "  $name : ⚠ timeout after ${timeoutSec}s (may still be starting)" -ForegroundColor Yellow
+	}
+	return $ok
+}
+
 switch ($Command.ToLower()){
 	'help' { Get-Help; break }
 	'setup' { Cmd-Setup; break }
 	'start' {
-		foreach ($k in $Services.Keys){ Start-ServiceProc $k $Services[$k] }
+		foreach ($k in $ServiceOrder){ Start-ServiceProc $k $Services[$k] }
 		break
 	}
 	'stop' {
-		foreach ($k in $Services.Keys){ Stop-ServiceProc $k }
+		foreach ($k in $ServiceOrder){ Stop-ServiceProc $k }
 		break
 	}
 	'restart' {
-		foreach ($k in $Services.Keys){ Stop-ServiceProc $k }
+		foreach ($k in $ServiceOrder){ Stop-ServiceProc $k }
 		Start-Sleep -Seconds 1
-		foreach ($k in $Services.Keys){ Start-ServiceProc $k $Services[$k] }
+		foreach ($k in $ServiceOrder){ Start-ServiceProc $k $Services[$k] }
 		break
 	}
 	'status' { Show-Status; break }
@@ -217,20 +255,32 @@ switch ($Command.ToLower()){
 	}
 	'open' { Open-Dashboard; break }
 	'dashboard' {
-		# Ensure essential services are running, then open dashboard with CLI token
+		Write-Host "=== 百花谷 Dashboard ===" -ForegroundColor Cyan
+
+		# 1. 启动所有后端服务（按顺序）
+		Ensure-ServiceRunning 'ai'
+		Ensure-ServiceRunning 'vault'
 		Ensure-ServiceRunning 'taskrunner'
 		Ensure-ServiceRunning 'webui'
 
-		# Wait for WebUI to be available
-		$webUrl = 'http://127.0.0.1:5177/login'
-		Write-Host "Waiting for WebUI ($webUrl) to become available..."
-		if (-not (Wait-For-Url $webUrl 30)){
-			Write-Host "Timeout waiting for WebUI. Check logs:"
-			Write-Host "  .\\bhg.ps1 logs webui"
-			break
+		# 2. 等待后端服务就绪
+		Write-Host ""
+		Write-Host "Waiting for services to become ready..." -ForegroundColor Cyan
+		$allReady = $true
+		foreach ($name in @('ai', 'vault', 'taskrunner')) {
+			if (-not (Wait-For-Service $name 45)) { $allReady = $false }
 		}
 
-		# Get CLI token from WebUI and open with auto-login
+		# 3. 等待 WebUI 就绪
+		Write-Host "  Waiting for WebUI to become ready..."
+		if (-not (Wait-For-Url 'http://127.0.0.1:5177/login' 30)){
+			Write-Host "  WebUI : ⚠ timeout. Check logs: .\bhg.ps1 logs webui" -ForegroundColor Yellow
+			break
+		}
+		Write-Host "  WebUI : ✓ ready" -ForegroundColor Green
+
+		# 4. 获取 CLI token 并打开浏览器
+		Write-Host ""
 		try {
 			$resp = Invoke-WebRequest -Uri 'http://127.0.0.1:5177/api/auth/cli-token' -Method POST -UseBasicParsing -TimeoutSec 5 -ErrorAction Stop
 			$json = $resp.Content | ConvertFrom-Json
@@ -246,6 +296,12 @@ switch ($Command.ToLower()){
 		} catch {
 			Write-Host "Failed to get CLI token: ${_}. Opening without auto-login"
 			Open-Dashboard
+		}
+
+		if (-not $allReady) {
+			Write-Host ""
+			Write-Host "⚠ Some backend services are not ready yet. The page may show incomplete data." -ForegroundColor Yellow
+			Write-Host "  Run '.\bhg.ps1 status' to check, or '.\bhg.ps1 logs <name>' for details." -ForegroundColor Yellow
 		}
 		break
 	}
