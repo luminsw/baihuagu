@@ -63,6 +63,7 @@ namespace WebUI.Services
         Task<bool> WriteVaultNoteAsync(string path, string content, string vaultId);
         Task<GenerateMissingNoteResponse?> GenerateMissingNoteAsync(string linkPath, string vaultId);
         Task<VaultBrowseResponse?> GetVaultBrowseAsync(string vaultId, string? path = null);
+        Task<VaultNotesBatchResponse?> GetVaultNotesBatchAsync(string vaultId);
 
         Task<string?> GetVaultRootAsync();
         Task<bool> SetVaultRootAsync(string vaultPath);
@@ -192,6 +193,7 @@ namespace WebUI.Services
 
         /// <summary>拆笔记、AI 等长请求，仅用 HttpClient 全局超时。</summary>
         private static readonly TimeSpan LongHttpTimeout = TimeSpan.FromMinutes(5);
+        private static readonly JsonSerializerOptions _caseInsensitiveJsonOptions = new() { PropertyNameCaseInsensitive = true };
 
         private readonly HttpClient _httpClient;
         private readonly HttpClient _aiHttpClient;
@@ -1122,6 +1124,23 @@ namespace WebUI.Services
             catch (Exception ex)
             {
                 _logger.LogError(ex, "浏览知识库失败，vaultId: {VaultId}", vaultId);
+                return null;
+            }
+        }
+
+        public async Task<VaultNotesBatchResponse?> GetVaultNotesBatchAsync(string vaultId)
+        {
+            try
+            {
+                using var cts = new CancellationTokenSource(LongHttpTimeout);
+                var response = await _vaultHttpClient.GetAsync($"/api/vaults/{vaultId}/notes-batch", cts.Token);
+                if (!response.IsSuccessStatusCode)
+                    return null;
+                return await response.Content.ReadFromJsonAsync<VaultNotesBatchResponse>(_caseInsensitiveJsonOptions, cts.Token);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "批量获取笔记失败，vaultId: {VaultId}", vaultId);
                 return null;
             }
         }

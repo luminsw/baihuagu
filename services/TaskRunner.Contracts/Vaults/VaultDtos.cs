@@ -109,3 +109,11 @@ public class VaultBrowseResponse
     public string CurrentPath { get; set; } = "";
     public List<VaultBrowseItem> Items { get; set; } = new();
 }
+
+/// <summary>
+/// 批量获取笔记响应（听知识库用）
+/// </summary>
+public class VaultNotesBatchResponse
+{
+    public List<VaultNoteResponse> Notes { get; set; } = new();
+}
