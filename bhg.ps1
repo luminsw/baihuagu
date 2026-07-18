@@ -221,23 +221,27 @@ function Wait-For-Service([string]$name, [int]$timeoutSec = 20){
 		Write-Host "  $name : no health check URL, skipping wait"
 		return $true 
 	}
-	# 先等 3 秒让进程完成初始化
-	Start-Sleep -Seconds 3
+	# 先等 5 秒让 dotnet run 进程稳定（dotnet run 会先编译再启动，PID 可能短暂不可用）
+	Start-Sleep -Seconds 5
 	$sw = [System.Diagnostics.Stopwatch]::StartNew()
+	$crashCheckDone = $false
 	while ($sw.Elapsed.TotalSeconds -lt $timeoutSec){
-		# 检查进程是否还活着
-		$pidFile = Get-PidPath $name
-		if (Test-Path $pidFile){
-			$srvPid = Get-Content $pidFile -ErrorAction SilentlyContinue
-			if ($srvPid -and -not (Get-Process -Id $srvPid -ErrorAction SilentlyContinue)){
-				Write-Host "  $name : ✗ process crashed" -ForegroundColor Red
-				$errLog = "$(Get-LogPath $name).err"
-				if (Test-Path $errLog) {
-					Write-Host "  Last 5 lines of error log:" -ForegroundColor Yellow
-					Get-Content $errLog -Tail 5 | ForEach-Object { Write-Host "    $_" }
+		# 仅在首次循环检查进程存活（5 秒后进程应已稳定）
+		if (-not $crashCheckDone) {
+			$pidFile = Get-PidPath $name
+			if (Test-Path $pidFile){
+				$srvPid = Get-Content $pidFile -ErrorAction SilentlyContinue
+				if ($srvPid -and -not (Get-Process -Id $srvPid -ErrorAction SilentlyContinue)){
+					Write-Host "  $name : ✗ process crashed" -ForegroundColor Red
+					$errLog = "$(Get-LogPath $name).err"
+					if (Test-Path $errLog) {
+						Write-Host "  Last 5 lines of error log:" -ForegroundColor Yellow
+						Get-Content $errLog -Tail 5 -Encoding UTF8 | ForEach-Object { Write-Host "    $_" }
+					}
+					return $false
 				}
-				return $false
 			}
+			$crashCheckDone = $true
 		}
 		try{
 			$resp = Invoke-WebRequest -Uri $healthUrl -UseBasicParsing -TimeoutSec 2 -ErrorAction Stop
