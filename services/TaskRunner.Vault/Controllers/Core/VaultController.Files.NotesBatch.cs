@@ -42,7 +42,7 @@ public partial class VaultController
 
                 var content = System.IO.File.ReadAllText(file);
                 var title = System.IO.Path.GetFileNameWithoutExtension(file);
-                var tags = ExtractTags(content);
+                var (tags, aiGenerated, aiProvider, aiModel, generatedAt) = ExtractFrontmatter(content);
 
                 notes.Add(new VaultNoteResponse
                 {
@@ -50,7 +50,11 @@ public partial class VaultController
                     Title = title,
                     Content = content,
                     Modified = System.IO.File.GetLastWriteTime(file),
-                    Tags = tags
+                    Tags = tags,
+                    AiGenerated = aiGenerated,
+                    AiProvider = aiProvider,
+                    AiModel = aiModel,
+                    GeneratedAt = generatedAt
                 });
             }
             catch (Exception ex)

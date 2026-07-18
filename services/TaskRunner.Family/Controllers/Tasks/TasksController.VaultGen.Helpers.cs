@@ -128,7 +128,8 @@ namespace TaskRunner.Controllers
                                 var categoryDir = System.IO.Path.Combine(notesRoot, item.category);
                                 System.IO.Directory.CreateDirectory(categoryDir);
                                 var noteFilePath = System.IO.Path.Combine(categoryDir, $"{safeTitle}.md");
-                                await System.IO.File.WriteAllTextAsync(noteFilePath, content, linkedCts.Token);
+                                var frontmatter = $"---\nai_generated: true\nai_provider: {provider?.Name ?? ""}\nai_model: {modelName}\ngenerated_at: {DateTimeOffset.UtcNow:O}\n---\n";
+                                await System.IO.File.WriteAllTextAsync(noteFilePath, frontmatter + content, linkedCts.Token);
                                 var notePath = $"{item.category}/{safeTitle}";
                                 generatedNotes.Add((item.title, notePath));
                             }

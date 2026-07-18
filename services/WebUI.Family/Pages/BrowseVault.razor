@@ -207,6 +207,24 @@
                     }
                     else
                     {
+                        @if (noteContent.AiGenerated)
+                        {
+                            <div class="mb-3 d-flex flex-wrap gap-1 align-items-center">
+                                <span class="badge bg-info">🤖 AI 生成</span>
+                                @if (!string.IsNullOrEmpty(noteContent.AiProvider))
+                                {
+                                    <span class="badge bg-light text-dark border">@noteContent.AiProvider</span>
+                                }
+                                @if (!string.IsNullOrEmpty(noteContent.AiModel))
+                                {
+                                    <span class="badge bg-light text-dark border">@noteContent.AiModel</span>
+                                }
+                                @if (noteContent.GeneratedAt.HasValue)
+                                {
+                                    <span class="badge bg-light text-dark border">@noteContent.GeneratedAt.Value.ToString("yyyy-MM-dd HH:mm")</span>
+                                }
+                            </div>
+                        }
                         @if (noteContent.Tags?.Any() == true)
                         {
                             <div class="mb-3">

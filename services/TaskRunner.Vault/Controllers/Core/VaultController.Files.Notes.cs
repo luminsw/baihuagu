@@ -49,7 +49,7 @@ public partial class VaultController
             var content = System.IO.File.ReadAllText(filePath);
             var title = System.IO.Path.GetFileNameWithoutExtension(path);
             var modified = System.IO.File.GetLastWriteTime(filePath);
-            var tags = ExtractTags(content);
+            var (tags, aiGenerated, aiProvider, aiModel, generatedAt) = ExtractFrontmatter(content);
 
             return Ok(new VaultNote
             {
@@ -57,7 +57,11 @@ public partial class VaultController
                 Title = title,
                 Content = content,
                 Modified = modified,
-                Tags = tags
+                Tags = tags,
+                AiGenerated = aiGenerated,
+                AiProvider = aiProvider,
+                AiModel = aiModel,
+                GeneratedAt = generatedAt
             });
         }
         catch (Exception ex)
@@ -127,34 +131,61 @@ public partial class VaultController
 
     private List<string> ExtractTags(string content)
     {
+        var (tags, _, _, _, _) = ExtractFrontmatter(content);
+        return tags;
+    }
+
+    private (List<string> tags, bool aiGenerated, string? aiProvider, string? aiModel, DateTime? generatedAt) ExtractFrontmatter(string content)
+    {
         var tags = new List<string>();
-        
-        if (content.StartsWith("---"))
+        bool aiGenerated = false;
+        string? aiProvider = null;
+        string? aiModel = null;
+        DateTime? generatedAt = null;
+
+        if (!content.StartsWith("---")) return (tags, aiGenerated, aiProvider, aiModel, generatedAt);
+
+        var endIndex = content.IndexOf("---", 3);
+        if (endIndex <= 0) return (tags, aiGenerated, aiProvider, aiModel, generatedAt);
+
+        var frontmatter = content.Substring(0, endIndex);
+        var lines = frontmatter.Split('\n');
+
+        foreach (var line in lines)
         {
-            var endIndex = content.IndexOf("---", 3);
-            if (endIndex > 0)
+            if (line.StartsWith("tags:"))
             {
-                var frontmatter = content.Substring(0, endIndex);
-                var lines = frontmatter.Split('\n');
-                
-                foreach (var line in lines)
+                var tagPart = line.Substring(5).Trim();
+                if (tagPart.StartsWith("["))
                 {
-                    if (line.StartsWith("tags:"))
+                    var tagStr = tagPart.Trim('[', ']', ' ');
+                    if (!string.IsNullOrWhiteSpace(tagStr))
                     {
-                        var tagPart = line.Substring(5).Trim();
-                        if (tagPart.StartsWith("["))
-                        {
-                            var tagStr = tagPart.Trim('[', ']', ' ');
-                            if (!string.IsNullOrWhiteSpace(tagStr))
-                            {
-                                tags.AddRange(tagStr.Split(',').Select(t => t.Trim().Trim('"', '\'')));
-                            }
-                        }
+                        tags.AddRange(tagStr.Split(',').Select(t => t.Trim().Trim('"', '\'')));
                     }
                 }
             }
+            else if (line.StartsWith("ai_generated:"))
+            {
+                var val = line.Substring("ai_generated:".Length).Trim();
+                aiGenerated = val.Equals("true", StringComparison.OrdinalIgnoreCase);
+            }
+            else if (line.StartsWith("ai_provider:"))
+            {
+                aiProvider = line.Substring("ai_provider:".Length).Trim().Trim('"', '\'');
+            }
+            else if (line.StartsWith("ai_model:"))
+            {
+                aiModel = line.Substring("ai_model:".Length).Trim().Trim('"', '\'');
+            }
+            else if (line.StartsWith("generated_at:"))
+            {
+                var val = line.Substring("generated_at:".Length).Trim().Trim('"', '\'');
+                if (DateTimeOffset.TryParse(val, out var dto))
+                    generatedAt = dto.DateTime;
+            }
         }
 
-        return tags.Take(10).ToList();
+        return (tags.Take(10).ToList(), aiGenerated, aiProvider, aiModel, generatedAt);
     }
 }

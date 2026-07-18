@@ -52,6 +52,10 @@ namespace TaskRunner.Vault.Controllers
         public string Content { get; set; } = string.Empty;
         public DateTime Modified { get; set; }
         public List<string>? Tags { get; set; }
+        public bool AiGenerated { get; set; }
+        public string? AiProvider { get; set; }
+        public string? AiModel { get; set; }
+        public DateTime? GeneratedAt { get; set; }
     }
 
     public class WriteNoteRequest

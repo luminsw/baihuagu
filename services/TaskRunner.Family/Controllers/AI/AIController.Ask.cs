@@ -61,7 +61,7 @@ namespace TaskRunner.Controllers
                 }
                 if (request.SaveToVault && !string.IsNullOrEmpty(vaultPath))
                 {
-                    await SaveNote(note, vaultPath);
+                    await SaveNote(note, vaultPath, provider?.Name, model);
 
                     // 自动为该笔记生成 Anki 记忆卡片
                     try
