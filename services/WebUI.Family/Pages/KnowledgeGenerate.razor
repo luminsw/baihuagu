@@ -545,7 +545,7 @@ else
     private async Task GenerateFullVault(string industry)
     {
         isProcessing = true;
-        processingStep = "生成知识库笔记中...";
+        processingStep = "提交生成任务中...";
         try
         {
             var response = await ApiService.CreateVaultGenerationTaskAsync(industry.Trim(), aiQuery.Trim(), selectedModel);
@@ -553,15 +553,8 @@ else
             {
                 if (generateCards)
                 {
-                    processingStep = "笔记生成任务已提交，等待完成后生成记忆卡片...";
-                    StateHasChanged();
-
-                    await WaitForTaskCompletion(response.TaskId);
-
-                    if (!string.IsNullOrWhiteSpace(selectedVaultId) && selectedVaultId != "__new__")
-                    {
-                        await GenerateAnkiCards(selectedVaultId);
-                    }
+                    var vaultId = selectedVaultId == "__new__" ? "" : selectedVaultId;
+                    _ = TriggerCardGenerationAfterTaskAsync(response.TaskId, vaultId);
                 }
                 Navigation.NavigateTo("tasks");
             }
@@ -579,6 +572,22 @@ else
         {
             isProcessing = false;
             processingStep = "";
+        }
+    }
+
+    private async Task TriggerCardGenerationAfterTaskAsync(string taskId, string vaultId)
+    {
+        try
+        {
+            await WaitForTaskCompletion(taskId);
+            if (!string.IsNullOrWhiteSpace(vaultId))
+            {
+                await GenerateAnkiCards(vaultId);
+            }
+        }
+        catch (Exception ex)
+        {
+            Logger.LogWarning(ex, "任务完成后生成记忆卡片失败");
         }
     }
 
