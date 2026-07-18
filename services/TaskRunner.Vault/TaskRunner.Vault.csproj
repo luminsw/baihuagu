@@ -29,6 +29,7 @@
     <ProjectReference Include="..\TaskRunner.Data\TaskRunner.Data.csproj" />
     <ProjectReference Include="..\Core.Shared\TaskRunner.Core.Shared.csproj" />
     <ProjectReference Include="..\TaskRunner.Contracts\TaskRunner.Contracts.csproj" />
+
   </ItemGroup>
 
   <ItemGroup>

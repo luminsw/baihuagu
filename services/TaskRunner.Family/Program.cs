@@ -136,7 +136,7 @@ builder.Services.AddSignalR()
 builder.Services.AddDbContext<TaskRunner.Data.AppDbContext>(options =>
 {
     var dbPath = TaskRunner.Data.AppDbContext.GetDbPath();
-    options.UseSqlite($"Data Source={dbPath};Foreign Keys=True;")
+    options.UseSqlite($"Data Source={dbPath};Foreign Keys=True;", sqlite => sqlite.MigrationsAssembly("TaskRunner.Data"))
            .ConfigureWarnings(w => w.Ignore(Microsoft.EntityFrameworkCore.Diagnostics.RelationalEventId.PendingModelChangesWarning));
 }, ServiceLifetime.Scoped, ServiceLifetime.Singleton);
 
@@ -144,7 +144,7 @@ builder.Services.AddDbContext<TaskRunner.Data.AppDbContext>(options =>
 builder.Services.AddDbContextFactory<TaskRunner.Data.AppDbContext>(options =>
 {
     var dbPath = TaskRunner.Data.AppDbContext.GetDbPath();
-    options.UseSqlite($"Data Source={dbPath};Foreign Keys=True;")
+    options.UseSqlite($"Data Source={dbPath};Foreign Keys=True;", sqlite => sqlite.MigrationsAssembly("TaskRunner.Data"))
            .ConfigureWarnings(w => w.Ignore(Microsoft.EntityFrameworkCore.Diagnostics.RelationalEventId.PendingModelChangesWarning));
 }, ServiceLifetime.Singleton);
 
