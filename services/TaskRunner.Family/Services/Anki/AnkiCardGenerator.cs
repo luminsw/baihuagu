@@ -3,20 +3,26 @@ using System.Text.Json;
 using TaskRunner.Contracts.Anki;
 using TaskRunner.Helpers;
 using AnkiGen.Core;
+using Microsoft.Extensions.AI;
+using TaskRunner.Models;
 
 namespace TaskRunner.Services
 {
     /// <summary>
-    /// Anki 卡片生成服务：将知识库笔记转换为 Anki 记忆卡片
+    /// Anki 卡片生成服务：将知识库笔记转换为 Anki 记忆卡片（支持 AI 生成）
     /// </summary>
     public partial class AnkiCardGenerator
     {
         private readonly VaultSettingsService _vaultSettings;
+        private readonly AiClientService _aiClient;
+        private readonly AiSettingsService _aiSettings;
         private readonly ILogger<AnkiCardGenerator> _logger;
 
-        public AnkiCardGenerator(VaultSettingsService vaultSettings, ILogger<AnkiCardGenerator> logger)
+        public AnkiCardGenerator(VaultSettingsService vaultSettings, AiClientService aiClient, AiSettingsService aiSettings, ILogger<AnkiCardGenerator> logger)
         {
             _vaultSettings = vaultSettings;
+            _aiClient = aiClient;
+            _aiSettings = aiSettings;
             _logger = logger;
         }
 
@@ -148,6 +154,249 @@ namespace TaskRunner.Services
             }
             
             return tags;
+        }
+
+        // ========== AI 驱动卡片生成 ==========
+
+        private const string AnkiCardSystemPrompt = """"
+你是一位知识整理专家。请根据用户提供的 Markdown 笔记内容，提取核心知识点并生成 Anki 记忆卡片。
+要求：
+1. 生成 2-5 张卡片，覆盖笔记中最重要、最难记忆的知识点
+2. 每张卡片正面（front）是一个能引发主动回忆的简洁问题，不超过 50 字
+3. 每张卡片背面（back）是完整、准确的答案，不超过 200 字
+4. 如果笔记内容较少（少于 100 字），只生成 1-2 张概述卡片
+5. 输出严格为 JSON 数组格式，不要包含 markdown 代码块标记或其他说明文字
+"""";
+
+        /// <summary>
+        /// 使用 AI 从单篇笔记生成 Anki 卡片并保存为 JSON
+        /// </summary>
+        public async Task<GenerateResult> GenerateWithAiAsync(
+            string notePath, string? cardsPath = null, string? notesBasePath = null,
+            string? providerId = null, string? model = null)
+        {
+            try
+            {
+                var basePath = notesBasePath ?? _vaultSettings.NotesPath;
+                if (string.IsNullOrEmpty(basePath))
+                {
+                    return new GenerateResult { Success = false, Message = "笔记目录未配置" };
+                }
+
+                var fullPath = Path.Combine(basePath, notePath + ".md");
+                if (!File.Exists(fullPath))
+                {
+                    return new GenerateResult { Success = false, Message = $"笔记不存在：{fullPath}" };
+                }
+
+                var content = await File.ReadAllTextAsync(fullPath);
+                var title = ExtractTitle(content);
+
+                var cards = await CallAiForCardsAsync(title, content, providerId, model);
+
+                if (cards.Count == 0)
+                {
+                    return new GenerateResult
+                    {
+                        Success = true,
+                        Message = $"AI 未从笔记生成卡片: {title}",
+                        CardCount = 0
+                    };
+                }
+
+                var deckName = GetDeckName(notePath);
+                var deck = AnkiDeck.Create(deckName);
+                foreach (var card in cards)
+                {
+                    deck.AddCard(card.Front, card.Back, card.Tags?.ToArray() ?? Array.Empty<string>());
+                }
+
+                await SaveAsJson(notePath, deck, cardsPath);
+
+                return new GenerateResult
+                {
+                    Success = true,
+                    Message = $"AI 成功生成 {deck.Notes.Count} 张卡片: {title}",
+                    CardCount = deck.Notes.Count
+                };
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "AI 生成卡片失败: {NotePath}", notePath);
+                return new GenerateResult
+                {
+                    Success = false,
+                    Message = $"AI 生成失败: {ex.Message}",
+                    CardCount = 0
+                };
+            }
+        }
+
+        /// <summary>
+        /// 批量使用 AI 为目录中的所有笔记生成卡片
+        /// </summary>
+        public async Task<BatchGenerateResult> GenerateBatchWithAiAsync(
+            string directory, bool recursive = true, string? vaultId = null,
+            string? providerId = null, string? model = null)
+        {
+            var dirPath = directory;
+            if (!Directory.Exists(dirPath))
+            {
+                return new BatchGenerateResult { Success = false, Message = $"目录不存在：{directory}" };
+            }
+
+            string? cardsPath = null;
+            if (!string.IsNullOrEmpty(vaultId))
+            {
+                var vault = _vaultSettings.GetVaults().FirstOrDefault(v => v.Id == vaultId);
+                if (vault != null)
+                {
+                    cardsPath = Path.Combine(vault.Path, "cards");
+                }
+            }
+
+            var searchOption = recursive ? SearchOption.AllDirectories : SearchOption.TopDirectoryOnly;
+            var files = Directory.GetFiles(dirPath, "*.md", searchOption);
+
+            var results = new List<GenerateResult>();
+            var totalCards = 0;
+
+            foreach (var file in files)
+            {
+                var relativePath = Path.GetRelativePath(dirPath, file);
+                var notePath = relativePath.Substring(0, relativePath.Length - 3);
+
+                var result = await GenerateWithAiAsync(notePath, cardsPath, notesBasePath: dirPath, providerId, model);
+                results.Add(result);
+                if (result.Success)
+                {
+                    totalCards += result.CardCount;
+                }
+
+                await Task.Delay(500);
+            }
+
+            return new BatchGenerateResult
+            {
+                Success = true,
+                Message = $"AI 批量生成完成: {totalCards} 张卡片，来自 {files.Length} 篇笔记",
+                TotalCards = totalCards,
+                Results = results
+            };
+        }
+
+        /// <summary>
+        /// 调用 AI 大模型生成卡片内容
+        /// </summary>
+        private async Task<List<TaskRunner.Contracts.Anki.JsonCard>> CallAiForCardsAsync(
+            string title, string content,
+            string? providerId, string? model)
+        {
+            var provider = string.IsNullOrWhiteSpace(providerId)
+                ? _aiSettings.GetMainAiProvider()
+                : _aiSettings.GetAiProvider(providerId);
+
+            if (provider == null)
+            {
+                _logger.LogWarning("未找到 AI Provider 配置");
+                return new List<TaskRunner.Contracts.Anki.JsonCard>();
+            }
+
+            var modelName = string.IsNullOrWhiteSpace(model)
+                ? GetDefaultModel(provider)
+                : model;
+
+            var chatClient = _aiClient.CreateChatClient(provider.Id, modelName);
+
+            var userPrompt = $"笔记标题：{title}\n笔记内容：\n---\n{content}\n---\n\n请只输出 JSON 数组，不要有任何其他文字：\n[\n  {{ \"front\": \"...\", \"back\": \"...\" }}\n]";
+
+            var messages = new List<ChatMessage>
+            {
+                new(ChatRole.System, AnkiCardSystemPrompt),
+                new(ChatRole.User, userPrompt)
+            };
+
+            try
+            {
+                var response = await chatClient.GetResponseAsync(messages);
+                var rawText = response.Text?.Trim() ?? "";
+
+                rawText = ExtractJsonArray(rawText);
+                var cards = JsonSerializer.Deserialize<List<TaskRunner.Contracts.Anki.JsonCard>>(rawText,
+                    JsonHelper.CaseInsensitive);
+
+                if (cards == null || cards.Count == 0)
+                {
+                    _logger.LogWarning("AI 返回了空的卡片列表");
+                    return new List<TaskRunner.Contracts.Anki.JsonCard>();
+                }
+
+                foreach (var card in cards)
+                {
+                    card.Front = (card.Front ?? "").Trim();
+                    card.Back = (card.Back ?? "").Trim();
+                    if (card.Tags == null)
+                        card.Tags = new List<string>();
+                }
+
+                return cards.Where(c => !string.IsNullOrWhiteSpace(c.Front)
+                                         && !string.IsNullOrWhiteSpace(c.Back)).ToList();
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "AI 调用失败生成卡片");
+                return new List<TaskRunner.Contracts.Anki.JsonCard>();
+            }
+        }
+
+        /// <summary>
+        /// 从 AI 响应文本中提取 JSON 数组部分
+        /// </summary>
+        private static string ExtractJsonArray(string text)
+        {
+            if (text.StartsWith("```json", StringComparison.OrdinalIgnoreCase))
+            {
+                var end = text.LastIndexOf("```", StringComparison.Ordinal);
+                if (end > 7)
+                    text = text[7..end].Trim();
+            }
+            else if (text.StartsWith("```", StringComparison.Ordinal))
+            {
+                var end = text.LastIndexOf("```", StringComparison.Ordinal);
+                if (end > 3)
+                    text = text[3..end].Trim();
+            }
+
+            var start = text.IndexOf('[');
+            var endBracket = text.LastIndexOf(']');
+            if (start >= 0 && endBracket > start)
+            {
+                text = text[start..(endBracket + 1)];
+            }
+
+            return text;
+        }
+
+        private static string GetDefaultModel(AiProviderConfig provider)
+        {
+            var mainModel = provider.Models.FirstOrDefault(m => m.IsMain);
+            if (mainModel != null)
+                return mainModel.Name;
+            return provider.Models.FirstOrDefault()?.Name ?? "default";
+        }
+
+        private static string ExtractTitle(string content)
+        {
+            var lines = content.Split('\n');
+            foreach (var line in lines)
+            {
+                var trimmed = line.Trim();
+                if (trimmed.StartsWith("# "))
+                {
+                    return trimmed.Substring(2).Trim();
+                }
+            }
+            return "";
         }
 
     }
