@@ -178,17 +178,18 @@ else
         {
             <div class="new-vault-hint alert alert-info mb-3">
                 <strong>✨ 新建知识库模式</strong>
+                <small class="ms-2 text-muted">AI 将自动命名并创建新知识库</small>
+            </div>
+
+            <!-- 生成记忆卡片选项（仅新建模式） -->
+            <div class="form-group">
+                <label class="form-check-label">
+                    <input type="checkbox" @bind="generateCards" class="form-check-input" />
+                    🧠 生成笔记后自动生成记忆卡片
+                </label>
+                <div class="form-text text-muted">笔记生成完成后，自动将其转换为 Anki 记忆卡片</div>
             </div>
         }
-
-        <!-- 生成记忆卡片选项 -->
-        <div class="form-group">
-            <label class="form-check-label">
-                <input type="checkbox" @bind="generateCards" class="form-check-input" />
-                🧠 生成笔记后自动生成记忆卡片
-            </label>
-            <div class="form-text text-muted">笔记生成完成后，自动将其转换为 Anki 记忆卡片</div>
-        </div>
 
         <!-- 提示词编辑 -->
         <div class="form-group">
