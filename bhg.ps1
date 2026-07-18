@@ -21,6 +21,8 @@ param(
 )
 
 [Console]::OutputEncoding = [System.Text.Encoding]::UTF8
+[Console]::InputEncoding = [System.Text.Encoding]::UTF8
+$OutputEncoding = [System.Text.Encoding]::UTF8
 Set-StrictMode -Version Latest
 
 function Get-BhgRoot {
@@ -153,7 +155,7 @@ function Tail-Log($name){
 	if (-not (Test-Path $log)) { Write-Host "Log not found: $log"; if (Test-Path $errLog){ Write-Host "But stderr exists: $errLog" }; return }
 	Write-Host "Tailing log: $log (Ctrl+C to stop)"
 	if (Test-Path $errLog) { Write-Host "Also monitoring stderr: $errLog" }
-	Get-Content -Path $log -Tail 50 -Wait
+	Get-Content -Path $log -Tail 50 -Wait -Encoding UTF8
 }
 
 function Cmd-Setup {
