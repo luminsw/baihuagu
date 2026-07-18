@@ -5,6 +5,7 @@
 @inject DevicesService DevicesService
 @inject NavigationManager Navigation
 @inject ILogger<BrowseVault> Logger
+@inject IJSRuntime JSRuntime
 @using Markdig
 @using Microsoft.JSInterop
 @using TaskRunner.Contracts.Vaults
@@ -72,9 +73,9 @@
             {
                 <div class="col-md-3 col-sm-4 col-6">
                     <div class="card h-100 vault-folder-card">
-                        <div class="card-body text-center py-4" @onclick="() => SelectVault(v.Id)" style="cursor:pointer;">
-                            <div class="fs-1 mb-2">📚</div>
-                            <div class="fw-bold text-truncate">@v.Name</div>
+                        <div class="card-body text-center py-4">
+                            <div class="fs-1 mb-2" @onclick="() => SelectVault(v.Id)" style="cursor:pointer;">📚</div>
+                            <div class="fw-bold text-truncate" @onclick="() => SelectVault(v.Id)" style="cursor:pointer;">@v.Name</div>
                             <div class="mt-1 d-flex flex-wrap justify-content-center gap-1">
                                 @if (v.Source == "mobile")
                                 {
@@ -98,6 +99,11 @@
                                     }
                                 </div>
                             }
+                            <div class="mt-2">
+                                <button class="btn btn-sm btn-outline-primary" @onclick="() => StartListening(v.Id, v.Name)" title="听知识库">
+                                    🎧 听
+                                </button>
+                            </div>
                         </div>
                     </div>
                 </div>
@@ -221,6 +227,79 @@
             </div>
         </div>
     </div>
+
+    @if (showListeningModal)
+    {
+        <div class="modal show" style="display:block;" tabindex="-1">
+            <div class="modal-dialog modal-lg">
+                <div class="modal-content">
+                    <div class="modal-header">
+                        <h5 class="modal-title">🎧 听知识库 - @listeningVaultName</h5>
+                        <button type="button" class="btn-close" @onclick="CloseListening"></button>
+                    </div>
+                    <div class="modal-body">
+                        @if (listeningPlaylist.Count == 0)
+                        {
+                            <div class="text-center py-4">
+                                <p class="text-muted">该知识库暂无笔记</p>
+                            </div>
+                        }
+                        else
+                        {
+                            <div class="mb-4">
+                                <div class="card">
+                                    <div class="card-body">
+                                        <div class="d-flex justify-content-between align-items-center mb-2">
+                                            <span class="text-muted small">@(listeningCurrentIndex + 1) / @listeningPlaylist.Count</span>
+                                            <span class="badge bg-primary">@(isPlaying ? "播放中" : "已暂停")</span>
+                                        </div>
+                                        <h4 class="card-title">@listeningPlaylist[listeningCurrentIndex].Title</h4>
+                                        <p class="card-text text-muted small">
+                                            @StripMarkdown(listeningPlaylist[listeningCurrentIndex].Content ?? "").Substring(0, Math.Min(200, StripMarkdown(listeningPlaylist[listeningCurrentIndex].Content ?? "").Length))@(StripMarkdown(listeningPlaylist[listeningCurrentIndex].Content ?? "").Length > 200 ? "..." : "")
+                                        </p>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div class="mb-3">
+                                <div class="d-flex justify-content-center gap-3">
+                                    <button class="btn btn-outline-secondary" @onclick="PlayPrev" disabled="@(listeningCurrentIndex == 0)">
+                                        ← 上一篇
+                                    </button>
+                                    <button class="btn btn-primary" @onclick="() => { if (isPlaying) StopPlaying(); else PlayCurrentNote(); }">
+                                        @(isPlaying ? "⏸ 暂停" : "▶ 播放")
+                                    </button>
+                                    <button class="btn btn-outline-secondary" @onclick="PlayNext" disabled="@(listeningCurrentIndex >= listeningPlaylist.Count - 1)">
+                                        下一篇 →
+                                    </button>
+                                </div>
+                            </div>
+
+                            <div class="list-group">
+                                <h6 class="text-muted mb-2">播放列表</h6>
+                                @foreach (var (index, item) in listeningPlaylist.Select((item, index) => (index, item)))
+                                {
+                                    <button class="list-group-item list-group-item-action @(index == listeningCurrentIndex ? "active" : "")" @onclick="() => { listeningCurrentIndex = index; PlayCurrentNote(); }">
+                                        <div class="d-flex justify-content-between align-items-center">
+                                            <span>@(index + 1). @item.Title</span>
+                                            @if (index == listeningCurrentIndex && isPlaying)
+                                            {
+                                                <span class="text-primary">▶</span>
+                                            }
+                                        </div>
+                                    </button>
+                                }
+                            </div>
+                        }
+                    </div>
+                    <div class="modal-footer">
+                        <button class="btn btn-secondary" @onclick="CloseListening">关闭</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="modal-backdrop fade show"></div>
+    }
 }
 
 
@@ -306,6 +385,13 @@
     private bool showNoteModal = false;
     private VaultBrowseItem? selectedNoteItem = null;
     private VaultNoteResponse? noteContent = null;
+
+    private bool showListeningModal = false;
+    private string listeningVaultId = "";
+    private string listeningVaultName = "";
+    private List<(string Path, string Title, string? Content)> listeningPlaylist = new();
+    private int listeningCurrentIndex = 0;
+    private bool isPlaying = false;
 
 
     protected override async Task OnInitializedAsync()
@@ -422,6 +508,114 @@
         showNoteModal = false;
         selectedNoteItem = null;
         noteContent = null;
+    }
+
+    private async Task StartListening(string vaultId, string vaultName)
+    {
+        listeningVaultId = vaultId;
+        listeningVaultName = vaultName;
+        listeningPlaylist = new List<(string Path, string Title, string? Content)>();
+        listeningCurrentIndex = 0;
+        isPlaying = false;
+
+        await BuildVaultPlaylist(vaultId, "");
+
+        showListeningModal = true;
+        await InvokeAsync(StateHasChanged);
+    }
+
+    private async Task BuildVaultPlaylist(string vaultId, string path)
+    {
+        try
+        {
+            var response = await ApiService.GetVaultBrowseAsync(vaultId, path);
+            if (response != null)
+            {
+                foreach (var item in response.Items)
+                {
+                    if (item.IsDirectory)
+                    {
+                        await BuildVaultPlaylist(vaultId, item.Path);
+                    }
+                    else
+                    {
+                        var note = await ApiService.ReadVaultNoteAsync(item.Path, vaultId);
+                        if (note != null)
+                        {
+                            listeningPlaylist.Add((item.Path, note.Title ?? item.Name, note.Content));
+                        }
+                    }
+                }
+            }
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "构建播放列表失败");
+        }
+    }
+
+    private async void PlayCurrentNote()
+    {
+        if (listeningCurrentIndex >= listeningPlaylist.Count)
+        {
+            isPlaying = false;
+            return;
+        }
+
+        var item = listeningPlaylist[listeningCurrentIndex];
+        var textToSpeak = $"{item.Title}. {StripMarkdown(item.Content ?? "")}";
+        
+        await JSRuntime.InvokeVoidAsync("speakText", textToSpeak);
+        isPlaying = true;
+    }
+
+    private void PlayNext()
+    {
+        if (listeningCurrentIndex < listeningPlaylist.Count - 1)
+        {
+            listeningCurrentIndex++;
+            PlayCurrentNote();
+        }
+        else
+        {
+            isPlaying = false;
+        }
+    }
+
+    private void PlayPrev()
+    {
+        if (listeningCurrentIndex > 0)
+        {
+            listeningCurrentIndex--;
+            PlayCurrentNote();
+        }
+    }
+
+    private async void StopPlaying()
+    {
+        await JSRuntime.InvokeVoidAsync("stopSpeaking");
+        isPlaying = false;
+    }
+
+    private void CloseListening()
+    {
+        StopPlaying();
+        showListeningModal = false;
+        listeningPlaylist.Clear();
+    }
+
+    private static string StripMarkdown(string markdown)
+    {
+        if (string.IsNullOrWhiteSpace(markdown)) return "";
+        var result = markdown
+            .Replace("# ", "").Replace("## ", "").Replace("### ", "").Replace("#### ", "").Replace("##### ", "")
+            .Replace("*", "").Replace("_", "").Replace("**", "").Replace("__", "")
+            .Replace("[", "").Replace("]", "").Replace("(", "").Replace(")", "")
+            .Replace("`", "").Replace("~", "")
+            .Replace("> ", "")
+            .Replace("\n\n", "\n")
+            .Trim();
+        return result;
     }
 
     private void OpenInDetailPage()
