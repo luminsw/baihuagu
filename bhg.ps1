@@ -17,7 +17,8 @@
 #>
 param(
 	[string]$Command = 'dashboard',
-	[string]$Arg
+	[string]$Arg,
+	[string]$Browser = ''
 )
 
 # Ensure console uses UTF-8 output when possible (helps display Chinese in Windows PowerShell / pwsh)
@@ -144,10 +145,18 @@ function Cmd-Setup {
 	} else { Write-Host "Vault not set, abort." }
 }
 
+function Open-InBrowser([string]$url){
+	if ($Browser) {
+		Write-Host "Opening: $url (browser: $Browser)"
+		try { Start-Process $Browser $url } catch { Write-Host "Cannot launch browser '${Browser}': ${_}" }
+	} else {
+		Write-Host "Opening: $url"
+		try { Start-Process $url } catch { Write-Host "Cannot open browser: ${_}" }
+	}
+}
+
 function Open-Dashboard {
-	$url = 'http://127.0.0.1:5177'
-	Write-Host "Opening: $url"
-	try { Start-Process $url } catch { Write-Host "Cannot open browser: ${_}" }
+	Open-InBrowser 'http://127.0.0.1:5177'
 }
 
 function Ensure-ServiceRunning($name){
@@ -229,7 +238,7 @@ switch ($Command.ToLower()){
 			if ($token) {
 				$dashboardUrl = "http://127.0.0.1:5177/?cli-token=$token"
 				Write-Host "Opening dashboard with CLI token..."
-				Start-Process $dashboardUrl
+				Open-InBrowser $dashboardUrl
 			} else {
 				Write-Host "Failed to get CLI token, opening without auto-login"
 				Open-Dashboard
