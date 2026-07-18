@@ -43,10 +43,10 @@ $Services = @{
 	webui      = "services/WebUI.Family";
 }
 
-# 服务健康检查 URL
+# 服务健康检查 URL（用轻量端点，避免认证拦截）
 $HealthUrls = @{
 	ai         = 'http://127.0.0.1:8791/api/ai/config/providers'
-	vault      = 'http://127.0.0.1:8790/api/settings/vault-root-path-preference'
+	vault      = 'http://127.0.0.1:8790/vaults'
 	taskrunner = 'http://127.0.0.1:8788/api/capability'
 	webui      = 'http://127.0.0.1:5177/login'
 }
@@ -215,20 +215,45 @@ function Wait-For-Url([string]$url, [int]$timeoutSec = 30){
 	return $false
 }
 
-function Wait-For-Service([string]$name, [int]$timeoutSec = 45){
+function Wait-For-Service([string]$name, [int]$timeoutSec = 20){
 	$healthUrl = $HealthUrls[$name]
 	if (-not $healthUrl) { 
 		Write-Host "  $name : no health check URL, skipping wait"
 		return $true 
 	}
-	Write-Host "  Waiting for $name to become ready..."
-	$ok = Wait-For-Url $healthUrl $timeoutSec
-	if ($ok) {
-		Write-Host "  $name : ✓ ready" -ForegroundColor Green
-	} else {
-		Write-Host "  $name : ⚠ timeout after ${timeoutSec}s (may still be starting)" -ForegroundColor Yellow
+	# 先等 3 秒让进程完成初始化
+	Start-Sleep -Seconds 3
+	$sw = [System.Diagnostics.Stopwatch]::StartNew()
+	while ($sw.Elapsed.TotalSeconds -lt $timeoutSec){
+		# 检查进程是否还活着
+		$pidFile = Get-PidPath $name
+		if (Test-Path $pidFile){
+			$pid = Get-Content $pidFile -ErrorAction SilentlyContinue
+			if ($pid -and -not (Get-Process -Id $pid -ErrorAction SilentlyContinue)){
+				Write-Host "  $name : ✗ process crashed" -ForegroundColor Red
+				$errLog = "$(Get-LogPath $name).err"
+				if (Test-Path $errLog) {
+					Write-Host "  Last 5 lines of error log:" -ForegroundColor Yellow
+					Get-Content $errLog -Tail 5 | ForEach-Object { Write-Host "    $_" }
+				}
+				return $false
+			}
+		}
+		try{
+			$resp = Invoke-WebRequest -Uri $healthUrl -UseBasicParsing -TimeoutSec 2 -ErrorAction Stop
+			if ($resp.StatusCode -ge 200 -and $resp.StatusCode -lt 500){
+				Write-Host "  $name : ✓ ready" -ForegroundColor Green
+				return $true
+			}
+		} catch {
+			# retry
+		}
+		Write-Host "." -NoNewline
+		Start-Sleep -Seconds 2
 	}
-	return $ok
+	Write-Host ""
+	Write-Host "  $name : ⚠ timeout after ${timeoutSec}s" -ForegroundColor Yellow
+	return $false
 }
 
 switch ($Command.ToLower()){
@@ -257,29 +282,41 @@ switch ($Command.ToLower()){
 	'dashboard' {
 		Write-Host "=== 百花谷 Dashboard ===" -ForegroundColor Cyan
 
-		# 1. 启动所有后端服务（按顺序）
-		Ensure-ServiceRunning 'ai'
-		Ensure-ServiceRunning 'vault'
-		Ensure-ServiceRunning 'taskrunner'
-		Ensure-ServiceRunning 'webui'
-
-		# 2. 等待后端服务就绪
-		Write-Host ""
-		Write-Host "Waiting for services to become ready..." -ForegroundColor Cyan
-		$allReady = $true
-		foreach ($name in @('ai', 'vault', 'taskrunner')) {
-			if (-not (Wait-For-Service $name 45)) { $allReady = $false }
+		# 清理僵尸进程
+		foreach ($name in $ServiceOrder) {
+			$pidFile = Get-PidPath $name
+			if (Test-Path $pidFile) {
+				$pid = Get-Content $pidFile -ErrorAction SilentlyContinue
+				if ($pid -and -not (Get-Process -Id $pid -ErrorAction SilentlyContinue)) {
+					Remove-Item $pidFile -ErrorAction SilentlyContinue
+				}
+			}
 		}
 
-		# 3. 等待 WebUI 就绪
-		Write-Host "  Waiting for WebUI to become ready..."
-		if (-not (Wait-For-Url 'http://127.0.0.1:5177/login' 30)){
-			Write-Host "  WebUI : ⚠ timeout. Check logs: .\bhg.ps1 logs webui" -ForegroundColor Yellow
+		# 启动所有服务
+		foreach ($name in $ServiceOrder) {
+			Ensure-ServiceRunning $name
+		}
+
+		# 等待后端服务就绪
+		Write-Host ""
+		Write-Host "Waiting for services..." -ForegroundColor Cyan
+		$failedServices = @()
+		foreach ($name in @('ai', 'vault', 'taskrunner')) {
+			Write-Host "  $name : " -NoNewline
+			if (-not (Wait-For-Service $name 20)) { $failedServices += $name }
+		}
+
+		# 等待 WebUI 就绪
+		Write-Host "  webui : " -NoNewline
+		Start-Sleep -Seconds 2
+		if (-not (Wait-For-Url 'http://127.0.0.1:5177/login' 15)){
+			Write-Host "  webui : ✗ not ready. Check: .\bhg.ps1 logs webui" -ForegroundColor Red
 			break
 		}
-		Write-Host "  WebUI : ✓ ready" -ForegroundColor Green
+		Write-Host "  webui : ✓ ready" -ForegroundColor Green
 
-		# 4. 获取 CLI token 并打开浏览器
+		# 获取 CLI token 并打开浏览器
 		Write-Host ""
 		try {
 			$resp = Invoke-WebRequest -Uri 'http://127.0.0.1:5177/api/auth/cli-token' -Method POST -UseBasicParsing -TimeoutSec 5 -ErrorAction Stop
@@ -290,18 +327,17 @@ switch ($Command.ToLower()){
 				Write-Host "Opening dashboard with CLI token..."
 				Open-InBrowser $dashboardUrl
 			} else {
-				Write-Host "Failed to get CLI token, opening without auto-login"
 				Open-Dashboard
 			}
 		} catch {
-			Write-Host "Failed to get CLI token: ${_}. Opening without auto-login"
+			Write-Host "Failed to get CLI token, opening without auto-login"
 			Open-Dashboard
 		}
 
-		if (-not $allReady) {
+		if ($failedServices.Count -gt 0) {
 			Write-Host ""
-			Write-Host "⚠ Some backend services are not ready yet. The page may show incomplete data." -ForegroundColor Yellow
-			Write-Host "  Run '.\bhg.ps1 status' to check, or '.\bhg.ps1 logs <name>' for details." -ForegroundColor Yellow
+			Write-Host "⚠ Some services failed: $($failedServices -join ', ')" -ForegroundColor Yellow
+			Write-Host "  Check logs: .\bhg.ps1 logs <name>" -ForegroundColor Yellow
 		}
 		break
 	}
