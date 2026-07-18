@@ -274,11 +274,26 @@
 
                     <div style="max-height:300px;overflow:auto;border:1px solid #eee;border-radius:6px;">
                         <div style="padding:8px 16px;color:#666;font-size:14px;border-bottom:1px solid #eee;">播放列表</div>
+                        @{
+                            string? lastCategory = null;
+                        }
                         @foreach (var (index, item) in listeningPlaylist.Select((item, index) => (index, item)))
                         {
+                            @if (!string.IsNullOrEmpty(item.Category) && item.Category != lastCategory)
+                            {
+                                lastCategory = item.Category;
+                                <div style="padding:6px 16px;background:#f0f2f5;color:#555;font-size:12px;font-weight:600;border-bottom:1px solid #e0e0e0;">📁 @item.Category</div>
+                            }
                             <button @onclick="() => JumpToNote(index)" 
                                     class="playlist-item @(index == listeningCurrentIndex ? "playlist-active" : "")">
-                                <span>@(index + 1). @item.Title</span>
+                                <span style="display:flex;align-items:center;gap:6px;">
+                                    <span>@(index + 1).</span>
+                                    <span>@item.Title</span>
+                                    @if (!string.IsNullOrEmpty(item.Category) && index == listeningCurrentIndex)
+                                    {
+                                        <span style="font-size:11px;opacity:0.7;">[@item.Category]</span>
+                                    }
+                                </span>
                                 @if (index == listeningCurrentIndex && isPlaying)
                                 {
                                     <span>▶</span>
@@ -401,7 +416,7 @@
     private bool showListeningModal = false;
     private string listeningVaultId = "";
     private string listeningVaultName = "";
-    private List<(string Path, string Title, string? Content)> listeningPlaylist = new();
+    private List<(string Path, string Title, string? Content, string Category)> listeningPlaylist = new();
     private int listeningCurrentIndex = 0;
     private bool isPlaying = false;
 
@@ -533,7 +548,7 @@
             
             listeningVaultId = vaultId;
             listeningVaultName = vaultName;
-            listeningPlaylist = new List<(string Path, string Title, string? Content)>();
+            listeningPlaylist = new List<(string Path, string Title, string? Content, string Category)>();
             listeningCurrentIndex = 0;
             isPlaying = false;
 
@@ -579,7 +594,8 @@
                             var note = await ApiService.ReadVaultNoteAsync(item.Path, vaultId);
                             if (note != null)
                             {
-                                listeningPlaylist.Add((item.Path, note.Title ?? item.Name, note.Content));
+                                var category = ExtractCategory(item.Path);
+                                listeningPlaylist.Add((item.Path, note.Title ?? item.Name, note.Content, category));
                                 Logger.LogInformation("Added note: " + (note.Title ?? item.Name));
                             }
                             else
@@ -725,6 +741,17 @@
         }
         _dotNetRef?.Dispose();
         _dotNetRef = null;
+    }
+
+    private static string ExtractCategory(string path)
+    {
+        if (string.IsNullOrWhiteSpace(path)) return "";
+        var normalized = path.Replace('\\', '/');
+        var lastSlash = normalized.LastIndexOf('/');
+        if (lastSlash <= 0) return "";
+        var dir = normalized.Substring(0, lastSlash);
+        var parts = dir.Split('/', StringSplitOptions.RemoveEmptyEntries);
+        return parts.Length > 0 ? string.Join(" / ", parts) : "";
     }
 
     private static string StripMarkdown(string markdown)
