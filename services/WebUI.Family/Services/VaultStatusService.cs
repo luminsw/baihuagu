@@ -1,3 +1,6 @@
+using System.Text.Json;
+using TaskRunner.Contracts.Vaults;
+
 namespace WebUI.Services;
 
 /// <summary>
@@ -6,6 +9,7 @@ namespace WebUI.Services;
 /// </summary>
 public class VaultStatusService
 {
+    private static readonly JsonSerializerOptions _caseInsensitiveOptions = new() { PropertyNameCaseInsensitive = true };
     private readonly IHttpClientFactory _httpClientFactory;
     private readonly ILogger<VaultStatusService> _logger;
 
@@ -77,7 +81,7 @@ public class VaultStatusService
                 try
                 {
                     var client = _httpClientFactory.CreateClient("TaskRunnerVaultApi");
-                    var pref = await client.GetFromJsonAsync<VaultRootPathPreferenceResponse>("api/settings/vault-root-path-preference");
+                    var pref = await client.GetFromJsonAsync<VaultRootPathPreferenceResponse>("api/settings/vault-root-path-preference", _caseInsensitiveOptions);
                     var rootPath = pref?.VaultRootPath ?? string.Empty;
 
                     if (!string.IsNullOrEmpty(rootPath))
