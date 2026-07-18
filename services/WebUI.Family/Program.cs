@@ -2,6 +2,8 @@ using System.Net.Http.Json;
 using System.Security.Cryptography;
 using System.Text;
 
+using Microsoft.AspNetCore.DataProtection;
+
 using OpenTelemetry.Exporter;
 using OpenTelemetry.Metrics;
 using OpenTelemetry.Logs;
@@ -12,6 +14,12 @@ using WebUI.Logging;
 using WebUI.Middleware;
 
 var builder = WebApplication.CreateBuilder(args);
+
+var dataProtectionKeyPath = Path.Combine(AppContext.BaseDirectory, "data", "dp-keys");
+Directory.CreateDirectory(dataProtectionKeyPath);
+builder.Services.AddDataProtection()
+    .PersistKeysToFileSystem(new DirectoryInfo(dataProtectionKeyPath))
+    .SetApplicationName("WebUI.Family");
 
 // Configure logging
 builder.Logging.ClearProviders();

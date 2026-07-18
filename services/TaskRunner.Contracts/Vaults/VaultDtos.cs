@@ -1,3 +1,5 @@
+using System.Text.Json.Serialization;
+
 namespace TaskRunner.Contracts.Vaults;
 
 public class VaultConfig
@@ -25,6 +27,7 @@ public class VaultConfig
 
 public class VaultsResponse
 {
+    [JsonPropertyName("vaults")]
     public List<VaultConfig> Vaults { get; set; } = new();
 }
 

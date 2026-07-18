@@ -228,78 +228,70 @@
         </div>
     </div>
 
-    @if (showListeningModal)
-    {
-        <div class="modal show" style="display:block;" tabindex="-1">
-            <div class="modal-dialog modal-lg">
-                <div class="modal-content">
-                    <div class="modal-header">
-                        <h5 class="modal-title">🎧 听知识库 - @listeningVaultName</h5>
-                        <button type="button" class="btn-close" @onclick="CloseListening"></button>
+}
+
+<!-- 听知识库弹窗 -->
+@if (showListeningModal)
+{
+    <div class="modal-overlay" style="position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,0.5);z-index:1050;display:flex;align-items:center;justify-content:center;">
+        <div class="modal-content" style="background:white;border-radius:8px;width:90%;max-width:800px;max-height:80vh;overflow:auto;padding:20px;box-shadow:0 4px 20px rgba(0,0,0,0.3);">
+            <div class="modal-header" style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;border-bottom:1px solid #eee;padding-bottom:12px;">
+                <h5 class="modal-title" style="margin:0;font-size:18px;">🎧 听知识库 - @listeningVaultName</h5>
+                <button type="button" class="btn-close" @onclick="CloseListening" style="background:none;border:none;font-size:24px;cursor:pointer;">&times;</button>
+            </div>
+            <div class="modal-body" style="margin-bottom:16px;">
+                @if (listeningPlaylist.Count == 0)
+                {
+                    <div class="text-center py-4">
+                        <p class="text-muted">该知识库暂无笔记</p>
                     </div>
-                    <div class="modal-body">
-                        @if (listeningPlaylist.Count == 0)
-                        {
-                            <div class="text-center py-4">
-                                <p class="text-muted">该知识库暂无笔记</p>
-                            </div>
-                        }
-                        else
-                        {
-                            <div class="mb-4">
-                                <div class="card">
-                                    <div class="card-body">
-                                        <div class="d-flex justify-content-between align-items-center mb-2">
-                                            <span class="text-muted small">@(listeningCurrentIndex + 1) / @listeningPlaylist.Count</span>
-                                            <span class="badge bg-primary">@(isPlaying ? "播放中" : "已暂停")</span>
-                                        </div>
-                                        <h4 class="card-title">@listeningPlaylist[listeningCurrentIndex].Title</h4>
-                                        <p class="card-text text-muted small">
-                                            @StripMarkdown(listeningPlaylist[listeningCurrentIndex].Content ?? "").Substring(0, Math.Min(200, StripMarkdown(listeningPlaylist[listeningCurrentIndex].Content ?? "").Length))@(StripMarkdown(listeningPlaylist[listeningCurrentIndex].Content ?? "").Length > 200 ? "..." : "")
-                                        </p>
-                                    </div>
-                                </div>
-                            </div>
+                }
+                else
+                {
+                    <div class="mb-4" style="border:1px solid #eee;border-radius:6px;padding:16px;">
+                        <div class="d-flex justify-content-between align-items-center mb-2">
+                            <span class="text-muted small">@(listeningCurrentIndex + 1) / @listeningPlaylist.Count</span>
+                            <span style="background:#0d6efd;color:white;padding:2px 8px;border-radius:4px;font-size:12px;">@(isPlaying ? "播放中" : "已暂停")</span>
+                        </div>
+                        <h4 style="margin-top:0;">@listeningPlaylist[listeningCurrentIndex].Title</h4>
+                        <p style="color:#666;font-size:14px;overflow:hidden;text-overflow:ellipsis;">
+                            @StripMarkdown(listeningPlaylist[listeningCurrentIndex].Content ?? "").Substring(0, Math.Min(200, StripMarkdown(listeningPlaylist[listeningCurrentIndex].Content ?? "").Length))@(StripMarkdown(listeningPlaylist[listeningCurrentIndex].Content ?? "").Length > 200 ? "..." : "")
+                        </p>
+                    </div>
 
-                            <div class="mb-3">
-                                <div class="d-flex justify-content-center gap-3">
-                                    <button class="btn btn-outline-secondary" @onclick="PlayPrev" disabled="@(listeningCurrentIndex == 0)">
-                                        ← 上一篇
-                                    </button>
-                                    <button class="btn btn-primary" @onclick="() => { if (isPlaying) StopPlaying(); else PlayCurrentNote(); }">
-                                        @(isPlaying ? "⏸ 暂停" : "▶ 播放")
-                                    </button>
-                                    <button class="btn btn-outline-secondary" @onclick="PlayNext" disabled="@(listeningCurrentIndex >= listeningPlaylist.Count - 1)">
-                                        下一篇 →
-                                    </button>
-                                </div>
-                            </div>
+                    <div class="mb-3" style="display:flex;justify-content:center;gap:12px;">
+                        <button @onclick="PlayPrev" disabled="@(listeningCurrentIndex == 0)" style="padding:8px 16px;border:1px solid #ccc;border-radius:4px;background:white;cursor:pointer;" @class="{ 'opacity-50 cursor-not-allowed': listeningCurrentIndex == 0 }">
+                            ← 上一篇
+                        </button>
+                        <button @onclick="() => { if (isPlaying) StopPlaying(); else PlayCurrentNote(); }" style="padding:8px 24px;border:none;border-radius:4px;background:#0d6efd;color:white;cursor:pointer;font-size:16px;">
+                            @(isPlaying ? "⏸ 暂停" : "▶ 播放")
+                        </button>
+                        <button @onclick="PlayNext" disabled="@(listeningCurrentIndex >= listeningPlaylist.Count - 1)" style="padding:8px 16px;border:1px solid #ccc;border-radius:4px;background:white;cursor:pointer;" @class="{ 'opacity-50 cursor-not-allowed': listeningCurrentIndex >= listeningPlaylist.Count - 1 }">
+                            下一篇 →
+                        </button>
+                    </div>
 
-                            <div class="list-group">
-                                <h6 class="text-muted mb-2">播放列表</h6>
-                                @foreach (var (index, item) in listeningPlaylist.Select((item, index) => (index, item)))
+                    <div style="max-height:300px;overflow:auto;border:1px solid #eee;border-radius:6px;">
+                        <div style="padding:8px 16px;color:#666;font-size:14px;border-bottom:1px solid #eee;">播放列表</div>
+                        @foreach (var (index, item) in listeningPlaylist.Select((item, index) => (index, item)))
+                        {
+                            <button @onclick="() => { listeningCurrentIndex = index; PlayCurrentNote(); }" 
+                                    class="playlist-item @(index == listeningCurrentIndex ? "playlist-active" : "")">
+                                <span>@(index + 1). @item.Title</span>
+                                @if (index == listeningCurrentIndex && isPlaying)
                                 {
-                                    <button class="list-group-item list-group-item-action @(index == listeningCurrentIndex ? "active" : "")" @onclick="() => { listeningCurrentIndex = index; PlayCurrentNote(); }">
-                                        <div class="d-flex justify-content-between align-items-center">
-                                            <span>@(index + 1). @item.Title</span>
-                                            @if (index == listeningCurrentIndex && isPlaying)
-                                            {
-                                                <span class="text-primary">▶</span>
-                                            }
-                                        </div>
-                                    </button>
+                                    <span>▶</span>
                                 }
-                            </div>
+                            </button>
                         }
                     </div>
-                    <div class="modal-footer">
-                        <button class="btn btn-secondary" @onclick="CloseListening">关闭</button>
-                    </div>
-                </div>
+                }
+            </div>
+            <div class="modal-footer" style="display:flex;justify-content:flex-end;gap:12px;border-top:1px solid #eee;padding-top:12px;">
+                <button @onclick="CloseListening" style="padding:8px 20px;border:1px solid #ccc;border-radius:4px;background:white;cursor:pointer;">关闭</button>
             </div>
         </div>
-        <div class="modal-backdrop fade show"></div>
-    }
+    </div>
 }
 
 
@@ -349,6 +341,25 @@
     }
     .note-markdown-content th {
         background: #f5f8fa;
+    }
+    .playlist-item {
+        width: 100%;
+        padding: 10px 16px;
+        border: none;
+        background: white;
+        color: #333;
+        cursor: pointer;
+        text-align: left;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+    }
+    .playlist-item:hover {
+        background: #f5f8fa;
+    }
+    .playlist-active {
+        background: #0d6efd;
+        color: white;
     }
 </style>
 
@@ -510,47 +521,86 @@
         noteContent = null;
     }
 
+    private int clickCount = 0;
+
     private async Task StartListening(string vaultId, string vaultName)
     {
-        listeningVaultId = vaultId;
-        listeningVaultName = vaultName;
-        listeningPlaylist = new List<(string Path, string Title, string? Content)>();
-        listeningCurrentIndex = 0;
-        isPlaying = false;
+        try
+        {
+            clickCount++;
+            Logger.LogInformation("StartListening called: " + clickCount + ", vaultId: " + vaultId + ", vaultName: " + vaultName);
+            
+            listeningVaultId = vaultId;
+            listeningVaultName = vaultName;
+            listeningPlaylist = new List<(string Path, string Title, string? Content)>();
+            listeningCurrentIndex = 0;
+            isPlaying = false;
 
-        await BuildVaultPlaylist(vaultId, "");
+            Logger.LogInformation("Calling BuildVaultPlaylist...");
+            await BuildVaultPlaylist(vaultId, "");
 
-        showListeningModal = true;
-        await InvokeAsync(StateHasChanged);
+            Logger.LogInformation("Playlist count: " + listeningPlaylist.Count);
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError("StartListening failed: " + ex.Message);
+            Logger.LogError(ex, "StartListening exception");
+        }
+        finally
+        {
+            Logger.LogInformation("Setting showListeningModal to true");
+            showListeningModal = true;
+            await InvokeAsync(StateHasChanged);
+            Logger.LogInformation("StateHasChanged called");
+        }
     }
 
     private async Task BuildVaultPlaylist(string vaultId, string path)
     {
         try
         {
+            Logger.LogInformation("BuildVaultPlaylist: vaultId=" + vaultId + ", path=" + path);
             var response = await ApiService.GetVaultBrowseAsync(vaultId, path);
             if (response != null)
             {
+                Logger.LogInformation("GetVaultBrowseAsync returned: " + response.Items.Count + " items");
                 foreach (var item in response.Items)
                 {
+                    Logger.LogInformation("Item: " + item.Name + ", IsDirectory=" + item.IsDirectory);
                     if (item.IsDirectory)
                     {
                         await BuildVaultPlaylist(vaultId, item.Path);
                     }
                     else
                     {
-                        var note = await ApiService.ReadVaultNoteAsync(item.Path, vaultId);
-                        if (note != null)
+                        try
                         {
-                            listeningPlaylist.Add((item.Path, note.Title ?? item.Name, note.Content));
+                            var note = await ApiService.ReadVaultNoteAsync(item.Path, vaultId);
+                            if (note != null)
+                            {
+                                listeningPlaylist.Add((item.Path, note.Title ?? item.Name, note.Content));
+                                Logger.LogInformation("Added note: " + (note.Title ?? item.Name));
+                            }
+                            else
+                            {
+                                Logger.LogWarning("Note is null: " + item.Path);
+                            }
+                        }
+                        catch (Exception ex)
+                        {
+                            Logger.LogError("Read note failed: " + item.Path + ", error: " + ex.Message);
                         }
                     }
                 }
             }
+            else
+            {
+                Logger.LogWarning("GetVaultBrowseAsync returned null: " + vaultId + ", " + path);
+            }
         }
         catch (Exception ex)
         {
-            Logger.LogError(ex, "构建播放列表失败");
+            Logger.LogError("BuildVaultPlaylist exception: " + vaultId + ", " + path + ", error: " + ex.Message);
         }
     }
 
