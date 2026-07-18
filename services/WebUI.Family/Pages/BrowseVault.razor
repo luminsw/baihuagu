@@ -255,9 +255,9 @@
                             <span style="background:#0d6efd;color:white;padding:2px 8px;border-radius:4px;font-size:12px;">@(isPlaying ? "播放中" : "已暂停")</span>
                         </div>
                         <h4 style="margin-top:0;">@listeningPlaylist[listeningCurrentIndex].Title</h4>
-                        <p style="color:#666;font-size:14px;overflow:hidden;text-overflow:ellipsis;">
-                            @StripMarkdown(listeningPlaylist[listeningCurrentIndex].Content ?? "").Substring(0, Math.Min(200, StripMarkdown(listeningPlaylist[listeningCurrentIndex].Content ?? "").Length))@(StripMarkdown(listeningPlaylist[listeningCurrentIndex].Content ?? "").Length > 200 ? "..." : "")
-                        </p>
+                        <div style="color:#666;font-size:14px;max-height:200px;overflow-y:auto;line-height:1.7;white-space:pre-wrap;">
+                            @StripMarkdown(listeningPlaylist[listeningCurrentIndex].Content ?? "")
+                        </div>
                     </div>
 
                     <div class="mb-3" style="display:flex;justify-content:center;gap:12px;">
