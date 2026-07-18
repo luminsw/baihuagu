@@ -77,39 +77,40 @@ public class AppDbContext : DbContext
 
     private static string GetDefaultDbPath()
     {
-        string dataDir;
+        var dataDir = ResolveSharedDataDir();
+        Directory.CreateDirectory(dataDir);
+        return Path.Combine(dataDir, "taskrunner.db");
+    }
+
+    internal static string ResolveSharedDataDir()
+    {
         var envDir = Environment.GetEnvironmentVariable("YJ_DATA_DIR");
         if (!string.IsNullOrEmpty(envDir))
         {
-            dataDir = envDir;
+            return envDir;
         }
-        else
+
+        var baseDir = AppDomain.CurrentDomain.BaseDirectory;
+        var binDebug = Path.Combine("bin", "Debug");
+        var binRelease = Path.Combine("bin", "Release");
+        if (baseDir.Contains(binDebug) || baseDir.Contains(binRelease))
         {
-            var baseDir = AppDomain.CurrentDomain.BaseDirectory;
-            // dotnet run 模式下 BaseDirectory 指向 bin/Debug 或 bin/Release，每次编译会被清理
-            // 检测到此情况时回退到项目根目录的 data/，避免数据库丢失
-            var binDebug = Path.Combine("bin", "Debug");
-            var binRelease = Path.Combine("bin", "Release");
-            if (baseDir.Contains(binDebug) || baseDir.Contains(binRelease))
+            var index = baseDir.IndexOf(binDebug);
+            if (index < 0) index = baseDir.IndexOf(binRelease);
+            if (index > 0)
             {
-                var index = baseDir.IndexOf(binDebug);
-                if (index < 0) index = baseDir.IndexOf(binRelease);
-                if (index > 0)
+                var projectDir = baseDir.Substring(0, index);
+                var servicesDir = Path.GetDirectoryName(projectDir.TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar));
+                if (servicesDir != null && Path.GetFileName(servicesDir) == "services")
                 {
-                    dataDir = Path.Combine(baseDir.Substring(0, index), "data");
+                    return Path.Combine(servicesDir, "data");
                 }
-                else
-                {
-                    dataDir = Path.Combine(baseDir, "data");
-                }
+                return Path.Combine(projectDir, "data");
             }
-            else
-            {
-                dataDir = Path.Combine(baseDir, "data");
-            }
+            return Path.Combine(baseDir, "data");
         }
-        Directory.CreateDirectory(dataDir);
-        return Path.Combine(dataDir, "taskrunner.db");
+
+        return Path.Combine(baseDir, "data");
     }
 
     /// <summary>

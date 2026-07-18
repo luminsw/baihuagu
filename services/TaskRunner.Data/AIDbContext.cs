@@ -40,35 +40,7 @@ public class AIDbContext : DbContext
 
     private static string GetDefaultDbPath()
     {
-        string dataDir;
-        var envDir = Environment.GetEnvironmentVariable("YJ_DATA_DIR");
-        if (!string.IsNullOrEmpty(envDir))
-        {
-            dataDir = envDir;
-        }
-        else
-        {
-            var baseDir = AppDomain.CurrentDomain.BaseDirectory;
-            var binDebug = Path.Combine("bin", "Debug");
-            var binRelease = Path.Combine("bin", "Release");
-            if (baseDir.Contains(binDebug) || baseDir.Contains(binRelease))
-            {
-                var index = baseDir.IndexOf(binDebug);
-                if (index < 0) index = baseDir.IndexOf(binRelease);
-                if (index > 0)
-                {
-                    dataDir = Path.Combine(baseDir.Substring(0, index), "data");
-                }
-                else
-                {
-                    dataDir = Path.Combine(baseDir, "data");
-                }
-            }
-            else
-            {
-                dataDir = Path.Combine(baseDir, "data");
-            }
-        }
+        var dataDir = AppDbContext.ResolveSharedDataDir();
         Directory.CreateDirectory(dataDir);
         return Path.Combine(dataDir, "ai.db");
     }
