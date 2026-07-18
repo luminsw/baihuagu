@@ -392,6 +392,10 @@
                 await InvokeAsync(() => Navigation.NavigateTo("onboarding"));
             }
         }
+        catch (Microsoft.AspNetCore.Components.NavigationException)
+        {
+            // NavigationException is the normal Blazor navigation mechanism, not an error
+        }
         catch (Exception ex)
         {
             Logger.LogWarning(ex, "Onboarding 检查失败");
