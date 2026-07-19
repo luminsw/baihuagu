@@ -63,6 +63,7 @@
                     <span class="top-row-subtitle">百花谷 - 家庭知识港湾</span>
                 }
 
+
                 <button class="btn btn-sm btn-outline-light" @onclick="LogoutAsync" title="登出">
                     <i class="bi bi-box-arrow-right"></i>
                 </button>
@@ -73,6 +74,32 @@
             @Body
         </article>
     </main>
+
+    @if (_isAiConfigured)
+    {
+        <div class="fab-container">
+            <button class="fab-btn @(_showSystemMenu ? "active" : "")" @onclick="ToggleSystemMenu" title="系统工具">
+                <i class="bi bi-gear-fill"></i>
+            </button>
+            @if (_showSystemMenu)
+            {
+                <div class="fab-menu">
+                    <a href="health" class="fab-menu-item">
+                        <i class="bi bi-heart-pulse"></i> 健康检查
+                    </a>
+                    <a href="log-settings" class="fab-menu-item">
+                        <i class="bi bi-journal-code"></i> 日志配置
+                    </a>
+                    <a href="mobile-logs" class="fab-menu-item">
+                        <i class="bi bi-journal-text"></i> 移动端日志
+                    </a>
+                    <a href="performance-monitor" class="fab-menu-item">
+                        <i class="bi bi-activity"></i> 性能监控
+                    </a>
+                </div>
+            }
+        </div>
+    }
 </div>
 
 <script src="js/speech.js"></script>
@@ -184,6 +211,79 @@
         font-weight: 500;
     }
 
+    .fab-container {
+        position: fixed;
+        bottom: 24px;
+        right: 24px;
+        z-index: 1050;
+    }
+
+    .fab-btn {
+        width: 48px;
+        height: 48px;
+        border-radius: 50%;
+        border: none;
+        background: #1e3a4c;
+        color: #fff;
+        font-size: 1.2rem;
+        cursor: pointer;
+        box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
+        transition: all 0.2s ease;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+    }
+
+    .fab-btn:hover {
+        background: #2e8baf;
+        transform: scale(1.05);
+    }
+
+    .fab-btn.active {
+        background: #2e8baf;
+        transform: rotate(90deg);
+    }
+
+    .fab-menu {
+        position: absolute;
+        bottom: 56px;
+        right: 0;
+        background: #fff;
+        border: 1px solid #d8e2e8;
+        border-radius: 10px;
+        box-shadow: 0 8px 24px rgba(0, 0, 0, 0.15);
+        min-width: 160px;
+        overflow: hidden;
+        animation: fabSlideUp 0.15s ease;
+    }
+
+    @@keyframes fabSlideUp {
+        from { opacity: 0; transform: translateY(8px); }
+        to { opacity: 1; transform: translateY(0); }
+    }
+
+    .fab-menu-item {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        padding: 10px 16px;
+        color: #333;
+        text-decoration: none;
+        font-size: 0.85rem;
+        transition: background 0.15s;
+    }
+
+    .fab-menu-item:hover {
+        background: #f0f5f8;
+        color: #1e3a4c;
+    }
+
+    .fab-menu-item i {
+        width: 18px;
+        text-align: center;
+        color: #6b8a9e;
+    }
+
     main {
         flex: 1;
         background: #f5f8fa;
@@ -203,6 +303,9 @@
         justify-content: flex-end;
         align-items: center;
         min-height: 56px;
+        overflow: visible;
+        position: relative;
+        z-index: 100;
     }
 
     .setup-title {
@@ -362,6 +465,9 @@
     private bool _isProfessional = false;
     private bool _apiConnectionError = false;
     private string _apiErrorMessage = "";
+    private bool _showSystemMenu = false;
+
+    private void ToggleSystemMenu() => _showSystemMenu = !_showSystemMenu;
 
     protected override async Task OnInitializedAsync()
     {
@@ -497,7 +603,7 @@
 
     private void OnLocationChanged(object? sender, Microsoft.AspNetCore.Components.Routing.LocationChangedEventArgs e)
     {
-        // 导航事件（移动端侧边栏关闭由 JS 处理）
+        _showSystemMenu = false;
     }
 
     public void Dispose()
