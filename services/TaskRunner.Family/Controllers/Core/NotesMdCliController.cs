@@ -20,7 +20,7 @@ namespace TaskRunner.Controllers
         /// 获取 notesmd-cli 状态及已注册的 vault 路径列表。
         /// </summary>
         [HttpGet("status")]
-        public ActionResult<object> GetStatus()
+        public IActionResult GetStatus()
         {
             var available = _notesMdCliService.IsAvailable();
             if (!available)
@@ -36,7 +36,7 @@ namespace TaskRunner.Controllers
         /// 添加单个 vault 到 notesmd-cli。
         /// </summary>
         [HttpPost("add-vault")]
-        public ActionResult<object> AddVault([FromBody] TaskRunner.Contracts.Vaults.AddVaultRequest request)
+        public IActionResult AddVault([FromBody] TaskRunner.Contracts.Vaults.AddVaultRequest request)
         {
             if (string.IsNullOrWhiteSpace(request?.Path))
             {
@@ -62,7 +62,7 @@ namespace TaskRunner.Controllers
         /// 批量添加 vaults 到 notesmd-cli。
         /// </summary>
         [HttpPost("batch-add")]
-        public ActionResult<object> BatchAdd([FromBody] NotesMdBatchAddRequest request)
+        public IActionResult BatchAdd([FromBody] NotesMdBatchAddRequest request)
         {
             if (request?.Paths == null || request.Paths.Count == 0)
             {

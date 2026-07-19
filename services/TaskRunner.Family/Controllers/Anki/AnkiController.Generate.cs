@@ -8,8 +8,8 @@ namespace TaskRunner.Controllers;
 
 public partial class AnkiController
 {
-        [HttpPost("generate-all")]
-        public async Task<ActionResult<object>> GenerateAllCards([FromQuery] string vaultId)
+        [HttpGet("generate-all")]
+        public async Task<IActionResult> GenerateAllCards([FromQuery] string vaultId)
         {
             if (string.IsNullOrWhiteSpace(vaultId))
                 return BadRequest(new { success = false, message = "知识库 ID 不能为空" });
@@ -69,8 +69,8 @@ public partial class AnkiController
         /// <summary>
         /// 使用 AI 批量为知识库生成 Anki 卡片
         /// </summary>
-        [HttpPost("generate-ai-all")]
-        public async Task<ActionResult<object>> GenerateAllCardsWithAi([FromQuery] string vaultId)
+        [HttpGet("generate-all-ai")]
+        public async Task<IActionResult> GenerateAllCardsWithAi([FromQuery] string vaultId)
         {
             if (string.IsNullOrWhiteSpace(vaultId))
                 return BadRequest(new { success = false, message = "知识库 ID 不能为空" });

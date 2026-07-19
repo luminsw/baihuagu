@@ -1,5 +1,4 @@
 @using Microsoft.JSInterop
-@using System.Text.Json
 @using TaskRunner.Contracts.Pairing
 @inject IJSRuntime JS
 @inject IHttpClientFactory HttpClientFactory
@@ -153,12 +152,6 @@
     private string _errorMessage = "";
     private ElementReference _qrContainer;
 
-    // JSON 反序列化选项（大小写不敏感）
-    private static readonly JsonSerializerOptions _caseInsensitiveOptions = new()
-    {
-        PropertyNameCaseInsensitive = true
-    };
-
     protected override async Task OnAfterRenderAsync(bool firstRender)
     {
         if (firstRender)
@@ -175,7 +168,7 @@
         try
         {
             var aiClient = HttpClientFactory.CreateClient("TaskRunnerAiApi");
-            _aiKeyQRCode = await aiClient.GetFromJsonAsync<AiKeyQRResponse>("api/ai/config/main-apikey", _caseInsensitiveOptions);
+            _aiKeyQRCode = await aiClient.GetFromJsonAsync<AiKeyQRResponse>("api/ai/config/main-apikey");
             if (_aiKeyQRCode != null && !string.IsNullOrEmpty(_aiKeyQRCode.ApiKey))
             {
                 await Task.Yield();
@@ -199,7 +192,7 @@
         try
         {
             var apiClient = HttpClientFactory.CreateClient("TaskRunnerApi");
-            _serverQRCode = await apiClient.GetFromJsonAsync<ServerQRResponse>("api/pairing/qrcode", _caseInsensitiveOptions);
+            _serverQRCode = await apiClient.GetFromJsonAsync<ServerQRResponse>("api/pairing/qrcode");
             if (_serverQRCode != null && !string.IsNullOrEmpty(_serverQRCode.QrCodeData))
             {
                 await Task.Yield();

@@ -6,7 +6,7 @@ namespace TaskRunner.Controllers;
 
 public partial class PairingController : ControllerBase
 {
-    private ActionResult<ServerQRResponse> HandleGetQRCode()
+    private IActionResult HandleGetQRCode()
     {
         var (url, hostName) = _serverAddressService.GetQrCodeAddresses();
         

@@ -21,7 +21,7 @@ namespace TaskRunner.Controllers
         }
 
         [HttpGet]
-        public ActionResult<object> GetSettings()
+        public IActionResult GetSettings()
         {
             var settings = _serverAddressService.GetSettings();
             var (url, hostName) = _serverAddressService.GetQrCodeAddresses();
@@ -37,7 +37,7 @@ namespace TaskRunner.Controllers
         }
 
         [HttpPost]
-        public async Task<ActionResult<object>> UpdateSettings([FromBody] UpdateServerAddressRequest request)
+        public async Task<IActionResult> UpdateSettings([FromBody] UpdateServerAddressRequest request)
         {
             try
             {

@@ -67,7 +67,7 @@ namespace TaskRunner.Controllers
         [HttpGet("/pair/code")]
         [HttpGet("/mg/pair/code")]
         [Microsoft.AspNetCore.RateLimiting.EnableRateLimiting("pair")]
-        public ActionResult<object> GetPairCode()
+        public IActionResult GetPairCode()
         {
             var code = _deviceService.GetPairCode();
             return Ok(new { pairCode = code, deviceId = _oneHopService.DeviceId });
@@ -77,7 +77,7 @@ namespace TaskRunner.Controllers
         [HttpPost("/pair/code/refresh")]
         [HttpPost("/mg/pair/code/refresh")]
         [Microsoft.AspNetCore.RateLimiting.EnableRateLimiting("pair")]
-        public ActionResult<object> RefreshPairCode()
+        public IActionResult RefreshPairCode()
         {
             var newCode = _deviceService.RefreshPairCode();
             _logger.LogInformation("配对码已通过 API 刷新");
