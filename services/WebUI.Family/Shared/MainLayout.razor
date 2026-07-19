@@ -52,19 +52,18 @@
                 <HeaderStatusBadge />
             }
 
-            <div class="ms-auto d-flex align-items-center gap-3">
+            <div class="ms-auto d-flex align-items-center">
                 @if (!_isAiConfigured)
                 {
                     <span class="setup-title">🌿 百花谷 — 首次配置</span>
                 }
                 else
                 {
-                    <img src="logo.png" alt="百花谷" class="top-logo" />
                     <span class="top-row-subtitle">百花谷 - 家庭知识港湾</span>
+                    <img src="logo.png" alt="百花谷" class="top-logo" />
                 }
 
-
-                <button class="btn btn-sm btn-outline-light" @onclick="LogoutAsync" title="登出">
+                <button class="btn btn-sm btn-outline-secondary ms-2" @onclick="LogoutAsync" onclick="if(window.Blazor===undefined){document.cookie='webui_auth=; path=/; expires=Thu, 01 Jan 1970 00:00:00 GMT';window.location.href='/login';}" title="登出">
                     <i class="bi bi-box-arrow-right"></i>
                 </button>
             </div>
@@ -77,63 +76,28 @@
 
     @if (_isAiConfigured)
     {
-        <div class="fab-container">
-            <button class="fab-btn @(_showSystemMenu ? "active" : "")" @onclick="ToggleSystemMenu" title="系统工具">
+        <div class="fab-container" id="fab-container">
+            <button class="fab-btn" id="fab-btn" title="系统工具">
                 <i class="bi bi-gear-fill"></i>
             </button>
-            @if (_showSystemMenu)
-            {
-                <div class="fab-menu">
-                    <a href="health" class="fab-menu-item">
-                        <i class="bi bi-heart-pulse"></i> 健康检查
-                    </a>
-                    <a href="log-settings" class="fab-menu-item">
-                        <i class="bi bi-journal-code"></i> 日志配置
-                    </a>
-                    <a href="mobile-logs" class="fab-menu-item">
-                        <i class="bi bi-journal-text"></i> 移动端日志
-                    </a>
-                    <a href="performance-monitor" class="fab-menu-item">
-                        <i class="bi bi-activity"></i> 性能监控
-                    </a>
-                </div>
-            }
+            <div class="fab-menu" id="fab-menu" style="display:none">
+                <a href="health" class="fab-menu-item">
+                    <i class="bi bi-heart-pulse"></i> 健康检查
+                </a>
+                <a href="log-settings" class="fab-menu-item">
+                    <i class="bi bi-journal-code"></i> 日志配置
+                </a>
+                <a href="mobile-logs" class="fab-menu-item">
+                    <i class="bi bi-journal-text"></i> 移动端日志
+                </a>
+                <a href="performance-monitor" class="fab-menu-item">
+                    <i class="bi bi-activity"></i> 性能监控
+                </a>
+            </div>
         </div>
     }
 </div>
 
-<script src="js/speech.js"></script>
-
-<script>
-// 移动端侧边栏：导航后自动关闭
-(function() {
-    var observer = new MutationObserver(function() {
-        var sidebar = document.querySelector('.sidebar');
-        if (sidebar && sidebar.classList.contains('open') && window.innerWidth <= 768) {
-            // 检测 URL 变化（Blazor 导航）
-            var links = sidebar.querySelectorAll('a[href]');
-            links.forEach(function(link) {
-                link.removeEventListener('click', closeSidebar);
-                link.addEventListener('click', closeSidebar);
-            });
-        }
-    });
-    function closeSidebar() {
-        var sidebar = document.querySelector('.sidebar');
-        if (sidebar) sidebar.classList.remove('open');
-    }
-    // 初始化：为侧边栏链接添加关闭事件
-    document.addEventListener('DOMContentLoaded', function() {
-        var sidebar = document.querySelector('.sidebar');
-        if (sidebar) {
-            sidebar.querySelectorAll('a[href]').forEach(function(link) {
-                link.addEventListener('click', closeSidebar);
-            });
-        }
-        observer.observe(document.body, { childList: true, subtree: true });
-    });
-})();
-</script>
 
 <style>
     /* 核心布局 */
@@ -195,9 +159,11 @@
     }
 
     .top-logo {
-        height: 36px;
+        height: 70px;
         width: auto;
         border-radius: 6px;
+        margin-left: 8px;
+
     }
 
     .api-error-banner {
@@ -617,12 +583,17 @@
     {
         try
         {
-            var token = await JSRuntime.InvokeAsync<string?>("eval", $"document.cookie.match(/webui_auth=([^;]+)/)?.[1]");
+            var token = await JSRuntime.InvokeAsync<string?>("eval", "document.cookie.match(/webui_auth=([^;]+)/)?.[1]");
             if (!string.IsNullOrEmpty(token))
             {
                 AuthService.RevokeToken(token);
             }
-            await JSRuntime.InvokeVoidAsync("eval", $"document.cookie = 'webui_auth=; path=/; expires=Thu, 01 Jan 1970 00:00:00 GMT'; location.href = '/login';");
+        }
+        catch { }
+
+        try
+        {
+            await JSRuntime.InvokeVoidAsync("eval", "document.cookie = 'webui_auth=; path=/; expires=Thu, 01 Jan 1970 00:00:00 GMT'; window.location.href = '/login';");
         }
         catch
         {
