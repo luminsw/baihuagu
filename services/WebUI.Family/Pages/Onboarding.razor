@@ -72,6 +72,9 @@
                     <button class="btn btn-primary btn-lg" @onclick="GoToStep2">
                         开始配置 →
                     </button>
+                    <button class="btn btn-outline-secondary btn-lg ms-3" @onclick="SkipOnboarding">
+                        稍后设置
+                    </button>
                 </div>
             </div>
         }
@@ -731,8 +734,13 @@
         }
         else
         {
-            // 即使后端标记失败，也允许进入首页
             Navigation.NavigateTo("");
         }
+    }
+
+    private async Task SkipOnboarding()
+    {
+        await OnboardingService.CompleteOnboardingAsync();
+        Navigation.NavigateTo("");
     }
 }
