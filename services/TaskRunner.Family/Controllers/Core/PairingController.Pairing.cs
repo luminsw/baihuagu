@@ -1,11 +1,12 @@
 using Microsoft.AspNetCore.Mvc;
 using TaskRunner.Services;
+using TaskRunner.Contracts.Pairing;
 
 namespace TaskRunner.Controllers;
 
 public partial class PairingController : ControllerBase
 {
-    private ActionResult<object> HandleGetQRCode()
+    private ActionResult<ServerQRResponse> HandleGetQRCode()
     {
         var (url, hostName) = _serverAddressService.GetQrCodeAddresses();
         
@@ -15,13 +16,13 @@ public partial class PairingController : ControllerBase
         _logger.LogInformation("生成二维码: Url={Url}, HostName={HostName}", 
             url, hostName);
         
-        return Ok(new
+        return Ok(new ServerQRResponse
         {
-            url = baseUrl,
-            hostName = name,
-            serverId = _oneHopService.DeviceId,
-            deviceId = _oneHopService.DeviceId,
-            qrCodeData = qrCodeData
+            Url = baseUrl,
+            HostName = name,
+            ServerId = _oneHopService.DeviceId,
+            DeviceId = _oneHopService.DeviceId,
+            QrCodeData = qrCodeData
         });
     }
 }

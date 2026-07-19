@@ -5,6 +5,7 @@ using TaskRunner.Models;
 using TaskRunner.Services;
 using TaskRunner.Core.Shared.Security;
 using TaskRunner.Contracts.Ai;
+using TaskRunner.Contracts.Pairing;
 
 namespace TaskRunner.Controllers;
 
@@ -144,7 +145,7 @@ public partial class AiConfigController
     /// 获取主 AI 提供商的 API Key（明文，用于二维码扫描）
     /// </summary>
     [HttpGet("main-apikey")]
-    public ActionResult GetMainApiKey()
+    public ActionResult<AiKeyQRResponse> GetMainApiKey()
     {
         try
         {
@@ -160,11 +161,11 @@ public partial class AiConfigController
                 return NotFound(new { error = "主 AI 提供商未设置 API Key" });
             }
 
-            return Ok(new
+            return Ok(new AiKeyQRResponse
             {
-                providerId = mainProvider.Id,
-                providerName = mainProvider.Name,
-                apiKey = apiKey
+                ProviderId = mainProvider.Id,
+                ProviderName = mainProvider.Name,
+                ApiKey = apiKey
             });
         }
         catch (Exception ex)
