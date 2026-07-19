@@ -196,8 +196,10 @@ function Ensure-ServiceRunning($name){
 	if (-not $isRunning){
 		Write-Host "Service $name not running, starting..."
 		Start-ServiceProc $name $Services[$name]
+		return $false
 	} else {
 		Write-Host "Service $name already running"
+		return $true
 	}
 }
 
@@ -217,18 +219,20 @@ function Wait-For-Url([string]$url, [int]$timeoutSec = 30){
 	return $false
 }
 
-function Wait-For-Service([string]$name, [int]$timeoutSec = 20){
+function Wait-For-Service([string]$name, [int]$timeoutSec = 20, [bool]$wasJustStarted = $false){
 	$healthUrl = $HealthUrls[$name]
 	if (-not $healthUrl) { 
 		Write-Host "  $name : no health check URL, skipping wait"
 		return $true 
 	}
-	# 先等 5 秒让 dotnet run 进程稳定（dotnet run 会先编译再启动，PID 可能短暂不可用）
-	Start-Sleep -Seconds 5
+	# 仅对新启动的服务等待 5 秒让 dotnet run 进程稳定（编译+启动）
+	# 已运行的服务直接做健康检查，无需等待
+	if ($wasJustStarted) {
+		Start-Sleep -Seconds 5
+	}
 	$sw = [System.Diagnostics.Stopwatch]::StartNew()
 	$crashCheckDone = $false
 	while ($sw.Elapsed.TotalSeconds -lt $timeoutSec){
-		# 仅在首次循环检查进程存活（5 秒后进程应已稳定）
 		if (-not $crashCheckDone) {
 			$pidFile = Get-PidPath $name
 			if (Test-Path $pidFile){
@@ -255,7 +259,7 @@ function Wait-For-Service([string]$name, [int]$timeoutSec = 20){
 			# retry
 		}
 		Write-Host "." -NoNewline
-		Start-Sleep -Seconds 2
+		Start-Sleep -Seconds 1
 	}
 	Write-Host ""
 	Write-Host "  $name : ⚠ timeout after ${timeoutSec}s" -ForegroundColor Yellow
@@ -300,8 +304,9 @@ switch ($Command.ToLower()){
 		}
 
 		# 启动所有服务
+		$serviceWasRunning = @{}
 		foreach ($name in $ServiceOrder) {
-			Ensure-ServiceRunning $name
+			$serviceWasRunning[$name] = Ensure-ServiceRunning $name
 		}
 
 		# 等待后端服务就绪
@@ -310,12 +315,12 @@ switch ($Command.ToLower()){
 		$failedServices = @()
 		foreach ($name in @('ai', 'vault', 'taskrunner')) {
 			Write-Host "  $name : " -NoNewline
-			if (-not (Wait-For-Service $name 20)) { $failedServices += $name }
+			if (-not (Wait-For-Service $name 20 -wasJustStarted:(-not $serviceWasRunning[$name]))) { $failedServices += $name }
 		}
 
 		# 等待 WebUI 就绪
 		Write-Host "  webui : " -NoNewline
-		Start-Sleep -Seconds 2
+		if (-not $serviceWasRunning['webui']) { Start-Sleep -Seconds 2 }
 		if (-not (Wait-For-Url 'http://127.0.0.1:5177/login' 15)){
 			Write-Host "  webui : ✗ not ready. Check: .\bhg.ps1 logs webui" -ForegroundColor Red
 			break

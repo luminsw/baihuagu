@@ -8,7 +8,7 @@ public class OnboardingStatusDto
     public bool IsOnboardingCompleted { get; set; }
     public bool HasAiConfig { get; set; }
     public DateTime? CompletedAt { get; set; }
-    public bool NeedsOnboarding => !IsOnboardingCompleted || !HasAiConfig;
+    public bool NeedsOnboarding => !IsOnboardingCompleted;
 }
 
 /// <summary>

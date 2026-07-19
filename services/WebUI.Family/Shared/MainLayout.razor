@@ -20,8 +20,15 @@
         </button>
         
         <nav class="sidebar">
-            <div class="sidebar-header">
-                <img src="logo.png?v=1" alt="百花谷" class="sidebar-logo" />
+            <div class="sidebar-quick-links">
+                <NavLink href="devices" class="quick-link">
+                    <span class="quick-icon bi bi-phone"></span>
+                    <span>移动端管理</span>
+                </NavLink>
+                <NavLink href="generate" class="quick-link">
+                    <span class="quick-icon bi bi-robot"></span>
+                    <span>AI 生成知识库</span>
+                </NavLink>
             </div>
             
             <NavMenu />
@@ -43,7 +50,8 @@
                 }
                 else
                 {
-                    <span class="top-row-subtitle">🏠 百花谷 - 家庭知识港湾</span>
+                    <img src="logo.png" alt="百花谷" class="top-logo" />
+                    <span class="top-row-subtitle">百花谷 - 家庭知识港湾</span>
                 }
 
                 <button class="btn btn-sm btn-outline-light" @onclick="LogoutAsync" title="登出">
@@ -117,6 +125,43 @@
         height: auto;
         border-radius: 12px;
         box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+    }
+
+    .sidebar-quick-links {
+        display: flex;
+        gap: 4px;
+        padding: 0 0.75rem;
+        margin-bottom: 1rem;
+    }
+
+    .quick-link {
+        flex: 1;
+        display: flex;
+        align-items: center;
+        gap: 6px;
+        padding: 8px 10px;
+        border-radius: 8px;
+        color: rgba(220, 235, 245, 0.9);
+        text-decoration: none;
+        font-size: 0.8rem;
+        font-weight: 500;
+        transition: all 0.2s ease;
+        background: rgba(255, 255, 255, 0.06);
+    }
+
+    .quick-link:hover {
+        background: rgba(46, 139, 175, 0.3);
+        color: #fff;
+    }
+
+    .quick-icon {
+        font-size: 1rem;
+    }
+
+    .top-logo {
+        height: 36px;
+        width: auto;
+        border-radius: 6px;
     }
 
     main {
