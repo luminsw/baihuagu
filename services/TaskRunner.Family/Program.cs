@@ -468,7 +468,7 @@ app.Use(async (context, next) =>
         "/vault/manifest", "/vault/file", "/vault/file_chunk",
         "/api/vaults", "/vault/pair", "/pair",
         "/api/sync/notes", "/api/sync/system", "/api/sync",
-        "/api/test",
+
         "/mobile-vaults/push",
         // MobileGateway 风格路径别名
         "/mg/manifest", "/mg/file", "/mg/cards",
@@ -573,12 +573,10 @@ app.Use(async (context, next) =>
         "/api/sync/notes", "/api/sync/system", "/api/sync",
         "/api/onehop/register-device",
         "/api/discovery", "/mg/discovery",
-        "/api/test",
         "/mobile-vaults/push",
         "/api/mobile-logs", "/api/mobile-logs/batch",
-        // MobileGateway 风格路径别名（Family 版兼容）
         "/mg/vaults", "/mg/manifest", "/mg/file", "/mg/cards",
-        "/mg/pair", "/mg/pair/check", "/mg/pair/code",
+        "/mg/pair", "/mg/pair/check",
         "/mg/onehop/register-device",
         "/mg/auth/config", "/mg/verify-token",
         "/mg/mobile-logs", "/mg/mobile-logs/batch"
@@ -722,13 +720,6 @@ app.Use(async (context, next) =>
 
 app.MapControllers();
 
-// 添加一个简单的测试端点
-app.MapGet("/api/test", () =>
-{
-    var logger = app.Services.GetRequiredService<ILogger<Program>>();
-    logger.LogInformation("[TestEndpoint] Test endpoint called");
-    return Results.Ok(new { message = "Test endpoint works", timestamp = DateTime.UtcNow });
-});
 
 // 根路径健康检查（快速响应，供外部探活使用）
 app.MapGet("/health", () => Results.Ok(new

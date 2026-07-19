@@ -57,6 +57,6 @@ document.addEventListener('click', function(e) {
 
 // 登出
 function logoutAndRedirect() {
-    document.cookie = 'webui_auth=; path=/; expires=Thu, 01 Jan 1970 00:00:00 GMT';
-    window.location.href = '/login';
+    fetch('/api/auth/logout', { method: 'POST' })
+        .finally(function() { window.location.href = '/login'; });
 }

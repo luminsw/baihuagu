@@ -83,7 +83,7 @@ builder.Host.ConfigureHostOptions(options =>
 builder.Services.AddRazorComponents()
     .AddInteractiveServerComponents(options =>
     {
-        options.DetailedErrors = true;
+        options.DetailedErrors = builder.Environment.IsDevelopment();
         options.DisconnectedCircuitMaxRetained = 100;
         options.DisconnectedCircuitRetentionPeriod = TimeSpan.FromMinutes(3);
         options.JSInteropDefaultCallTimeout = TimeSpan.FromMinutes(1);
@@ -98,7 +98,7 @@ builder.Services.AddSignalR(options =>
 {
     options.KeepAliveInterval = TimeSpan.FromSeconds(15);
     options.ClientTimeoutInterval = TimeSpan.FromSeconds(60);
-    options.EnableDetailedErrors = true;
+    options.EnableDetailedErrors = builder.Environment.IsDevelopment();
     // 开发机本地电路握手不宜过长，否则异常网络下首屏长时间无响应
     options.HandshakeTimeout = TimeSpan.FromSeconds(15);
     options.MaximumReceiveMessageSize = 102400; // 100KB
@@ -305,6 +305,17 @@ app.MapPost("/api/auth/cli-token", (HttpContext context, WebUI.Services.AuthServ
     }
     var token = authService.GenerateCliToken();
     return Results.Ok(new { token });
+});
+
+app.MapPost("/api/auth/logout", (HttpContext context, WebUI.Services.AuthService authService) =>
+{
+    var cookieVal = context.Request.Cookies[WebUI.Services.AuthService.AuthCookieName];
+    if (!string.IsNullOrEmpty(cookieVal))
+    {
+        authService.RevokeToken(cookieVal);
+    }
+    context.Response.Cookies.Delete(WebUI.Services.AuthService.AuthCookieName, new CookieOptions { Path = "/" });
+    return Results.Ok(new { success = true });
 });
 
 // 请求统计 API
