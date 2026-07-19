@@ -36,6 +36,15 @@
     }
 
     <main class="@(!_isAiConfigured ? "full-width" : "")">
+        @if (_apiConnectionError)
+        {
+            <div class="api-error-banner">
+                <span class="bi bi-exclamation-triangle-fill"></span>
+                <span>@_apiErrorMessage</span>
+                <button class="btn btn-sm btn-outline-light ms-auto" @onclick="RetryConnectionAsync">重试</button>
+                <button class="btn btn-sm btn-outline-light ms-1" @onclick="DismissError">&times;</button>
+            </div>
+        }
         <div class="top-row px-4">
             @if (_isAiConfigured)
             {
@@ -162,6 +171,17 @@
         height: 36px;
         width: auto;
         border-radius: 6px;
+    }
+
+    .api-error-banner {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        padding: 10px 20px;
+        background: linear-gradient(135deg, #c94c4c 0%, #a03030 100%);
+        color: #fff;
+        font-size: 0.9rem;
+        font-weight: 500;
     }
 
     main {
@@ -340,6 +360,8 @@
     private bool _isAiConfigured = true;
     private bool _onboardingChecked = false;
     private bool _isProfessional = false;
+    private bool _apiConnectionError = false;
+    private string _apiErrorMessage = "";
 
     protected override async Task OnInitializedAsync()
     {
@@ -399,8 +421,14 @@
         }
         catch (Exception ex)
         {
-            Logger.LogError(ex, "[MainLayout] Failed to check AI status: {Message}", ex.Message);
+            Logger.LogWarning(ex, "[MainLayout] Failed to check AI status: {Message}", ex.Message);
             _isAiConfigured = false;
+            if (!_apiConnectionError)
+            {
+                _apiConnectionError = true;
+                _apiErrorMessage = $"AI 服务连接失败 ({ex.Message})";
+                _ = InvokeAsync(StateHasChanged);
+            }
         }
     }
 
@@ -428,10 +456,10 @@
 
         try
         {
-            // 等待一小段时间，确保页面已渲染，避免首次加载时闪烁
             await Task.Delay(500);
 
             var status = await OnboardingService.GetStatusAsync();
+            _apiConnectionError = false;
             if (status.NeedsOnboarding && !Navigation.Uri.Contains("/onboarding") && !Navigation.Uri.Contains("/login"))
             {
                 await InvokeAsync(() => Navigation.NavigateTo("onboarding"));
@@ -439,12 +467,32 @@
         }
         catch (Microsoft.AspNetCore.Components.NavigationException)
         {
-            // NavigationException is the normal Blazor navigation mechanism, not an error
+        }
+        catch (HttpRequestException ex)
+        {
+            _apiConnectionError = true;
+            _apiErrorMessage = $"无法连接后端服务，请确认服务已启动 ({ex.Message})";
+            Logger.LogWarning(ex, "Onboarding 检查失败：后端服务不可达");
+            await InvokeAsync(StateHasChanged);
         }
         catch (Exception ex)
         {
+            _apiConnectionError = true;
+            _apiErrorMessage = $"服务连接异常 ({ex.Message})";
             Logger.LogWarning(ex, "Onboarding 检查失败");
+            await InvokeAsync(StateHasChanged);
         }
+    }
+
+    private async Task RetryConnectionAsync()
+    {
+        _onboardingChecked = false;
+        await CheckOnboardingAsync();
+    }
+
+    private void DismissError()
+    {
+        _apiConnectionError = false;
     }
 
     private void OnLocationChanged(object? sender, Microsoft.AspNetCore.Components.Routing.LocationChangedEventArgs e)

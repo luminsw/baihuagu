@@ -3,6 +3,8 @@ using System.Security.Cryptography;
 using System.Text;
 
 using Microsoft.AspNetCore.DataProtection;
+using Polly.Extensions.Http;
+using Polly;
 
 using OpenTelemetry.Exporter;
 using OpenTelemetry.Metrics;
@@ -215,27 +217,31 @@ builder.Services.AddScoped<WebUI.Services.DevicesService>();
 builder.Services.AddScoped<WebUI.Services.OnboardingService>();
 builder.Services.AddSingleton<WebUI.Services.CapabilityService>();
 
-// Add HttpClient with API base address
+// Add HttpClient with API base address + Polly retry
+var retryPolicy = HttpPolicyExtensions
+    .HandleTransientHttpError()
+    .WaitAndRetryAsync(3, retryAttempt => TimeSpan.FromSeconds(Math.Pow(1.5, retryAttempt - 1)));
+
 var taskRunnerBaseUrl = builder.Configuration["TaskRunnerApi:BaseUrl"] ?? "http://127.0.0.1:8788/";
 builder.Services.AddHttpClient("TaskRunnerApi", client =>
 {
     client.BaseAddress = new Uri(taskRunnerBaseUrl);
     client.Timeout = TimeSpan.FromSeconds(30);
-});
+}).AddPolicyHandler(retryPolicy);
 
 var taskRunnerAiBaseUrl = builder.Configuration["TaskRunnerAiApi:BaseUrl"] ?? "http://127.0.0.1:8791/";
 builder.Services.AddHttpClient("TaskRunnerAiApi", client =>
 {
     client.BaseAddress = new Uri(taskRunnerAiBaseUrl);
     client.Timeout = TimeSpan.FromSeconds(30);
-});
+}).AddPolicyHandler(retryPolicy);
 
 var taskRunnerVaultBaseUrl = builder.Configuration["TaskRunnerVaultApi:BaseUrl"] ?? "http://127.0.0.1:8790/";
 builder.Services.AddHttpClient("TaskRunnerVaultApi", client =>
 {
     client.BaseAddress = new Uri(taskRunnerVaultBaseUrl);
     client.Timeout = TimeSpan.FromSeconds(30);
-});
+}).AddPolicyHandler(retryPolicy);
 
 builder.Services.AddScoped(sp => sp.GetRequiredService<IHttpClientFactory>().CreateClient("TaskRunnerApi"));
 
