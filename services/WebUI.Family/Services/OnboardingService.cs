@@ -42,9 +42,9 @@ public class OnboardingService
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "获取 Onboarding 状态失败");
-            // API 失败且无缓存时，默认需要 onboarding（首次使用）
-            return _cachedStatus ?? new OnboardingStatusDto();
+            _logger.LogWarning(ex, "获取 Onboarding 状态失败");
+            // API 失败时：有缓存用缓存，无缓存则假定已完成（避免服务启动时序问题导致误跳转）
+            return _cachedStatus ?? new OnboardingStatusDto { IsOnboardingCompleted = true };
         }
     }
 
@@ -91,7 +91,7 @@ public class OnboardingService
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "获取初始化任务列表失败");
+            _logger.LogWarning(ex, "获取初始化任务列表失败");
             return _cachedTasks ?? new InitTasksResponse();
         }
     }
