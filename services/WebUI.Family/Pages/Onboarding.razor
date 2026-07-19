@@ -659,6 +659,20 @@
         {
             Logger.LogWarning(ex, "加载预设失败");
         }
+
+        // 检查 AI 是否已配置，已配置则跳过第 2 步直接到完成
+        try
+        {
+            var onboardingStatus = await OnboardingService.GetStatusAsync();
+            if (onboardingStatus.HasAiConfig)
+            {
+                currentStep = 3;
+            }
+        }
+        catch (Exception ex)
+        {
+            Logger.LogWarning(ex, "检查 AI 配置状态失败");
+        }
     }
 
     private void GoToStep2()
