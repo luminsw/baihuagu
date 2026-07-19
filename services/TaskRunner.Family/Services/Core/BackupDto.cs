@@ -1,3 +1,5 @@
+using TaskRunner.Contracts.Backup;
+
 namespace TaskRunner.Services;
 
 /// <summary>
@@ -59,10 +61,4 @@ public class BackupValidationResult
 /// <summary>
 /// 备份文件信息
 /// </summary>
-public class BackupFileInfo
-{
-    public string Path { get; set; } = "";
-    public string FileName { get; set; } = "";
-    public long Size { get; set; }
-    public DateTime CreationTime { get; set; }
-}
+public class BackupFileInfo : TaskRunner.Contracts.Backup.BackupFileInfo { }

@@ -1,5 +1,5 @@
 using Microsoft.AspNetCore.Mvc;
-using TaskRunner.Controllers;
+using TaskRunner.Contracts.Pairing;
 
 namespace TaskRunner.Services.Strategies;
 

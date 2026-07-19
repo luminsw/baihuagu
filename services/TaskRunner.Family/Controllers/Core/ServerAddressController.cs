@@ -1,12 +1,10 @@
 using TaskRunner.Core.Shared;
 using Microsoft.AspNetCore.Mvc;
 using TaskRunner.Services;
+using TaskRunner.Contracts.Core;
 
 namespace TaskRunner.Controllers
 {
-    /// <summary>
-    /// 服务器地址配置控制器
-    /// </summary>
     [ApiController]
     [Route("api/server-address")]
     public class ServerAddressController : ControllerBase
@@ -22,9 +20,6 @@ namespace TaskRunner.Controllers
             _logger = logger;
         }
 
-        /// <summary>
-        /// 获取服务器地址配置
-        /// </summary>
         [HttpGet]
         public ActionResult<object> GetSettings()
         {
@@ -41,9 +36,6 @@ namespace TaskRunner.Controllers
             });
         }
 
-        /// <summary>
-        /// 更新服务器地址配置
-        /// </summary>
         [HttpPost]
         public async Task<ActionResult<object>> UpdateSettings([FromBody] UpdateServerAddressRequest request)
         {
@@ -69,21 +61,5 @@ namespace TaskRunner.Controllers
                 return StatusCode(500, new { success = false, error = ex.Message });
             }
         }
-    }
-
-    /// <summary>
-    /// 更新服务器地址请求
-    /// </summary>
-    public class UpdateServerAddressRequest
-    {
-        /// <summary>
-        /// 域名（广域网场景）。留空则使用局域网 HTTP 自动获取
-        /// </summary>
-        public string? Domain { get; set; }
-
-        /// <summary>
-        /// 服务器显示名称（如"百花谷服务器"），用于移动端展示。留空则使用系统 hostname。
-        /// </summary>
-        public string? DisplayName { get; set; }
     }
 }

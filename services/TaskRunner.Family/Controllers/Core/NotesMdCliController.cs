@@ -1,6 +1,7 @@
 using Microsoft.AspNetCore.Mvc;
 using TaskRunner.Contracts.Vaults;
 using TaskRunner.Services;
+using TaskRunner.Contracts.Core;
 
 namespace TaskRunner.Controllers
 {
@@ -88,10 +89,5 @@ namespace TaskRunner.Controllers
                 failed
             });
         }
-    }
-
-    public class NotesMdBatchAddRequest
-    {
-        public List<string> Paths { get; set; } = new();
     }
 }

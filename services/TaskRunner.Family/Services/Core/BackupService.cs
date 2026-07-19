@@ -4,6 +4,7 @@ using System.Text.Json;
 using Microsoft.EntityFrameworkCore;
 using TaskRunner.Data;
 using TaskRunner.Data.Entities;
+using TaskRunner.Contracts.Backup;
 
 namespace TaskRunner.Services;
 
@@ -397,7 +398,7 @@ public class BackupService
     /// <summary>
     /// 获取备份列表
     /// </summary>
-    public List<BackupFileInfo> GetBackupList(string? backupPath = null)
+    public List<TaskRunner.Contracts.Backup.BackupFileInfo> GetBackupList(string? backupPath = null)
     {
         var backupDir = string.IsNullOrEmpty(backupPath)
             ? Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.MyDocuments), "DoctorNotesBackups")
@@ -405,13 +406,13 @@ public class BackupService
 
         if (!Directory.Exists(backupDir))
         {
-            return new List<BackupFileInfo>();
+            return new List<TaskRunner.Contracts.Backup.BackupFileInfo>();
         }
 
         return Directory.GetFiles(backupDir, "doctor_notes_backup_*.zip")
             .Concat(Directory.GetFiles(backupDir, "backup_*.zip"))
             .OrderByDescending(f => File.GetLastWriteTime(f))
-            .Select(f => new BackupFileInfo
+            .Select(f => new TaskRunner.Contracts.Backup.BackupFileInfo
             {
                 Path = f,
                 FileName = Path.GetFileName(f),

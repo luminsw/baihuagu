@@ -1,5 +1,6 @@
 using TaskRunner.Services;
 using Microsoft.AspNetCore.Mvc;
+using TaskRunner.Contracts.Ai;
 
 namespace TaskRunner.Controllers
 {
@@ -78,18 +79,5 @@ namespace TaskRunner.Controllers
             var deleted = _scenePromptService.DeleteTemplate(displayName);
             return deleted ? Ok(new { success = true }) : NotFound(new { error = "模板不存在" });
         }
-    }
-
-    public class PromptTemplateDto
-    {
-        public string DisplayName { get; set; } = "";
-        public string ChatSystemPrompt { get; set; } = "";
-        public string SplitSystemPrompt { get; set; } = "";
-        public string SplitUserPrompt { get; set; } = "";
-        public string SupplementUserPrompt { get; set; } = "";
-        public List<string> DefaultCategories { get; set; } = new();
-        public string ConfigurationAdvice { get; set; } = "";
-        public string KnowledgeBuildPlaceholder { get; set; } = "";
-        public string KnowledgeBuildDescription { get; set; } = "";
     }
 }
