@@ -29,32 +29,34 @@
     }
 })();
 
-// FAB 系统菜单
-(function() {
-    function initFab() {
-        var btn = document.getElementById('fab-btn');
-        var menu = document.getElementById('fab-menu');
-        if (!btn || !menu || btn.dataset.fabInit) return;
-        btn.dataset.fabInit = '1';
-        btn.addEventListener('click', function(e) {
-            e.stopPropagation();
-            var isOpen = menu.style.display !== 'none';
-            menu.style.display = isOpen ? 'none' : 'block';
-            btn.classList.toggle('active', !isOpen);
-        });
-        document.addEventListener('click', function(e) {
-            var container = document.getElementById('fab-container');
-            if (container && !container.contains(e.target)) {
-                menu.style.display = 'none';
-                btn.classList.remove('active');
-            }
-        });
+// FAB 系统菜单 - 使用全局函数，onclick 属性直接调用，避免 Blazor 重新渲染丢失事件
+function toggleFabMenu(e) {
+    e.stopPropagation();
+    var menu = document.getElementById('fab-menu');
+    var btn = document.getElementById('fab-btn');
+    if (!menu || !btn) return;
+    var isOpen = menu.style.display !== 'none';
+    menu.style.display = isOpen ? 'none' : 'block';
+    btn.classList.toggle('active', !isOpen);
+}
+
+function closeFabMenu() {
+    var menu = document.getElementById('fab-menu');
+    var btn = document.getElementById('fab-btn');
+    if (menu) menu.style.display = 'none';
+    if (btn) btn.classList.remove('active');
+}
+
+// 点击页面其他区域关闭菜单
+document.addEventListener('click', function(e) {
+    var container = document.getElementById('fab-container');
+    if (container && !container.contains(e.target)) {
+        closeFabMenu();
     }
-    if (document.readyState === 'loading') {
-        document.addEventListener('DOMContentLoaded', function() { initFab(); });
-    } else {
-        initFab();
-    }
-    var fabObserver = new MutationObserver(function() { initFab(); });
-    fabObserver.observe(document.body, { childList: true, subtree: true });
-})();
+});
+
+// 登出
+function logoutAndRedirect() {
+    document.cookie = 'webui_auth=; path=/; expires=Thu, 01 Jan 1970 00:00:00 GMT';
+    window.location.href = '/login';
+}
