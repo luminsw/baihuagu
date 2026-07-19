@@ -1,8 +1,10 @@
 using System.Net.Http.Json;
 using System.Security.Cryptography;
 using System.Text;
+using System.Threading.RateLimiting;
 
 using Microsoft.AspNetCore.DataProtection;
+
 using Polly.Extensions.Http;
 using Polly;
 
@@ -248,6 +250,19 @@ builder.Services.AddScoped(sp => sp.GetRequiredService<IHttpClientFactory>().Cre
 // Add HttpContextAccessor for accessing HttpContext in Blazor components
 builder.Services.AddHttpContextAccessor();
 
+builder.Services.AddRateLimiter(options =>
+{
+    options.GlobalLimiter = PartitionedRateLimiter.Create<HttpContext, string>(httpContext =>
+        RateLimitPartition.GetFixedWindowLimiter(
+            partitionKey: httpContext.Connection.RemoteIpAddress?.ToString() ?? "unknown",
+            factory: _ => new FixedWindowRateLimiterOptions
+            {
+                PermitLimit = 100,
+                Window = TimeSpan.FromMinutes(1)
+            }));
+    options.RejectionStatusCode = 429;
+});
+
 WebApplication app;
 try
 {
@@ -274,6 +289,7 @@ if (basePath != "/")
 }
 
 app.UseRouting();
+app.UseRateLimiter();
 app.UseStaticFiles();
 app.MapStaticAssets();
 app.UseAntiforgery();
