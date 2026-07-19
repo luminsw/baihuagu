@@ -28,7 +28,7 @@ namespace TaskRunner.Vault.Controllers;
         private readonly DeviceService _deviceService;
         private readonly ILogger<VaultController> _logger;
         private readonly ISyncAuthorizationStrategy _syncAuthStrategy;
-        private readonly IDbContextFactory<AppDbContext> _dbContextFactory;
+        private readonly IDbContextFactory<VaultDbContext> _dbContextFactory;
         private readonly RequestSignatureService _signatureService;
         private readonly IVaultNameResolver _vaultNameResolver;
 
@@ -72,7 +72,7 @@ namespace TaskRunner.Vault.Controllers;
             DeviceService deviceService,
             ILogger<VaultController> logger,
             ISyncAuthorizationStrategy syncAuthStrategy,
-            IDbContextFactory<AppDbContext> dbContextFactory,
+            IDbContextFactory<VaultDbContext> dbContextFactory,
             RequestSignatureService signatureService,
             IVaultNameResolver vaultNameResolver)
         {

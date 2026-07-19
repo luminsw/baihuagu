@@ -3,29 +3,25 @@ using TaskRunner.Data;
 
 namespace TaskRunner.Services;
 
-/// <summary>
-/// 启动编排 HostedService：在应用启动时执行数据库迁移、数据迁移和初始化同步。
-/// 替代 StartupService 的构造函数副作用模式，使启动逻辑显式、可测试、可取消。
-/// </summary>
 public class StartupOrchestratorHostedService : IHostedService
 {
-    private readonly IDbContextFactory<AppDbContext> _dbContextFactory;
     private readonly IDbContextFactory<FamilyDbContext> _familyDbContextFactory;
+    private readonly IDbContextFactory<VaultDbContext> _vaultDbContextFactory;
     private readonly IDbContextFactory<AIDbContext> _aiDbContextFactory;
     private readonly VaultSettingsService _vaultSettings;
     private readonly LocalModelSettingsService _localModelSettings;
     private readonly ILogger<StartupOrchestratorHostedService> _logger;
 
     public StartupOrchestratorHostedService(
-        IDbContextFactory<AppDbContext> dbContextFactory,
         IDbContextFactory<FamilyDbContext> familyDbContextFactory,
+        IDbContextFactory<VaultDbContext> vaultDbContextFactory,
         IDbContextFactory<AIDbContext> aiDbContextFactory,
         VaultSettingsService vaultSettings,
         LocalModelSettingsService localModelSettings,
         ILogger<StartupOrchestratorHostedService> logger)
     {
-        _dbContextFactory = dbContextFactory;
         _familyDbContextFactory = familyDbContextFactory;
+        _vaultDbContextFactory = vaultDbContextFactory;
         _aiDbContextFactory = aiDbContextFactory;
         _vaultSettings = vaultSettings;
         _localModelSettings = localModelSettings;
@@ -59,16 +55,16 @@ public class StartupOrchestratorHostedService : IHostedService
 
     private void LoadFromDatabase()
     {
-        TryMigrateDatabase("Core", () =>
-        {
-            using var dbContext = _dbContextFactory.CreateDbContext();
-            MigrateDatabase(dbContext, "Core");
-        });
-
         TryMigrateDatabase("Family", () =>
         {
             using var familyDb = _familyDbContextFactory.CreateDbContext();
             MigrateDatabase(familyDb, "Family");
+        });
+
+        TryMigrateDatabase("Vault", () =>
+        {
+            using var vaultDb = _vaultDbContextFactory.CreateDbContext();
+            MigrateDatabase(vaultDb, "Vault");
         });
 
         TryMigrateDatabase("AI", () =>
@@ -94,15 +90,6 @@ public class StartupOrchestratorHostedService : IHostedService
     {
         try
         {
-            try
-            {
-                var conn = dbContext.Database.GetDbConnection()?.ConnectionString;
-                _logger.LogDebug("About to migrate {Domain} DB at: {ConnectionString}", domainName, conn);
-            }
-            catch
-            {
-                _logger.LogDebug("About to migrate {Domain} DB", domainName);
-            }
             dbContext.Database.Migrate();
             _logger.LogDebug("{Domain} migrate completed successfully", domainName);
         }

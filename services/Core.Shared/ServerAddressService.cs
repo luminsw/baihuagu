@@ -12,12 +12,12 @@ namespace TaskRunner.Services
     /// </summary>
     public class ServerAddressService
     {
-        private readonly IDbContextFactory<AppDbContext> _dbContextFactory;
+        private readonly IDbContextFactory<FamilyDbContext> _dbContextFactory;
         private readonly ILogger<ServerAddressService> _logger;
         private readonly IConfiguration _configuration;
 
         public ServerAddressService(
-            IDbContextFactory<AppDbContext> dbContextFactory,
+            IDbContextFactory<FamilyDbContext> dbContextFactory,
             ILogger<ServerAddressService> logger,
             IConfiguration configuration)
         {

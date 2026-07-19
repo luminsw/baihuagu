@@ -11,12 +11,12 @@ namespace TaskRunner.Services;
 /// </summary>
 public partial class VaultSettingsService
 {
-    private readonly IDbContextFactory<AppDbContext> _dbContextFactory;
+    private readonly IDbContextFactory<VaultDbContext> _dbContextFactory;
     private readonly ILogger<VaultSettingsService> _logger;
     private readonly object _vaultPathLock = new();
 
     public VaultSettingsService(
-        IDbContextFactory<AppDbContext> dbContextFactory,
+        IDbContextFactory<VaultDbContext> dbContextFactory,
         ILogger<VaultSettingsService> logger)
     {
         _dbContextFactory = dbContextFactory;

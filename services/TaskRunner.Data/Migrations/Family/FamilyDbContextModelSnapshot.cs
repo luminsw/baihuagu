@@ -69,6 +69,75 @@ namespace TaskRunner.Data.Migrations.Family
                     b.ToTable("Achievements", (string)null);
                 });
 
+            modelBuilder.Entity("TaskRunner.Data.Entities.AuthorizedDevice", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("INTEGER");
+
+                    b.Property<string>("AccessToken")
+                        .IsRequired()
+                        .HasMaxLength(500)
+                        .HasColumnType("TEXT");
+
+                    b.Property<DateTime>("AuthorizedTime")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("TEXT")
+                        .HasDefaultValueSql("datetime('now')");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("TEXT")
+                        .HasDefaultValueSql("datetime('now')");
+
+                    b.Property<string>("DeviceId")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("DeviceName")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("TEXT");
+
+                    b.Property<DateTime?>("FirstSyncTime")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("IpAddress")
+                        .HasMaxLength(50)
+                        .HasColumnType("TEXT");
+
+                    b.Property<DateTime?>("LastSyncTime")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("Status")
+                        .IsRequired()
+                        .ValueGeneratedOnAdd()
+                        .HasMaxLength(50)
+                        .HasColumnType("TEXT")
+                        .HasDefaultValue("Authorized");
+
+                    b.Property<int>("SyncCount")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<DateTime>("UpdatedAt")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("TEXT")
+                        .HasDefaultValueSql("datetime('now')");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("AccessToken")
+                        .IsUnique();
+
+                    b.HasIndex("DeviceId")
+                        .IsUnique();
+
+                    b.HasIndex("Status");
+
+                    b.ToTable("AuthorizedDevices", (string)null);
+                });
+
             modelBuilder.Entity("TaskRunner.Data.Entities.CardReviewState", b =>
                 {
                     b.Property<int>("Id")
@@ -122,6 +191,105 @@ namespace TaskRunner.Data.Migrations.Family
                     b.HasIndex("LearnerId", "VaultId", "NextReviewDate");
 
                     b.ToTable("CardReviewStates", (string)null);
+                });
+
+            modelBuilder.Entity("TaskRunner.Data.Entities.ChatMemoryEntry", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("INTEGER");
+
+                    b.Property<string>("AssistantContent")
+                        .IsRequired()
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("AssistantSummary")
+                        .IsRequired()
+                        .HasColumnType("TEXT");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("TEXT")
+                        .HasDefaultValueSql("datetime('now')");
+
+                    b.Property<int>("Dimensions")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<int>("EstimatedTokens")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<int>("Round")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<string>("SessionId")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("UserContent")
+                        .IsRequired()
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("UserSummary")
+                        .IsRequired()
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("VectorJson")
+                        .HasColumnType("TEXT");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("SessionId", "Round");
+
+                    b.ToTable("ChatMemoryEntries", (string)null);
+                });
+
+            modelBuilder.Entity("TaskRunner.Data.Entities.DeviceSyncLog", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("INTEGER");
+
+                    b.Property<string>("DeviceId")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("DeviceName")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("TEXT");
+
+                    b.Property<int>("FileCount")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<string>("IpAddress")
+                        .HasMaxLength(50)
+                        .HasColumnType("TEXT");
+
+                    b.Property<DateTime>("SyncTime")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("TEXT")
+                        .HasDefaultValueSql("datetime('now')");
+
+                    b.Property<string>("SyncType")
+                        .IsRequired()
+                        .ValueGeneratedOnAdd()
+                        .HasMaxLength(50)
+                        .HasColumnType("TEXT")
+                        .HasDefaultValue("manifest");
+
+                    b.Property<string>("VaultId")
+                        .HasMaxLength(50)
+                        .HasColumnType("TEXT");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("DeviceId");
+
+                    b.HasIndex("SyncTime");
+
+                    b.ToTable("DeviceSyncLogs", (string)null);
                 });
 
             modelBuilder.Entity("TaskRunner.Data.Entities.InitTaskProgress", b =>
@@ -207,6 +375,58 @@ namespace TaskRunner.Data.Migrations.Family
                     b.ToTable("LearnerProfiles", (string)null);
                 });
 
+            modelBuilder.Entity("TaskRunner.Data.Entities.MobileLogRecord", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("INTEGER");
+
+                    b.Property<string>("Context")
+                        .IsRequired()
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("DeviceId")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("DeviceName")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("ExtraJson")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("Level")
+                        .IsRequired()
+                        .ValueGeneratedOnAdd()
+                        .HasMaxLength(20)
+                        .HasColumnType("TEXT")
+                        .HasDefaultValue("info");
+
+                    b.Property<string>("Message")
+                        .IsRequired()
+                        .HasColumnType("TEXT");
+
+                    b.Property<DateTime>("ServerTimestamp")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("Timestamp")
+                        .IsRequired()
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("TEXT")
+                        .HasDefaultValueSql("datetime('now')");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("DeviceId");
+
+                    b.HasIndex("Timestamp");
+
+                    b.ToTable("MobileLogs", (string)null);
+                });
+
             modelBuilder.Entity("TaskRunner.Data.Entities.OnboardingState", b =>
                 {
                     b.Property<int>("Id")
@@ -286,6 +506,55 @@ namespace TaskRunner.Data.Migrations.Family
                         .IsUnique();
 
                     b.ToTable("OpenClawTasks", (string)null);
+                });
+
+            modelBuilder.Entity("TaskRunner.Data.Entities.ServerAddressSetting", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("INTEGER");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("TEXT")
+                        .HasDefaultValueSql("datetime('now')");
+
+                    b.Property<string>("DisplayName")
+                        .IsRequired()
+                        .ValueGeneratedOnAdd()
+                        .HasMaxLength(200)
+                        .HasColumnType("TEXT")
+                        .HasDefaultValue("");
+
+                    b.Property<string>("Domain")
+                        .IsRequired()
+                        .ValueGeneratedOnAdd()
+                        .HasMaxLength(500)
+                        .HasColumnType("TEXT")
+                        .HasDefaultValue("");
+
+                    b.Property<string>("ServerInstanceId")
+                        .IsRequired()
+                        .ValueGeneratedOnAdd()
+                        .HasMaxLength(100)
+                        .HasColumnType("TEXT")
+                        .HasDefaultValue("");
+
+                    b.Property<DateTime>("UpdatedAt")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("TEXT")
+                        .HasDefaultValueSql("datetime('now')");
+
+                    b.Property<string>("Url")
+                        .IsRequired()
+                        .ValueGeneratedOnAdd()
+                        .HasMaxLength(500)
+                        .HasColumnType("TEXT")
+                        .HasDefaultValue("");
+
+                    b.HasKey("Id");
+
+                    b.ToTable("ServerAddressSettings", (string)null);
                 });
 
             modelBuilder.Entity("TaskRunner.Data.Entities.StudyActivity", b =>

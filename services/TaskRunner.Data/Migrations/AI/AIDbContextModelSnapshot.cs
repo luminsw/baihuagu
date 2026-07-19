@@ -224,57 +224,6 @@ namespace TaskRunner.Data.Migrations.AI
                     b.ToTable("BenchmarkSessions", (string)null);
                 });
 
-            modelBuilder.Entity("TaskRunner.Data.Entities.ChatMemoryEntry", b =>
-                {
-                    b.Property<int>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("INTEGER");
-
-                    b.Property<string>("AssistantContent")
-                        .IsRequired()
-                        .HasColumnType("TEXT");
-
-                    b.Property<string>("AssistantSummary")
-                        .IsRequired()
-                        .HasColumnType("TEXT");
-
-                    b.Property<DateTime>("CreatedAt")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("TEXT")
-                        .HasDefaultValueSql("datetime('now')");
-
-                    b.Property<int>("Dimensions")
-                        .HasColumnType("INTEGER");
-
-                    b.Property<int>("EstimatedTokens")
-                        .HasColumnType("INTEGER");
-
-                    b.Property<int>("Round")
-                        .HasColumnType("INTEGER");
-
-                    b.Property<string>("SessionId")
-                        .IsRequired()
-                        .HasMaxLength(100)
-                        .HasColumnType("TEXT");
-
-                    b.Property<string>("UserContent")
-                        .IsRequired()
-                        .HasColumnType("TEXT");
-
-                    b.Property<string>("UserSummary")
-                        .IsRequired()
-                        .HasColumnType("TEXT");
-
-                    b.Property<string>("VectorJson")
-                        .HasColumnType("TEXT");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("SessionId", "Round");
-
-                    b.ToTable("ChatMemoryEntries", (string)null);
-                });
-
             modelBuilder.Entity("TaskRunner.Data.Entities.EmbeddingConfig", b =>
                 {
                     b.Property<int>("Id")
@@ -323,47 +272,6 @@ namespace TaskRunner.Data.Migrations.AI
                     b.HasIndex("ProviderId");
 
                     b.ToTable("EmbeddingConfigs", (string)null);
-                });
-
-            modelBuilder.Entity("TaskRunner.Data.Entities.NoteEmbedding", b =>
-                {
-                    b.Property<int>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("INTEGER");
-
-                    b.Property<DateTime>("CreatedAt")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("TEXT")
-                        .HasDefaultValueSql("datetime('now')");
-
-                    b.Property<int>("Dimensions")
-                        .HasColumnType("INTEGER");
-
-                    b.Property<string>("NotePath")
-                        .IsRequired()
-                        .HasMaxLength(500)
-                        .HasColumnType("TEXT");
-
-                    b.Property<DateTime>("UpdatedAt")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("TEXT")
-                        .HasDefaultValueSql("datetime('now')");
-
-                    b.Property<string>("VaultId")
-                        .IsRequired()
-                        .HasMaxLength(50)
-                        .HasColumnType("TEXT");
-
-                    b.Property<string>("VectorJson")
-                        .IsRequired()
-                        .HasColumnType("TEXT");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("VaultId", "NotePath")
-                        .IsUnique();
-
-                    b.ToTable("NoteEmbeddings", (string)null);
                 });
 #pragma warning restore 612, 618
         }

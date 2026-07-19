@@ -18,7 +18,8 @@ namespace TaskRunner.Services
         private readonly AiClientService _aiClientService;
         private readonly AiSettingsService _aiSettings;
         private readonly VaultSettingsService _vaultSettings;
-        private readonly IDbContextFactory<AIDbContext> _dbFactory;
+        private readonly IDbContextFactory<VaultDbContext> _vaultDbFactory;
+        private readonly IDbContextFactory<AIDbContext> _aiDbFactory;
         private readonly TaskRunner.Core.Shared.Security.ApiKeyProtectionService _protectionService;
         private readonly ILogger<EmbeddingService> _logger;
 
@@ -28,14 +29,16 @@ namespace TaskRunner.Services
             AiClientService aiClientService,
             AiSettingsService aiSettings,
             VaultSettingsService vaultSettings,
-            IDbContextFactory<AIDbContext> dbFactory,
+            IDbContextFactory<VaultDbContext> vaultDbFactory,
+            IDbContextFactory<AIDbContext> aiDbFactory,
             TaskRunner.Core.Shared.Security.ApiKeyProtectionService protectionService,
             ILogger<EmbeddingService> logger)
         {
             _aiClientService = aiClientService;
             _aiSettings = aiSettings;
             _vaultSettings = vaultSettings;
-            _dbFactory = dbFactory;
+            _vaultDbFactory = vaultDbFactory;
+            _aiDbFactory = aiDbFactory;
             _protectionService = protectionService;
             _logger = logger;
         }
@@ -71,7 +74,7 @@ namespace TaskRunner.Services
         {
             try
             {
-                using var db = _dbFactory.CreateDbContext();
+                using var db = _aiDbFactory.CreateDbContext();
                 return db.EmbeddingConfigs.OrderBy(e => e.Id).FirstOrDefault();
             }
             catch (Exception ex)
@@ -148,8 +151,8 @@ namespace TaskRunner.Services
                 var matchedProvider = providers.FirstOrDefault(p =>
                     p.Id.Equals(providerId, StringComparison.OrdinalIgnoreCase));
 
-                using var db = await _dbFactory.CreateDbContextAsync();
-                db.AiUsageMetrics.Add(new AiUsageMetric
+                using var aiDb = await _aiDbFactory.CreateDbContextAsync();
+                aiDb.AiUsageMetrics.Add(new AiUsageMetric
                 {
                     CalledAt = DateTime.UtcNow,
                     ProviderId = matchedProvider?.Id ?? providerId,
@@ -160,7 +163,7 @@ namespace TaskRunner.Services
                     IsSuccess = isSuccess,
                     ErrorMessage = errorMessage,
                 });
-                await db.SaveChangesAsync();
+                await aiDb.SaveChangesAsync();
             }
             catch (Exception ex)
             {
@@ -242,7 +245,7 @@ namespace TaskRunner.Services
             try
             {
                 // 从 SQLite 读取
-                using var db = await _dbFactory.CreateDbContextAsync();
+                using var db = await _vaultDbFactory.CreateDbContextAsync();
                 var cached = await db.NoteEmbeddings
                     .FirstOrDefaultAsync(e => e.VaultId == vaultId && e.NotePath == path);
 
@@ -279,7 +282,7 @@ namespace TaskRunner.Services
         {
             try
             {
-                using var db = await _dbFactory.CreateDbContextAsync();
+                using var db = await _vaultDbFactory.CreateDbContextAsync();
                 var existing = await db.NoteEmbeddings
                     .FirstOrDefaultAsync(e => e.VaultId == vaultId && e.NotePath == path);
 

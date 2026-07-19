@@ -3,9 +3,6 @@ using TaskRunner.Data.Entities;
 
 namespace TaskRunner.Data;
 
-/// <summary>
-/// 家庭亲子域数据库上下文
-/// </summary>
 public class FamilyDbContext : DbContext
 {
     private string? _dbPath;
@@ -27,6 +24,12 @@ public class FamilyDbContext : DbContext
     public DbSet<CardReviewState> CardReviewStates => Set<CardReviewState>();
     public DbSet<OnboardingState> OnboardingStates => Set<OnboardingState>();
     public DbSet<InitTaskProgress> InitTaskProgresses => Set<InitTaskProgress>();
+
+    public DbSet<AuthorizedDevice> AuthorizedDevices => Set<AuthorizedDevice>();
+    public DbSet<DeviceSyncLog> DeviceSyncLogs => Set<DeviceSyncLog>();
+    public DbSet<ServerAddressSetting> ServerAddressSettings => Set<ServerAddressSetting>();
+    public DbSet<MobileLogRecord> MobileLogs => Set<MobileLogRecord>();
+    public DbSet<ChatMemoryEntry> ChatMemoryEntries => Set<ChatMemoryEntry>();
 
     public string DatabasePath
     {
@@ -57,9 +60,36 @@ public class FamilyDbContext : DbContext
 
     private static string GetDefaultDbPath()
     {
-        var dataDir = AppDbContext.ResolveSharedDataDir();
+        var dataDir = ResolveDataDir();
         Directory.CreateDirectory(dataDir);
         return Path.Combine(dataDir, "family.db");
+    }
+
+    internal static string ResolveDataDir()
+    {
+        var envDir = Environment.GetEnvironmentVariable("YJ_DATA_DIR");
+        if (!string.IsNullOrEmpty(envDir))
+            return envDir;
+
+        var baseDir = AppDomain.CurrentDomain.BaseDirectory;
+        var binDebug = Path.Combine("bin", "Debug");
+        var binRelease = Path.Combine("bin", "Release");
+        if (baseDir.Contains(binDebug) || baseDir.Contains(binRelease))
+        {
+            var index = baseDir.IndexOf(binDebug);
+            if (index < 0) index = baseDir.IndexOf(binRelease);
+            if (index > 0)
+            {
+                var projectDir = baseDir.Substring(0, index);
+                var servicesDir = Path.GetDirectoryName(projectDir.TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar));
+                if (servicesDir != null && Path.GetFileName(servicesDir) == "services")
+                    return Path.Combine(servicesDir, "data");
+                return Path.Combine(projectDir, "data");
+            }
+            return Path.Combine(baseDir, "data");
+        }
+
+        return Path.Combine(baseDir, "data");
     }
 
     public static string GetDbPath()
@@ -180,6 +210,78 @@ public class FamilyDbContext : DbContext
             entity.Property(e => e.CreatedAt).HasDefaultValueSql("datetime('now')");
             entity.Property(e => e.UpdatedAt).HasDefaultValueSql("datetime('now')");
         });
+
+        modelBuilder.Entity<AuthorizedDevice>(entity =>
+        {
+            entity.ToTable("AuthorizedDevices");
+            entity.HasKey(e => e.Id);
+            entity.HasIndex(e => e.DeviceId).IsUnique();
+            entity.HasIndex(e => e.AccessToken).IsUnique();
+            entity.HasIndex(e => e.Status);
+
+            entity.Property(e => e.DeviceId).HasMaxLength(100).IsRequired();
+            entity.Property(e => e.DeviceName).HasMaxLength(200).IsRequired();
+            entity.Property(e => e.AccessToken).HasMaxLength(500).IsRequired();
+            entity.Property(e => e.Status).HasMaxLength(50).IsRequired().HasDefaultValue("Authorized");
+            entity.Property(e => e.IpAddress).HasMaxLength(50);
+            entity.Property(e => e.AuthorizedTime).HasDefaultValueSql("datetime('now')");
+            entity.Property(e => e.CreatedAt).HasDefaultValueSql("datetime('now')");
+            entity.Property(e => e.UpdatedAt).HasDefaultValueSql("datetime('now')");
+        });
+
+        modelBuilder.Entity<DeviceSyncLog>(entity =>
+        {
+            entity.ToTable("DeviceSyncLogs");
+            entity.HasKey(e => e.Id);
+            entity.HasIndex(e => e.DeviceId);
+            entity.HasIndex(e => e.SyncTime);
+
+            entity.Property(e => e.DeviceId).HasMaxLength(100).IsRequired();
+            entity.Property(e => e.DeviceName).HasMaxLength(200).IsRequired();
+            entity.Property(e => e.IpAddress).HasMaxLength(50);
+            entity.Property(e => e.VaultId).HasMaxLength(50);
+            entity.Property(e => e.SyncType).HasMaxLength(50).IsRequired().HasDefaultValue("manifest");
+            entity.Property(e => e.SyncTime).HasDefaultValueSql("datetime('now')");
+        });
+
+        modelBuilder.Entity<ServerAddressSetting>(entity =>
+        {
+            entity.ToTable("ServerAddressSettings");
+            entity.HasKey(e => e.Id);
+
+            entity.Property(e => e.Domain).HasMaxLength(500).IsRequired().HasDefaultValue("");
+            entity.Property(e => e.Url).HasMaxLength(500).IsRequired().HasDefaultValue("");
+            entity.Property(e => e.DisplayName).HasMaxLength(200).IsRequired().HasDefaultValue("");
+            entity.Property(e => e.ServerInstanceId).HasMaxLength(100).IsRequired().HasDefaultValue("");
+            entity.Property(e => e.CreatedAt).HasDefaultValueSql("datetime('now')");
+            entity.Property(e => e.UpdatedAt).HasDefaultValueSql("datetime('now')");
+        });
+
+        modelBuilder.Entity<MobileLogRecord>(entity =>
+        {
+            entity.ToTable("MobileLogs");
+            entity.HasKey(e => e.Id);
+            entity.HasIndex(e => e.DeviceId);
+            entity.HasIndex(e => e.Timestamp);
+
+            entity.Property(e => e.DeviceId).HasMaxLength(100).IsRequired();
+            entity.Property(e => e.DeviceName).HasMaxLength(200);
+            entity.Property(e => e.Level).HasMaxLength(20).IsRequired().HasDefaultValue("info");
+            entity.Property(e => e.Message).IsRequired();
+            entity.Property(e => e.Timestamp).HasDefaultValueSql("datetime('now')");
+        });
+
+        modelBuilder.Entity<ChatMemoryEntry>(entity =>
+        {
+            entity.ToTable("ChatMemoryEntries");
+            entity.HasKey(e => e.Id);
+            entity.HasIndex(e => new { e.SessionId, e.Round });
+
+            entity.Property(e => e.SessionId).HasMaxLength(100).IsRequired();
+            entity.Property(e => e.UserSummary).IsRequired();
+            entity.Property(e => e.AssistantSummary).IsRequired();
+            entity.Property(e => e.CreatedAt).HasDefaultValueSql("datetime('now')");
+        });
     }
 
     public override int SaveChanges()
@@ -202,21 +304,17 @@ public class FamilyDbContext : DbContext
         foreach (var entry in entries)
         {
             if (entry.Entity is TaskEntity task)
-            {
                 task.UpdatedAt = DateTime.Now;
-            }
             else if (entry.Entity is OnboardingState onboarding)
-            {
                 onboarding.UpdatedAt = DateTime.Now;
-            }
             else if (entry.Entity is InitTaskProgress initTask)
-            {
                 initTask.UpdatedAt = DateTime.Now;
-            }
             else if (entry.Entity is CardReviewState reviewState)
-            {
                 reviewState.UpdatedAt = DateTime.Now;
-            }
+            else if (entry.Entity is AuthorizedDevice device)
+                device.UpdatedAt = DateTime.Now;
+            else if (entry.Entity is ServerAddressSetting setting)
+                setting.UpdatedAt = DateTime.Now;
         }
     }
 }

@@ -24,8 +24,7 @@ public class AIDbContext : DbContext
     public DbSet<AiUsageMetric> AiUsageMetrics => Set<AiUsageMetric>();
     public DbSet<BenchmarkSessionEntity> BenchmarkSessions => Set<BenchmarkSessionEntity>();
     public DbSet<EmbeddingConfig> EmbeddingConfigs => Set<EmbeddingConfig>();
-    public DbSet<NoteEmbedding> NoteEmbeddings => Set<NoteEmbedding>();
-    public DbSet<ChatMemoryEntry> ChatMemoryEntries => Set<ChatMemoryEntry>();
+
 
     public string DatabasePath => _dbPath;
 
@@ -40,9 +39,36 @@ public class AIDbContext : DbContext
 
     private static string GetDefaultDbPath()
     {
-        var dataDir = AppDbContext.ResolveSharedDataDir();
+        var dataDir = ResolveDataDir();
         Directory.CreateDirectory(dataDir);
         return Path.Combine(dataDir, "ai.db");
+    }
+
+    internal static string ResolveDataDir()
+    {
+        var envDir = Environment.GetEnvironmentVariable("YJ_DATA_DIR");
+        if (!string.IsNullOrEmpty(envDir))
+            return envDir;
+
+        var baseDir = AppDomain.CurrentDomain.BaseDirectory;
+        var binDebug = Path.Combine("bin", "Debug");
+        var binRelease = Path.Combine("bin", "Release");
+        if (baseDir.Contains(binDebug) || baseDir.Contains(binRelease))
+        {
+            var index = baseDir.IndexOf(binDebug);
+            if (index < 0) index = baseDir.IndexOf(binRelease);
+            if (index > 0)
+            {
+                var projectDir = baseDir.Substring(0, index);
+                var servicesDir = Path.GetDirectoryName(projectDir.TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar));
+                if (servicesDir != null && Path.GetFileName(servicesDir) == "services")
+                    return Path.Combine(servicesDir, "data");
+                return Path.Combine(projectDir, "data");
+            }
+            return Path.Combine(baseDir, "data");
+        }
+
+        return Path.Combine(baseDir, "data");
     }
 
     public static string GetDbPath()
@@ -123,29 +149,6 @@ public class AIDbContext : DbContext
             entity.Property(e => e.UpdatedAt).HasDefaultValueSql("datetime('now')");
         });
 
-        modelBuilder.Entity<NoteEmbedding>(entity =>
-        {
-            entity.ToTable("NoteEmbeddings");
-            entity.HasKey(e => e.Id);
-            entity.HasIndex(e => new { e.VaultId, e.NotePath }).IsUnique();
-
-            entity.Property(e => e.VaultId).HasMaxLength(50).IsRequired();
-            entity.Property(e => e.NotePath).HasMaxLength(500).IsRequired();
-            entity.Property(e => e.CreatedAt).HasDefaultValueSql("datetime('now')");
-            entity.Property(e => e.UpdatedAt).HasDefaultValueSql("datetime('now')");
-        });
-
-        modelBuilder.Entity<ChatMemoryEntry>(entity =>
-        {
-            entity.ToTable("ChatMemoryEntries");
-            entity.HasKey(e => e.Id);
-            entity.HasIndex(e => new { e.SessionId, e.Round });
-
-            entity.Property(e => e.SessionId).HasMaxLength(100).IsRequired();
-            entity.Property(e => e.UserSummary).IsRequired();
-            entity.Property(e => e.AssistantSummary).IsRequired();
-            entity.Property(e => e.CreatedAt).HasDefaultValueSql("datetime('now')");
-        });
     }
 
     public override int SaveChanges()
@@ -175,10 +178,7 @@ public class AIDbContext : DbContext
             {
                 embedding.UpdatedAt = DateTime.Now;
             }
-            else if (entry.Entity is NoteEmbedding noteEmbedding)
-            {
-                noteEmbedding.UpdatedAt = DateTime.Now;
-            }
+
         }
     }
 }

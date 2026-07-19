@@ -2,6 +2,7 @@ using TaskRunner.Core.Shared;
 using TaskRunner.Core.Shared.Security;
 using TaskRunner.Services;
 using TaskRunner.Core.Shared.Notifications;
+using TaskRunner.Data;
 
 using TaskRunner.Core.Shared.Hubs;
 using TaskRunner.Filters;
@@ -130,19 +131,32 @@ builder.Services.AddSignalR()
     });
 
 // 注册核心服务
-// 注册 SQLite 数据库上下文 (EF Core)
-// Context 为 Scoped（供 Controller 直接注入），DbContextOptions 为 Singleton（供 Singleton 的 Factory 使用）
-builder.Services.AddDbContext<TaskRunner.Data.AppDbContext>(options =>
+// Family 数据库上下文
+builder.Services.AddDbContext<TaskRunner.Data.FamilyDbContext>(options =>
 {
-    var dbPath = TaskRunner.Data.AppDbContext.GetDbPath();
+    var dbPath = TaskRunner.Data.FamilyDbContext.GetDbPath();
     options.UseSqlite($"Data Source={dbPath};Foreign Keys=True;", sqlite => sqlite.MigrationsAssembly("TaskRunner.Data"))
            .ConfigureWarnings(w => w.Ignore(Microsoft.EntityFrameworkCore.Diagnostics.RelationalEventId.PendingModelChangesWarning));
 }, ServiceLifetime.Scoped, ServiceLifetime.Singleton);
 
-// 注册 DbContext Factory 为 Singleton（供后台服务安全使用，避免并发冲突）
-builder.Services.AddDbContextFactory<TaskRunner.Data.AppDbContext>(options =>
+builder.Services.AddDbContextFactory<TaskRunner.Data.FamilyDbContext>(options =>
 {
-    var dbPath = TaskRunner.Data.AppDbContext.GetDbPath();
+    var dbPath = TaskRunner.Data.FamilyDbContext.GetDbPath();
+    options.UseSqlite($"Data Source={dbPath};Foreign Keys=True;", sqlite => sqlite.MigrationsAssembly("TaskRunner.Data"))
+           .ConfigureWarnings(w => w.Ignore(Microsoft.EntityFrameworkCore.Diagnostics.RelationalEventId.PendingModelChangesWarning));
+}, ServiceLifetime.Singleton);
+
+// Vault 数据库上下文（Family 需要读取知识库信息）
+builder.Services.AddDbContext<TaskRunner.Data.VaultDbContext>(options =>
+{
+    var dbPath = TaskRunner.Data.VaultDbContext.GetDbPath();
+    options.UseSqlite($"Data Source={dbPath};Foreign Keys=True;", sqlite => sqlite.MigrationsAssembly("TaskRunner.Data"))
+           .ConfigureWarnings(w => w.Ignore(Microsoft.EntityFrameworkCore.Diagnostics.RelationalEventId.PendingModelChangesWarning));
+}, ServiceLifetime.Scoped, ServiceLifetime.Singleton);
+
+builder.Services.AddDbContextFactory<TaskRunner.Data.VaultDbContext>(options =>
+{
+    var dbPath = TaskRunner.Data.VaultDbContext.GetDbPath();
     options.UseSqlite($"Data Source={dbPath};Foreign Keys=True;", sqlite => sqlite.MigrationsAssembly("TaskRunner.Data"))
            .ConfigureWarnings(w => w.Ignore(Microsoft.EntityFrameworkCore.Diagnostics.RelationalEventId.PendingModelChangesWarning));
 }, ServiceLifetime.Singleton);
@@ -770,6 +784,7 @@ logger.LogInformation("Health: {BaseUrl}/health", displayBaseUrl);
 logger.LogInformation("Full Health: {BaseUrl}/api/health/full", displayBaseUrl);
 logger.LogInformation("Component Check: {BaseUrl}/api/health/check/{{component}}", displayBaseUrl);
 logger.LogInformation("监听开始后将在后台执行自检与 Obsidian 初始化（不阻塞 API/SignalR）");
+
 
 // 测试 PairingService 是否能被正确解析
 try

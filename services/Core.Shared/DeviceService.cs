@@ -65,7 +65,8 @@ namespace TaskRunner.Core.Shared;
         private readonly ILogger<DeviceService> _logger;
         private string _pairCode;
         private readonly IHubContext<Hubs.DeviceHub>? _deviceHub;
-        private readonly IDbContextFactory<AppDbContext> _dbContextFactory;
+        private readonly IDbContextFactory<FamilyDbContext> _dbContextFactory;
+        private readonly IDbContextFactory<VaultDbContext>? _vaultDbContextFactory;
         
         // 待授权设备队列（内存中，不持久化）
         private readonly ConcurrentDictionary<string, PairRequestInfo> _pendingRequests = new();
@@ -79,11 +80,13 @@ namespace TaskRunner.Core.Shared;
         public DeviceService(
             IConfiguration configuration, 
             ILogger<DeviceService> logger, 
-            IDbContextFactory<AppDbContext> dbContextFactory,
+            IDbContextFactory<FamilyDbContext> dbContextFactory,
+            IDbContextFactory<VaultDbContext>? vaultDbContextFactory = null,
             IHubContext<Hubs.DeviceHub>? deviceHub = null)
         {
             _logger = logger;
             _dbContextFactory = dbContextFactory;
+            _vaultDbContextFactory = vaultDbContextFactory;
             _deviceHub = deviceHub;
             
             // 优先使用配置中的配对码，如果没有则生成随机配对码
@@ -389,9 +392,14 @@ namespace TaskRunner.Core.Shared;
 
             // 构建知识库 ID→名称 映射（包含已删除的知识库，确保名称可解析）
             var allVaultIds = syncLogs.Select(l => l.VaultId!).Distinct().ToHashSet();
-            var vaultNameMap = dbContext.Vaults
-                .Where(v => allVaultIds.Contains(v.VaultId))
-                .ToDictionary(v => v.VaultId, v => v.Name);
+            var vaultNameMap = new Dictionary<string, string>();
+            if (_vaultDbContextFactory != null && allVaultIds.Count > 0)
+            {
+                using var vaultDb = _vaultDbContextFactory.CreateDbContext();
+                vaultNameMap = vaultDb.Vaults
+                    .Where(v => allVaultIds.Contains(v.VaultId))
+                    .ToDictionary(v => v.VaultId, v => v.Name);
+            }
 
             var result = new List<DeviceInfo>();
             foreach (var device in devices)

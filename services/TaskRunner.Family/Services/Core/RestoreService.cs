@@ -13,7 +13,7 @@ namespace TaskRunner.Services;
 public class RestoreService
 {
     private readonly VaultSettingsService _vaultSettings;
-    private readonly IDbContextFactory<AppDbContext> _dbContextFactory;
+    private readonly IDbContextFactory<VaultDbContext> _vaultDbContextFactory;
     private readonly IDbContextFactory<FamilyDbContext> _familyDbContextFactory;
     private readonly IDbContextFactory<AIDbContext> _aiDbContextFactory;
     private readonly ApiKeyProtectionService _apiKeyProtection;
@@ -22,7 +22,7 @@ public class RestoreService
 
     public RestoreService(
         VaultSettingsService vaultSettings,
-        IDbContextFactory<AppDbContext> dbContextFactory,
+        IDbContextFactory<VaultDbContext> vaultDbContextFactory,
         IDbContextFactory<FamilyDbContext> familyDbContextFactory,
         IDbContextFactory<AIDbContext> aiDbContextFactory,
         ApiKeyProtectionService apiKeyProtection,
@@ -30,7 +30,7 @@ public class RestoreService
         ILogger<RestoreService> logger)
     {
         _vaultSettings = vaultSettings;
-        _dbContextFactory = dbContextFactory;
+        _vaultDbContextFactory = vaultDbContextFactory;
         _familyDbContextFactory = familyDbContextFactory;
         _aiDbContextFactory = aiDbContextFactory;
         _apiKeyProtection = apiKeyProtection;
@@ -129,7 +129,7 @@ public class RestoreService
         var dbDir = Path.Combine(tempDir, "db");
         if (!Directory.Exists(dbDir)) return true;
 
-        using var db = _dbContextFactory.CreateDbContext();
+        using var db = _vaultDbContextFactory.CreateDbContext();
         using var familyDb = _familyDbContextFactory.CreateDbContext();
         using var aiDb = _aiDbContextFactory.CreateDbContext();
 
@@ -272,13 +272,13 @@ public class RestoreService
             {
                 foreach (var device in devicesData)
                 {
-                    if (!db.AuthorizedDevices.Any(d => d.DeviceId == device.DeviceId))
+                    if (!familyDb.AuthorizedDevices.Any(d => d.DeviceId == device.DeviceId))
                     {
                         device.Status = "PendingReauth";
-                        db.AuthorizedDevices.Add(device);
+                        familyDb.AuthorizedDevices.Add(device);
                     }
                 }
-                await db.SaveChangesAsync(cancellationToken);
+                await familyDb.SaveChangesAsync(cancellationToken);
             }
         }
 
@@ -312,7 +312,7 @@ public class RestoreService
         var vaultsSrcDir = Path.Combine(tempDir, "vaults");
         if (!Directory.Exists(vaultsSrcDir)) return;
 
-        using var db = _dbContextFactory.CreateDbContext();
+        using var db = _vaultDbContextFactory.CreateDbContext();
         var dbVaults = await db.Vaults.ToListAsync(cancellationToken);
 
         foreach (var vaultDir in Directory.GetDirectories(vaultsSrcDir))

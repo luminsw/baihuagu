@@ -52,17 +52,17 @@ builder.Services.AddSwaggerGen(c =>
     });
 });
 
-// 核心数据库上下文（与 TaskRunner.Family 共享 taskrunner.db）
-builder.Services.AddDbContext<TaskRunner.Data.AppDbContext>(options =>
+// Vault 数据库上下文
+builder.Services.AddDbContext<TaskRunner.Data.VaultDbContext>(options =>
 {
-    var dbPath = TaskRunner.Data.AppDbContext.GetDbPath();
+    var dbPath = TaskRunner.Data.VaultDbContext.GetDbPath();
     options.UseSqlite($"Data Source={dbPath};Foreign Keys=True;", sqlite => sqlite.MigrationsAssembly("TaskRunner.Data"))
            .ConfigureWarnings(w => w.Ignore(Microsoft.EntityFrameworkCore.Diagnostics.RelationalEventId.PendingModelChangesWarning));
 }, ServiceLifetime.Scoped, ServiceLifetime.Singleton);
 
-builder.Services.AddDbContextFactory<TaskRunner.Data.AppDbContext>(options =>
+builder.Services.AddDbContextFactory<TaskRunner.Data.VaultDbContext>(options =>
 {
-    var dbPath = TaskRunner.Data.AppDbContext.GetDbPath();
+    var dbPath = TaskRunner.Data.VaultDbContext.GetDbPath();
     options.UseSqlite($"Data Source={dbPath};Foreign Keys=True;", sqlite => sqlite.MigrationsAssembly("TaskRunner.Data"))
            .ConfigureWarnings(w => w.Ignore(Microsoft.EntityFrameworkCore.Diagnostics.RelationalEventId.PendingModelChangesWarning));
 }, ServiceLifetime.Singleton);
@@ -227,9 +227,9 @@ var logger = app.Services.GetRequiredService<ILogger<Program>>();
 try
 {
     using var scope = app.Services.CreateScope();
-    var db = scope.ServiceProvider.GetRequiredService<TaskRunner.Data.AppDbContext>();
+    var db = scope.ServiceProvider.GetRequiredService<TaskRunner.Data.VaultDbContext>();
     db.Database.Migrate();
-    logger.LogInformation("核心数据库迁移完成");
+    logger.LogInformation("Vault 数据库迁移完成");
 }
 catch (Exception ex)
 {

@@ -11,10 +11,10 @@ namespace TaskRunner.Services
     /// </summary>
     public class MobileLogService
     {
-        private readonly IDbContextFactory<AppDbContext> _dbContextFactory;
+        private readonly IDbContextFactory<FamilyDbContext> _dbContextFactory;
         private readonly ILogger<MobileLogService>? _logger;
 
-        public MobileLogService(IDbContextFactory<AppDbContext> dbContextFactory, ILogger<MobileLogService>? logger = null)
+        public MobileLogService(IDbContextFactory<FamilyDbContext> dbContextFactory, ILogger<MobileLogService>? logger = null)
         {
             _dbContextFactory = dbContextFactory;
             _logger = logger;

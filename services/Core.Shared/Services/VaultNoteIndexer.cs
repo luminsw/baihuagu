@@ -11,10 +11,10 @@ namespace TaskRunner.Services
     /// </summary>
     public class VaultNoteIndexer
     {
-        private readonly IDbContextFactory<AppDbContext> _dbContextFactory;
+        private readonly IDbContextFactory<VaultDbContext> _dbContextFactory;
         private readonly ILogger<VaultNoteIndexer> _logger;
 
-        public VaultNoteIndexer(IDbContextFactory<AppDbContext> dbContextFactory, ILogger<VaultNoteIndexer> logger)
+        public VaultNoteIndexer(IDbContextFactory<VaultDbContext> dbContextFactory, ILogger<VaultNoteIndexer> logger)
         {
             _dbContextFactory = dbContextFactory;
             _logger = logger;
