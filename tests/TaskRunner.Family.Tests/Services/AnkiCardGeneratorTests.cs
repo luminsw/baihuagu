@@ -15,8 +15,10 @@ public class AnkiCardGeneratorTests
         var logger = loggerFactory.CreateLogger<AnkiCardGenerator>();
         
         var mockVaultSettings = new MockVaultSettingsService();
+        var mockAiClient = (AiClientService?)null;
+        var mockAiSettings = (AiSettingsService?)null;
         
-        return new AnkiCardGenerator(mockVaultSettings, logger);
+        return new AnkiCardGenerator(mockVaultSettings, mockAiClient!, mockAiSettings!, logger);
     }
 
     [Fact]
@@ -262,13 +264,13 @@ public class AnkiCardGeneratorTests
         {
         }
 
-        private static IDbContextFactory<AppDbContext> CreateFactory()
+        private static IDbContextFactory<VaultDbContext> CreateFactory()
         {
-            var options = new DbContextOptionsBuilder<AppDbContext>()
+            var options = new DbContextOptionsBuilder<VaultDbContext>()
                 .UseInMemoryDatabase(Guid.NewGuid().ToString())
                 .Options;
 
-            return new InMemoryDbContextFactory<AppDbContext>(options);
+            return new InMemoryDbContextFactory<VaultDbContext>(options);
         }
     }
 

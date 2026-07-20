@@ -176,28 +176,29 @@ public class HealthCheckHelperTests
     [Fact]
     public void TryKill_ExitedProcess_DoesNotThrow()
     {
-        using var process = Process.Start(new ProcessStartInfo
+        var psi = new ProcessStartInfo
         {
-            FileName = "echo",
-            Arguments = "test",
+            FileName = OperatingSystem.IsWindows() ? "cmd.exe" : "echo",
+            Arguments = OperatingSystem.IsWindows() ? "/c echo test" : "test",
             RedirectStandardOutput = true,
             UseShellExecute = false
-        });
+        };
+        using var process = Process.Start(psi);
         process?.WaitForExit();
 
-        // Should not throw
         HealthCheckHelper.TryKill(process);
     }
 
     [Fact]
     public void TryKill_RunningProcess_KillsProcess()
     {
-        using var process = Process.Start(new ProcessStartInfo
+        var psi = new ProcessStartInfo
         {
-            FileName = "sleep",
-            Arguments = "10",
+            FileName = OperatingSystem.IsWindows() ? "cmd.exe" : "sleep",
+            Arguments = OperatingSystem.IsWindows() ? "/c timeout /t 10 /nobreak >nul" : "10",
             UseShellExecute = false
-        });
+        };
+        using var process = Process.Start(psi);
 
         Assert.NotNull(process);
         Assert.False(process.HasExited);

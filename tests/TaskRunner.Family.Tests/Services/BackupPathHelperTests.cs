@@ -78,11 +78,11 @@ public class BackupPathHelperTests
     }
 
     [Fact]
-    public void MakeRelativePath_BackslashPath_ReturnsWithLeadingSlash()
+    public void MakeRelativePath_BackslashPath_ReturnsRelative()
     {
         var result = BackupPathHelper.MakeRelativePath("D:\\Vaults\\notes\\test.md", "D:\\Vaults");
 
-        Assert.Equal("/notes/test.md", result);
+        Assert.Equal("notes/test.md", result);
     }
 
     [Fact]
@@ -94,11 +94,11 @@ public class BackupPathHelperTests
     }
 
     [Fact]
-    public void MakeRelativePath_PathWithMixedSlashes_ReturnsWithLeadingSlash()
+    public void MakeRelativePath_PathWithMixedSlashes_ReturnsRelative()
     {
         var result = BackupPathHelper.MakeRelativePath("/home/user/vaults\\notes/test.md", "/home/user/vaults");
 
-        Assert.Equal("/notes/test.md", result);
+        Assert.Equal("notes/test.md", result);
     }
 
     [Fact]
