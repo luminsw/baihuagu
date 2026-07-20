@@ -20,8 +20,15 @@
         </button>
         
         <nav class="sidebar">
-            <div class="sidebar-header">
-                <img src="logo.png?v=1" alt="百花谷" class="sidebar-logo" />
+            <div class="sidebar-quick-links">
+                <NavLink href="devices" class="quick-link">
+                    <span class="quick-icon bi bi-phone"></span>
+                    <span>移动端管理</span>
+                </NavLink>
+                <NavLink href="generate" class="quick-link">
+                    <span class="quick-icon bi bi-robot"></span>
+                    <span>AI 生成知识库</span>
+                </NavLink>
             </div>
             
             <NavMenu />
@@ -29,6 +36,15 @@
     }
 
     <main class="@(!_isAiConfigured ? "full-width" : "")">
+        @if (_apiConnectionError)
+        {
+            <div class="api-error-banner">
+                <span class="bi bi-exclamation-triangle-fill"></span>
+                <span>@_apiErrorMessage</span>
+                <button class="btn btn-sm btn-outline-light ms-auto" @onclick="RetryConnectionAsync">重试</button>
+                <button class="btn btn-sm btn-outline-light ms-1" @onclick="DismissError">&times;</button>
+            </div>
+        }
         <div class="top-row px-4">
             @if (_isAiConfigured)
             {
@@ -36,17 +52,18 @@
                 <HeaderStatusBadge />
             }
 
-            <div class="ms-auto d-flex align-items-center gap-3">
+            <div class="ms-auto d-flex align-items-center">
                 @if (!_isAiConfigured)
                 {
                     <span class="setup-title">🌿 百花谷 — 首次配置</span>
                 }
                 else
                 {
-                    <span class="top-row-subtitle">🏠 百花谷 - 家庭知识港湾</span>
+                    <span class="top-row-subtitle">百花谷 - 家庭知识港湾</span>
+                    <img src="logo.png" alt="百花谷" class="top-logo" />
                 }
 
-                <button class="btn btn-sm btn-outline-light" @onclick="LogoutAsync" title="登出">
+                <button class="btn btn-sm btn-outline-secondary ms-2" onclick="logoutAndRedirect()" title="登出">
                     <i class="bi bi-box-arrow-right"></i>
                 </button>
             </div>
@@ -56,40 +73,31 @@
             @Body
         </article>
     </main>
+
+    @if (_isAiConfigured)
+    {
+        <div class="fab-container" id="fab-container">
+            <button class="fab-btn" id="fab-btn" title="系统工具" onclick="toggleFabMenu(event)">
+                <i class="bi bi-gear-fill"></i>
+            </button>
+            <div class="fab-menu" id="fab-menu" style="display:none">
+                <a href="health" class="fab-menu-item" onclick="closeFabMenu()">
+                    <i class="bi bi-heart-pulse"></i> 健康检查
+                </a>
+                <a href="log-settings" class="fab-menu-item" onclick="closeFabMenu()">
+                    <i class="bi bi-journal-code"></i> 日志配置
+                </a>
+                <a href="mobile-logs" class="fab-menu-item" onclick="closeFabMenu()">
+                    <i class="bi bi-journal-text"></i> 移动端日志
+                </a>
+                <a href="performance-monitor" class="fab-menu-item" onclick="closeFabMenu()">
+                    <i class="bi bi-activity"></i> 性能监控
+                </a>
+            </div>
+        </div>
+    }
 </div>
 
-<script src="js/speech.js"></script>
-
-<script>
-// 移动端侧边栏：导航后自动关闭
-(function() {
-    var observer = new MutationObserver(function() {
-        var sidebar = document.querySelector('.sidebar');
-        if (sidebar && sidebar.classList.contains('open') && window.innerWidth <= 768) {
-            // 检测 URL 变化（Blazor 导航）
-            var links = sidebar.querySelectorAll('a[href]');
-            links.forEach(function(link) {
-                link.removeEventListener('click', closeSidebar);
-                link.addEventListener('click', closeSidebar);
-            });
-        }
-    });
-    function closeSidebar() {
-        var sidebar = document.querySelector('.sidebar');
-        if (sidebar) sidebar.classList.remove('open');
-    }
-    // 初始化：为侧边栏链接添加关闭事件
-    document.addEventListener('DOMContentLoaded', function() {
-        var sidebar = document.querySelector('.sidebar');
-        if (sidebar) {
-            sidebar.querySelectorAll('a[href]').forEach(function(link) {
-                link.addEventListener('click', closeSidebar);
-            });
-        }
-        observer.observe(document.body, { childList: true, subtree: true });
-    });
-})();
-</script>
 
 <style>
     /* 核心布局 */
@@ -119,6 +127,129 @@
         box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
     }
 
+    .sidebar-quick-links {
+        display: flex;
+        gap: 4px;
+        padding: 0 0.75rem;
+        margin-bottom: 1rem;
+    }
+
+    .quick-link {
+        flex: 1;
+        display: flex;
+        align-items: center;
+        gap: 6px;
+        padding: 8px 10px;
+        border-radius: 8px;
+        color: rgba(220, 235, 245, 0.9);
+        text-decoration: none;
+        font-size: 0.8rem;
+        font-weight: 500;
+        transition: all 0.2s ease;
+        background: rgba(255, 255, 255, 0.06);
+    }
+
+    .quick-link:hover {
+        background: rgba(46, 139, 175, 0.3);
+        color: #fff;
+    }
+
+    .quick-icon {
+        font-size: 1rem;
+    }
+
+    .top-logo {
+        height: 70px;
+        width: auto;
+        border-radius: 6px;
+        margin-left: 8px;
+
+    }
+
+    .api-error-banner {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        padding: 10px 20px;
+        background: linear-gradient(135deg, #c94c4c 0%, #a03030 100%);
+        color: #fff;
+        font-size: 0.9rem;
+        font-weight: 500;
+    }
+
+    .fab-container {
+        position: fixed;
+        bottom: 24px;
+        right: 24px;
+        z-index: 9998;
+    }
+
+    .fab-btn {
+        width: 48px;
+        height: 48px;
+        border-radius: 50%;
+        border: none;
+        background: #1e3a4c;
+        color: #fff;
+        font-size: 1.2rem;
+        cursor: pointer;
+        box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
+        transition: all 0.2s ease;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+    }
+
+    .fab-btn:hover {
+        background: #2e8baf;
+        transform: scale(1.05);
+    }
+
+    .fab-btn.active {
+        background: #2e8baf;
+        transform: rotate(90deg);
+    }
+
+    .fab-menu {
+        position: absolute;
+        bottom: 56px;
+        right: 0;
+        background: #fff;
+        border: 1px solid #d8e2e8;
+        border-radius: 10px;
+        box-shadow: 0 8px 24px rgba(0, 0, 0, 0.15);
+        min-width: 160px;
+        overflow: hidden;
+        animation: fabSlideUp 0.15s ease;
+    }
+
+    @@keyframes fabSlideUp {
+        from { opacity: 0; transform: translateY(8px); }
+        to { opacity: 1; transform: translateY(0); }
+    }
+
+    .fab-menu-item {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        padding: 10px 16px;
+        color: #333;
+        text-decoration: none;
+        font-size: 0.85rem;
+        transition: background 0.15s;
+    }
+
+    .fab-menu-item:hover {
+        background: #f0f5f8;
+        color: #1e3a4c;
+    }
+
+    .fab-menu-item i {
+        width: 18px;
+        text-align: center;
+        color: #6b8a9e;
+    }
+
     main {
         flex: 1;
         background: #f5f8fa;
@@ -138,6 +269,9 @@
         justify-content: flex-end;
         align-items: center;
         min-height: 56px;
+        overflow: visible;
+        position: relative;
+        z-index: 100;
     }
 
     .setup-title {
@@ -295,6 +429,11 @@
     private bool _isAiConfigured = true;
     private bool _onboardingChecked = false;
     private bool _isProfessional = false;
+    private bool _apiConnectionError = false;
+    private string _apiErrorMessage = "";
+    private bool _showSystemMenu = false;
+
+    private void ToggleSystemMenu() => _showSystemMenu = !_showSystemMenu;
 
     protected override async Task OnInitializedAsync()
     {
@@ -354,8 +493,14 @@
         }
         catch (Exception ex)
         {
-            Logger.LogError(ex, "[MainLayout] Failed to check AI status: {Message}", ex.Message);
+            Logger.LogWarning(ex, "[MainLayout] Failed to check AI status: {Message}", ex.Message);
             _isAiConfigured = false;
+            if (!_apiConnectionError)
+            {
+                _apiConnectionError = true;
+                _apiErrorMessage = $"AI 服务连接失败 ({ex.Message})";
+                _ = InvokeAsync(StateHasChanged);
+            }
         }
     }
 
@@ -383,24 +528,48 @@
 
         try
         {
-            // 等待一小段时间，确保页面已渲染，避免首次加载时闪烁
             await Task.Delay(500);
 
             var status = await OnboardingService.GetStatusAsync();
+            _apiConnectionError = false;
             if (status.NeedsOnboarding && !Navigation.Uri.Contains("/onboarding") && !Navigation.Uri.Contains("/login"))
             {
                 await InvokeAsync(() => Navigation.NavigateTo("onboarding"));
             }
         }
+        catch (Microsoft.AspNetCore.Components.NavigationException)
+        {
+        }
+        catch (HttpRequestException ex)
+        {
+            _apiConnectionError = true;
+            _apiErrorMessage = $"无法连接后端服务，请确认服务已启动 ({ex.Message})";
+            Logger.LogWarning(ex, "Onboarding 检查失败：后端服务不可达");
+            await InvokeAsync(StateHasChanged);
+        }
         catch (Exception ex)
         {
+            _apiConnectionError = true;
+            _apiErrorMessage = $"服务连接异常 ({ex.Message})";
             Logger.LogWarning(ex, "Onboarding 检查失败");
+            await InvokeAsync(StateHasChanged);
         }
+    }
+
+    private async Task RetryConnectionAsync()
+    {
+        _onboardingChecked = false;
+        await CheckOnboardingAsync();
+    }
+
+    private void DismissError()
+    {
+        _apiConnectionError = false;
     }
 
     private void OnLocationChanged(object? sender, Microsoft.AspNetCore.Components.Routing.LocationChangedEventArgs e)
     {
-        // 导航事件（移动端侧边栏关闭由 JS 处理）
+        _showSystemMenu = false;
     }
 
     public void Dispose()
@@ -414,16 +583,15 @@
     {
         try
         {
-            var token = await JSRuntime.InvokeAsync<string?>("eval", $"document.cookie.match(/webui_auth=([^;]+)/)?.[1]");
+            var token = await JSRuntime.InvokeAsync<string?>("eval", "document.cookie.match(/webui_auth=([^;]+)/)?.[1]");
             if (!string.IsNullOrEmpty(token))
             {
                 AuthService.RevokeToken(token);
             }
-            await JSRuntime.InvokeVoidAsync("eval", $"document.cookie = 'webui_auth=; path=/; expires=Thu, 01 Jan 1970 00:00:00 GMT'; location.href = '/login';");
         }
-        catch
-        {
-            Navigation.NavigateTo("login", forceLoad: true);
-        }
+        catch { }
+
+        await JSRuntime.InvokeVoidAsync("eval", "document.cookie = 'webui_auth=; path=/; expires=Thu, 01 Jan 1970 00:00:00 GMT'");
+        Navigation.NavigateTo("login", forceLoad: true);
     }
 }

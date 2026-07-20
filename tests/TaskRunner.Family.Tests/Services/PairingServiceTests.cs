@@ -1,7 +1,10 @@
 using Xunit;
+using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Logging.Abstractions;
 using Moq;
+using TaskRunner.Data;
 using TaskRunner.Services;
 
 namespace TaskRunner.Family.Tests.Services;
@@ -9,18 +12,17 @@ namespace TaskRunner.Family.Tests.Services;
 public class PairingServiceTests
 {
     private readonly Mock<ILogger<PairingService>> _loggerMock = new();
-    private readonly IConfiguration _configuration;
     private readonly PairingService _service;
 
     public PairingServiceTests()
     {
-        var configBuilder = new ConfigurationBuilder();
-        configBuilder.AddInMemoryCollection(new Dictionary<string, string?>
-        {
-            ["MobileAuth:SharedSecret"] = "test-secret-123"
-        });
-        _configuration = configBuilder.Build();
-        _service = new PairingService(_loggerMock.Object, _configuration);
+        var config = new ConfigurationBuilder().Build();
+        var serverAddressServiceMock = new Mock<ServerAddressService>(
+            new Mock<IDbContextFactory<FamilyDbContext>>().Object,
+            NullLogger<ServerAddressService>.Instance,
+            config
+        );
+        _service = new PairingService(_loggerMock.Object, serverAddressServiceMock.Object);
     }
 
     [Fact]

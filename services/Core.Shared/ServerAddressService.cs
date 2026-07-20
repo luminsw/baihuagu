@@ -12,12 +12,12 @@ namespace TaskRunner.Services
     /// </summary>
     public class ServerAddressService
     {
-        private readonly IDbContextFactory<AppDbContext> _dbContextFactory;
+        private readonly IDbContextFactory<FamilyDbContext> _dbContextFactory;
         private readonly ILogger<ServerAddressService> _logger;
         private readonly IConfiguration _configuration;
 
         public ServerAddressService(
-            IDbContextFactory<AppDbContext> dbContextFactory,
+            IDbContextFactory<FamilyDbContext> dbContextFactory,
             ILogger<ServerAddressService> logger,
             IConfiguration configuration)
         {
@@ -46,6 +46,7 @@ namespace TaskRunner.Services
                         Domain TEXT NOT NULL DEFAULT '',
                         Url TEXT NOT NULL DEFAULT '',
                         ServerInstanceId TEXT NOT NULL DEFAULT '',
+                        SharedSecret TEXT NOT NULL DEFAULT '',
                         DisplayName TEXT NOT NULL DEFAULT '',
                         CreatedAt TEXT NOT NULL DEFAULT (datetime('now')),
                         UpdatedAt TEXT NOT NULL DEFAULT (datetime('now'))
@@ -60,6 +61,18 @@ namespace TaskRunner.Services
                     alterCmd.CommandText = "ALTER TABLE ServerAddressSettings ADD COLUMN DisplayName TEXT NOT NULL DEFAULT '';";
                     alterCmd.ExecuteNonQuery();
                     _logger.LogInformation("已为旧数据库添加 DisplayName 列");
+                }
+                catch
+                {
+                    // 列已存在，忽略
+                }
+
+                try
+                {
+                    using var alterCmd2 = connection.CreateCommand();
+                    alterCmd2.CommandText = "ALTER TABLE ServerAddressSettings ADD COLUMN SharedSecret TEXT NOT NULL DEFAULT '';";
+                    alterCmd2.ExecuteNonQuery();
+                    _logger.LogInformation("已为旧数据库添加 SharedSecret 列");
                 }
                 catch
                 {
@@ -100,6 +113,12 @@ namespace TaskRunner.Services
                     setting.ServerInstanceId = GenerateServerInstanceId();
                     dbContext.SaveChanges();
                 }
+
+                if (string.IsNullOrWhiteSpace(setting.SharedSecret))
+                {
+                    setting.SharedSecret = GenerateSharedSecret();
+                    dbContext.SaveChanges();
+                }
                 return setting;
             }
             catch (Exception ex)
@@ -127,7 +146,8 @@ namespace TaskRunner.Services
                         Domain = normalizedDomain,
                         DisplayName = displayName ?? "",
                         Url = "",
-                        ServerInstanceId = GenerateServerInstanceId()
+                        ServerInstanceId = GenerateServerInstanceId(),
+                        SharedSecret = GenerateSharedSecret()
                     };
                     dbContext.ServerAddressSettings.Add(setting);
                 }
@@ -228,12 +248,22 @@ namespace TaskRunner.Services
             return GetSettings().ServerInstanceId;
         }
 
+        public string GetSharedSecret()
+        {
+            return GetSettings().SharedSecret;
+        }
+
         /// <summary>
         /// 生成服务器实例唯一标识
         /// </summary>
         private static string GenerateServerInstanceId()
         {
             return $"srv-{Guid.NewGuid():N}";
+        }
+
+        private static string GenerateSharedSecret()
+        {
+            return $"sec-{Guid.NewGuid():N}";
         }
 
         /// <summary>

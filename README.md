@@ -55,3 +55,31 @@ cd services/WebUI.Family && dotnet run
 | TaskRunner.AI | 8791 | AI 模型、聊天、配置管理 |
 | TaskRunner.Vault | 8790 | 知识库、同步、搜索、索引 |
 | WebUI.Family | 5177 | Blazor Server 管理后台 |
+## Windows (PowerShell) 运行
+
+仓库根目录提供了一个 Windows 版本的轻量 CLI：bhg.ps1。推荐使用 PowerShell Core (pwsh) 或现代的 powershell.exe。
+
+示例（在仓库根目录执行）：
+
+```powershell
+# 启动所有服务（后台）
+& .\bhg.ps1 start
+
+# 停止所有服务
+& .\bhg.ps1 stop
+
+# 查看运行状态
+& .\bhg.ps1 status
+
+# 打开管理面板（浏览器）
+& .\bhg.ps1 dashboard
+
+# 查看实时日志（例如 taskrunner）
+& .\bhg.ps1 logs taskrunner
+```
+
+注意：
+- 该脚本使用 `dotnet run` 启动服务，需在 PATH 中有 .NET SDK。
+- 日志与 PID 文件位于系统临时目录（%TEMP%），文件名格式为 `bhg-<service>.log` / `bhg-<service>.pid`。
+- 如果受限执行策略阻止运行，请使用：
+  powershell -ExecutionPolicy Bypass -File .\bhg.ps1 start

@@ -33,7 +33,7 @@ namespace TaskRunner.Controllers
         /// 生成二维码(WebUI调用)
         /// </summary>
         [HttpGet("qrcode")]
-        public ActionResult<object> GetQRCode()
+        public IActionResult GetQRCode()
             => HandleGetQRCode();
     }
 
@@ -69,7 +69,7 @@ namespace TaskRunner.Controllers
         /// 服务发现端点 - 移动端通过HTTP GET发现服务
         /// </summary>
         [HttpGet]
-        public ActionResult<object> Discover()
+        public IActionResult Discover()
         {
             var (url, hostName) = _serverAddressService.GetQrCodeAddresses();
             
@@ -120,7 +120,7 @@ namespace TaskRunner.Controllers
         /// 但字段名兼容移动端 LanScanUtils 的期望（baseUrl / httpUrl）
         /// </summary>
         [HttpGet("/mg/discovery")]
-        public ActionResult<object> DiscoverMobile()
+        public IActionResult DiscoverMobile()
         {
             var (url, hostName) = _serverAddressService.GetQrCodeAddresses();
             

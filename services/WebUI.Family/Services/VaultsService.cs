@@ -1,4 +1,5 @@
 using System.Text.Json;
+using TaskRunner.Contracts.Vaults;
 
 namespace WebUI.Services;
 
@@ -7,6 +8,7 @@ namespace WebUI.Services;
 /// </summary>
 public class VaultsService
 {
+    private static readonly JsonSerializerOptions _caseInsensitiveOptions = new() { PropertyNameCaseInsensitive = true };
     private readonly IHttpClientFactory _httpClientFactory;
     private readonly ILogger<VaultsService> _logger;
     private VaultsResponse? _cachedVaults;
@@ -352,7 +354,7 @@ public class VaultsService
         try
         {
             var client = _httpClientFactory.CreateClient("TaskRunnerVaultApi");
-            var response = await client.GetFromJsonAsync<VaultRootPathPreferenceResponse>("api/settings/vault-root-path-preference");
+            var response = await client.GetFromJsonAsync<VaultRootPathPreferenceResponse>("api/settings/vault-root-path-preference", _caseInsensitiveOptions);
             return response?.VaultRootPath ?? "";
         }
         catch (Exception ex)
@@ -364,10 +366,6 @@ public class VaultsService
 
 }
 
-public class VaultRootPathPreferenceResponse
-{
-    public string VaultRootPath { get; set; } = "";
-}
 
 public class SyncVaultsResponse
 {

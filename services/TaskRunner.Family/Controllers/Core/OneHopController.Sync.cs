@@ -40,7 +40,7 @@ public partial class OneHopController
         /// 获取OneHop服务信息（用于二维码生成）
         /// </summary>
         [HttpGet("info")]
-        public ActionResult<object> GetServiceInfo()
+        public IActionResult GetServiceInfo()
         {
             try
             {
@@ -74,7 +74,7 @@ public partial class OneHopController
         /// 获取增强的二维码数据（包含OneHop信息）
         /// </summary>
         [HttpGet("qrcode")]
-        public ActionResult<object> GetEnhancedQrCode()
+        public IActionResult GetEnhancedQrCode()
         {
             try
             {

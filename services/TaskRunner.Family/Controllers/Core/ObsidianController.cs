@@ -1,6 +1,7 @@
 using Microsoft.AspNetCore.Mvc;
 using System.Diagnostics;
 using TaskRunner.Services;
+using TaskRunner.Contracts.Core;
 
 namespace TaskRunner.Controllers
 {
@@ -134,10 +135,5 @@ namespace TaskRunner.Controllers
             }
         }
 
-    }
-
-    public class OpenVaultRequest
-    {
-        public string? Path { get; set; }
     }
 }

@@ -38,6 +38,10 @@ public class VaultNoteResponse
     public string Content { get; set; } = "";
     public DateTime Modified { get; set; }
     public List<string>? Tags { get; set; }
+    public bool AiGenerated { get; set; }
+    public string? AiProvider { get; set; }
+    public string? AiModel { get; set; }
+    public DateTime? GeneratedAt { get; set; }
 }
 
 public class VaultRootResponse
@@ -108,4 +112,12 @@ public class VaultBrowseResponse
     public string VaultName { get; set; } = "";
     public string CurrentPath { get; set; } = "";
     public List<VaultBrowseItem> Items { get; set; } = new();
+}
+
+/// <summary>
+/// 批量获取笔记响应（听知识库用）
+/// </summary>
+public class VaultNotesBatchResponse
+{
+    public List<VaultNoteResponse> Notes { get; set; } = new();
 }

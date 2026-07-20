@@ -8,8 +8,8 @@ namespace TaskRunner.Controllers;
 
 public partial class AnkiController
 {
-        [HttpPost("generate-all")]
-        public async Task<ActionResult<object>> GenerateAllCards([FromQuery] string vaultId)
+        [HttpGet("generate-all")]
+        public async Task<IActionResult> GenerateAllCards([FromQuery] string vaultId)
         {
             if (string.IsNullOrWhiteSpace(vaultId))
                 return BadRequest(new { success = false, message = "知识库 ID 不能为空" });
@@ -69,8 +69,8 @@ public partial class AnkiController
         /// <summary>
         /// 使用 AI 批量为知识库生成 Anki 卡片
         /// </summary>
-        [HttpPost("generate-ai-all")]
-        public async Task<ActionResult<object>> GenerateAllCardsWithAi([FromQuery] string vaultId)
+        [HttpGet("generate-all-ai")]
+        public async Task<IActionResult> GenerateAllCardsWithAi([FromQuery] string vaultId)
         {
             if (string.IsNullOrWhiteSpace(vaultId))
                 return BadRequest(new { success = false, message = "知识库 ID 不能为空" });
@@ -163,76 +163,4 @@ public partial class AnkiController
                 return null;
             return System.IO.Path.Combine(vaultPath, "cards");
         }
-    }
-
-    // DTOs
-    public class GenerateRequest
-    {
-        public string NotePath { get; set; } = "";
-    }
-
-    public class BatchGenerateRequest
-    {
-        public string Directory { get; set; } = "";
-        public bool Recursive { get; set; } = true;
-    }
-
-    public class AiGenerateRequest
-    {
-        public string NotePath { get; set; } = "";
-        public string? ProviderId { get; set; }
-        public string? Model { get; set; }
-    }
-
-
-    // 学习统计相关
-    public class StudyRequest
-    {
-        public string? CardFront { get; set; }
-        public string? CardBack { get; set; }
-        public string? Deck { get; set; }
-        public string? Result { get; set; } // remember, normal, forgot
-    }
-
-    public class StudyStats
-    {
-        public int Total { get; set; }
-        public int Remembered { get; set; }
-        public int Normal { get; set; }
-        public int Forgot { get; set; }
-        public List<StudyRecord>? History { get; set; }
-    }
-
-    public class StudyRecord
-    {
-        public string CardFront { get; set; } = "";
-        public string CardBack { get; set; } = "";
-        public string Deck { get; set; } = "";
-        public string Result { get; set; } = "";
-        public DateTime Time { get; set; }
-    }
-
-    public class StudyStatsResponse
-    {
-        public StudyStats? Today { get; set; }
-        public StudySummary? Summary { get; set; }
-        public List<DailyStats> DailyStats { get; set; } = new();
-    }
-
-    public class StudySummary
-    {
-        public int TotalCards { get; set; }
-        public int Remembered { get; set; }
-        public int Forgot { get; set; }
-        public double Accuracy { get; set; }
-        public int Streak { get; set; }
-    }
-
-    public class DailyStats
-    {
-        public string Date { get; set; } = "";
-        public int Total { get; set; }
-        public int Remembered { get; set; }
-        public int Forgot { get; set; }
-        public int Normal { get; set; }
 }

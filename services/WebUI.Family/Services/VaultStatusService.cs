@@ -1,3 +1,6 @@
+using System.Text.Json;
+using TaskRunner.Contracts.Vaults;
+
 namespace WebUI.Services;
 
 /// <summary>
@@ -6,6 +9,7 @@ namespace WebUI.Services;
 /// </summary>
 public class VaultStatusService
 {
+    private static readonly JsonSerializerOptions _caseInsensitiveOptions = new() { PropertyNameCaseInsensitive = true };
     private readonly IHttpClientFactory _httpClientFactory;
     private readonly ILogger<VaultStatusService> _logger;
 
@@ -69,11 +73,37 @@ public class VaultStatusService
         try
         {
             var vaults = await GetVaultsAsync(forceRefresh);
-            
-            // 新逻辑：状态取决于（至少存在一个知识库）
-            // 不再依赖"当前知识库"概念
+            // 新逻辑：优先判断是否存在已注册的 vault
             if (vaults.Vaults.Count == 0)
             {
+                // 如果没有已注册的 vault，但后端提供了固定的根路径偏好（VaultRootPath），
+                // 则认为已配置（可以在该路径下创建知识库）。优先使用后端的偏好设置以避免误报。
+                try
+                {
+                    var client = _httpClientFactory.CreateClient("TaskRunnerVaultApi");
+                    var pref = await client.GetFromJsonAsync<VaultRootPathPreferenceResponse>("api/settings/vault-root-path-preference", _caseInsensitiveOptions);
+                    var rootPath = pref?.VaultRootPath ?? string.Empty;
+
+                    if (!string.IsNullOrEmpty(rootPath))
+                    {
+                        var pathExists = Directory.Exists(rootPath);
+                        return new VaultStatusSummary
+                        {
+                            IsConfigured = true,
+                            Status = pathExists ? VaultConfigurationStatus.Configured : VaultConfigurationStatus.PathNotFound,
+                            VaultCount = 0,
+                            ActiveVaultName = "",
+                            ActiveVaultPath = rootPath,
+                            PathExists = pathExists
+                        };
+                    }
+                }
+                catch (Exception ex)
+                {
+                    _logger.LogDebug(ex, "获取 VaultRootPathPreference 失败，继续按未配置处理");
+                }
+
+                // 没有 vault 且无法取得后端根路径偏好 -> 视为未配置
                 return new VaultStatusSummary
                 {
                     IsConfigured = false,

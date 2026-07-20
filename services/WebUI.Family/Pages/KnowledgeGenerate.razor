@@ -59,30 +59,37 @@ else
             </div>
         </div>
 
-        <!-- 行业选择（含 AI 自动推断） -->
-        @if (GetIndustryOptions().Count > 0)
-        {
-            <div class="form-group">
-                <label>🏷️ 行业</label>
-                <div class="btn-group">
-                    <button class="btn @(string.IsNullOrEmpty(selectedIndustry) ? "btn-primary" : "btn-outline-primary")"
-                            @onclick="SelectAutoIndustry">
-                        ✨ AI 自动推断
-                    </button>
-                    @foreach (var industry in GetIndustryOptions())
-                    {
-                        <button class="btn @(selectedIndustry == industry ? "btn-primary" : "btn-outline-primary")"
-                                @onclick="() => OnIndustryChanged(industry)">
-                            @industry
-                        </button>
-                    }
-                </div>
-                @if (string.IsNullOrEmpty(selectedIndustry))
+        <!-- 行业选择（含 AI 自动推断 + 手动输入） -->
+        <div class="form-group">
+            <label>🏷️ 行业</label>
+            <div class="d-flex flex-wrap gap-1 mb-2">
+                <button class="btn @(string.IsNullOrEmpty(selectedIndustry) && !manualIndustryMode ? "btn-primary" : "btn-outline-primary") btn-sm"
+                        @onclick="SelectAutoIndustry">
+                    ✨ AI 自动推断
+                </button>
+                @foreach (var industry in GetIndustryOptions())
                 {
-                    <div class="form-text text-info">AI 将根据您输入的主题自动推断所属行业</div>
+                    <button class="btn @(!manualIndustryMode && selectedIndustry == industry ? "btn-primary" : "btn-outline-primary") btn-sm"
+                            @onclick="() => OnIndustryChanged(industry)">
+                        @industry
+                    </button>
                 }
+                <button class="btn @(manualIndustryMode ? "btn-primary" : "btn-outline-secondary") btn-sm"
+                        @onclick="EnableManualIndustry">
+                    ✏️ 自定义
+                </button>
             </div>
-        }
+            @if (manualIndustryMode)
+            {
+                <input type="text" class="form-control form-control-sm" @bind="manualIndustryValue" @bind:event="oninput"
+                       @bind:after="SyncManualIndustry"
+                       placeholder="输入自定义行业名称..." style="max-width: 250px;" />
+            }
+            else if (string.IsNullOrEmpty(selectedIndustry))
+            {
+                <div class="form-text text-info">AI 将根据您输入的主题自动推断所属行业</div>
+            }
+        </div>
 
         <!-- AI 模型选择 -->
         @if (aiProviders.Count > 0)
@@ -125,7 +132,7 @@ else
         <div class="form-group">
             <label>📚 目标知识库</label>
             <div class="vault-selector">
-                <select class="form-select form-select-sm" value="@selectedVaultId" @onchange="OnVaultSelectionChanged">
+                <select class="form-select form-select-sm" @bind="selectedVaultId">
                     @foreach (var vault in GetFilteredVaults())
                     {
                         <option value="@vault.Id">@vault.Name</option>
@@ -171,26 +178,18 @@ else
         {
             <div class="new-vault-hint alert alert-info mb-3">
                 <strong>✨ 新建知识库模式</strong>
+                <small class="ms-2 text-muted">AI 将自动命名并创建新知识库</small>
             </div>
-        }
 
-        <!-- 笔记数量（仅生成知识库时显示） -->
-        @if (generationMode == "vault")
-        {
+            <!-- 生成记忆卡片选项（仅新建模式） -->
             <div class="form-group">
-                <label>📝 笔记数量（1-50）</label>
-                <input type="number" @bind="noteCount" class="form-control" min="1" max="50" />
+                <label class="form-check-label">
+                    <input type="checkbox" @bind="generateCards" class="form-check-input" />
+                    🧠 生成笔记后自动生成记忆卡片
+                </label>
+                <div class="form-text text-muted">笔记生成完成后，自动将其转换为 Anki 记忆卡片</div>
             </div>
         }
-
-        <!-- 生成记忆卡片选项 -->
-        <div class="form-group">
-            <label class="form-check-label">
-                <input type="checkbox" @bind="generateCards" class="form-check-input" />
-                🧠 生成笔记后自动生成记忆卡片
-            </label>
-            <div class="form-text text-muted">笔记生成完成后，自动将其转换为 Anki 记忆卡片</div>
-        </div>
 
         <!-- 提示词编辑 -->
         <div class="form-group">
@@ -337,8 +336,9 @@ else
     private string generationMode = "vault";
 
     private string selectedIndustry = "";
+    private bool manualIndustryMode = false;
+    private string manualIndustryValue = "";
     private string aiQuery = "";
-    private int noteCount = 30;
     private bool generateCards = true;
 
     private List<VaultConfig> vaults = new();
@@ -433,11 +433,6 @@ else
         selectedModel = modelName;
     }
 
-    private void OnVaultSelectionChanged(ChangeEventArgs e)
-    {
-        selectedVaultId = e.Value?.ToString() ?? "";
-    }
-
     private void SelectAutoIndustry()
     {
         OnIndustryChanged("");
@@ -446,8 +441,26 @@ else
     private void OnIndustryChanged(string industry)
     {
         selectedIndustry = industry;
+        manualIndustryMode = false;
         customSystemPrompt = "";
         selectedVaultId = !string.IsNullOrEmpty(vaultRootPath) ? "__new__" : GetFilteredVaults().FirstOrDefault()?.Id ?? "";
+    }
+
+    private void EnableManualIndustry()
+    {
+        manualIndustryMode = !manualIndustryMode;
+        if (manualIndustryMode)
+        {
+            selectedIndustry = manualIndustryValue?.Trim() ?? "";
+        }
+    }
+
+    private void SyncManualIndustry()
+    {
+        if (manualIndustryMode)
+        {
+            selectedIndustry = manualIndustryValue?.Trim() ?? "";
+        }
     }
 
     private async Task LoadAiTimeoutConfig()
@@ -499,7 +512,7 @@ else
     {
         if (string.IsNullOrWhiteSpace(aiQuery)) return;
 
-        var industry = selectedIndustry;
+        var industry = manualIndustryMode ? manualIndustryValue?.Trim() : selectedIndustry;
         if (string.IsNullOrWhiteSpace(industry))
         {
             isProcessing = true;
@@ -531,31 +544,13 @@ else
 
     private async Task GenerateFullVault(string industry)
     {
-        if (noteCount < 1 || noteCount > 50)
-        {
-            await JS.InvokeVoidAsync("alert", "笔记数量必须在 1-50 之间");
-            return;
-        }
-
         isProcessing = true;
-        processingStep = "生成知识库笔记中...";
+        processingStep = "提交生成任务中...";
         try
         {
-            var response = await ApiService.CreateVaultGenerationTaskAsync(industry.Trim(), aiQuery.Trim(), selectedModel, noteCount);
+            var response = await ApiService.CreateVaultGenerationTaskAsync(industry.Trim(), aiQuery.Trim(), selectedModel, generateCards: generateCards);
             if (response.Success && !string.IsNullOrWhiteSpace(response.TaskId))
             {
-                if (generateCards)
-                {
-                    processingStep = "笔记生成任务已提交，等待完成后生成记忆卡片...";
-                    StateHasChanged();
-
-                    await WaitForTaskCompletion(response.TaskId);
-
-                    if (!string.IsNullOrWhiteSpace(selectedVaultId) && selectedVaultId != "__new__")
-                    {
-                        await GenerateAnkiCards(selectedVaultId);
-                    }
-                }
                 Navigation.NavigateTo("tasks");
             }
             else
@@ -574,6 +569,7 @@ else
             processingStep = "";
         }
     }
+
 
     private async Task GenerateSingleNote(string industry)
     {

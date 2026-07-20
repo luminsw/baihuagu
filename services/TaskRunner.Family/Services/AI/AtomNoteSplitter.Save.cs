@@ -167,9 +167,10 @@ public partial class AtomNoteSplitter
                 try
                 {
                     var fullPath = Path.Combine(notesPath, note.Path + ".md");
-                    await File.WriteAllTextAsync(fullPath, note.Content, ct);
+                    var frontmatter = $"---\nai_generated: true\ngenerated_at: {DateTimeOffset.UtcNow:O}\n---\n";
+                    await File.WriteAllTextAsync(fullPath, frontmatter + note.Content, ct);
                     savedNotesSync.Add(note);
-                    _logger.LogInformation("保存笔记：{Path}", note.Path);
+                    _logger.LogDebug("保存笔记：{Path}", note.Path);
 
                     try
                     {

@@ -4,6 +4,7 @@ using System.Text.Json;
 using Microsoft.EntityFrameworkCore;
 using TaskRunner.Data;
 using TaskRunner.Data.Entities;
+using TaskRunner.Contracts.Backup;
 
 namespace TaskRunner.Services;
 
@@ -41,7 +42,7 @@ namespace TaskRunner.Services;
 public class BackupService
 {
     private readonly VaultSettingsService _vaultSettings;
-    private readonly IDbContextFactory<AppDbContext> _dbContextFactory;
+    private readonly IDbContextFactory<VaultDbContext> _vaultDbContextFactory;
     private readonly IDbContextFactory<FamilyDbContext> _familyDbContextFactory;
     private readonly IDbContextFactory<AIDbContext> _aiDbContextFactory;
     private readonly ApiKeyProtectionService _apiKeyProtection;
@@ -57,7 +58,7 @@ public class BackupService
 
     public BackupService(
         VaultSettingsService vaultSettings,
-        IDbContextFactory<AppDbContext> dbContextFactory,
+        IDbContextFactory<VaultDbContext> vaultDbContextFactory,
         IDbContextFactory<FamilyDbContext> familyDbContextFactory,
         IDbContextFactory<AIDbContext> aiDbContextFactory,
         ApiKeyProtectionService apiKeyProtection,
@@ -66,7 +67,7 @@ public class BackupService
         ILogger<BackupService> logger)
     {
         _vaultSettings = vaultSettings;
-        _dbContextFactory = dbContextFactory;
+        _vaultDbContextFactory = vaultDbContextFactory;
         _familyDbContextFactory = familyDbContextFactory;
         _aiDbContextFactory = aiDbContextFactory;
         _apiKeyProtection = apiKeyProtection;
@@ -172,7 +173,7 @@ public class BackupService
         var dbDir = Path.Combine(tempDir, "db");
         Directory.CreateDirectory(dbDir);
 
-        using var db = _dbContextFactory.CreateDbContext();
+        using var db = _vaultDbContextFactory.CreateDbContext();
         using var familyDb = _familyDbContextFactory.CreateDbContext();
         using var aiDb = _aiDbContextFactory.CreateDbContext();
 
@@ -231,12 +232,12 @@ public class BackupService
             JsonSerializer.Serialize(tasks, _jsonOpts), cancellationToken);
 
         // AuthorizedDevices
-        var devices = await db.AuthorizedDevices.ToListAsync(cancellationToken);
+        var devices = await familyDb.AuthorizedDevices.ToListAsync(cancellationToken);
         await File.WriteAllTextAsync(Path.Combine(dbDir, "devices.json"),
             JsonSerializer.Serialize(devices, _jsonOpts), cancellationToken);
 
         // ServerAddressSettings - 不导出 ServerInstanceId（恢复时重新生成）
-        var serverAddr = await db.ServerAddressSettings.ToListAsync(cancellationToken);
+        var serverAddr = await familyDb.ServerAddressSettings.ToListAsync(cancellationToken);
         await File.WriteAllTextAsync(Path.Combine(dbDir, "server_address.json"),
             JsonSerializer.Serialize(serverAddr, _jsonOpts), cancellationToken);
     }
@@ -276,7 +277,7 @@ public class BackupService
         var vaultsDir = Path.Combine(tempDir, "vaults");
         Directory.CreateDirectory(vaultsDir);
 
-        using var db = _dbContextFactory.CreateDbContext();
+        using var db = _vaultDbContextFactory.CreateDbContext();
         var vaults = await db.Vaults.ToListAsync(cancellationToken);
 
         foreach (var vault in vaults)
@@ -397,7 +398,7 @@ public class BackupService
     /// <summary>
     /// 获取备份列表
     /// </summary>
-    public List<BackupFileInfo> GetBackupList(string? backupPath = null)
+    public List<TaskRunner.Contracts.Backup.BackupFileInfo> GetBackupList(string? backupPath = null)
     {
         var backupDir = string.IsNullOrEmpty(backupPath)
             ? Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.MyDocuments), "DoctorNotesBackups")
@@ -405,13 +406,13 @@ public class BackupService
 
         if (!Directory.Exists(backupDir))
         {
-            return new List<BackupFileInfo>();
+            return new List<TaskRunner.Contracts.Backup.BackupFileInfo>();
         }
 
         return Directory.GetFiles(backupDir, "doctor_notes_backup_*.zip")
             .Concat(Directory.GetFiles(backupDir, "backup_*.zip"))
             .OrderByDescending(f => File.GetLastWriteTime(f))
-            .Select(f => new BackupFileInfo
+            .Select(f => new TaskRunner.Contracts.Backup.BackupFileInfo
             {
                 Path = f,
                 FileName = Path.GetFileName(f),

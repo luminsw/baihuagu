@@ -2,7 +2,7 @@
 
   <PropertyGroup>
     <TargetFramework>net10.0</TargetFramework>
-    <RuntimeIdentifier>linux-x64</RuntimeIdentifier>
+    <RuntimeIdentifier Condition="'$(Configuration)' == 'Release'">linux-x64</RuntimeIdentifier>
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>
     <GenerateDocumentationFile>true</GenerateDocumentationFile>
@@ -29,6 +29,7 @@
     <ProjectReference Include="..\TaskRunner.Data\TaskRunner.Data.csproj" />
     <ProjectReference Include="..\Core.Shared\TaskRunner.Core.Shared.csproj" />
     <ProjectReference Include="..\TaskRunner.Contracts\TaskRunner.Contracts.csproj" />
+
   </ItemGroup>
 
   <ItemGroup>

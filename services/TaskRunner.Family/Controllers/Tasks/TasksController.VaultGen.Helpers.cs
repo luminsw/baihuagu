@@ -128,7 +128,8 @@ namespace TaskRunner.Controllers
                                 var categoryDir = System.IO.Path.Combine(notesRoot, item.category);
                                 System.IO.Directory.CreateDirectory(categoryDir);
                                 var noteFilePath = System.IO.Path.Combine(categoryDir, $"{safeTitle}.md");
-                                await System.IO.File.WriteAllTextAsync(noteFilePath, content, linkedCts.Token);
+                                var frontmatter = $"---\nai_generated: true\nai_provider: {provider?.Name ?? ""}\nai_model: {modelName}\ngenerated_at: {DateTimeOffset.UtcNow:O}\n---\n";
+                                await System.IO.File.WriteAllTextAsync(noteFilePath, frontmatter + content, linkedCts.Token);
                                 var notePath = $"{item.category}/{safeTitle}";
                                 generatedNotes.Add((item.title, notePath));
                             }
@@ -156,6 +157,18 @@ namespace TaskRunner.Controllers
                             providerName = provider?.Name ?? "",
                             totalElapsedMs = stopwatch.ElapsedMilliseconds
                         });
+
+                        if (request.GenerateCards && !string.IsNullOrEmpty(vaultId))
+                        {
+                            var cardTaskId = _taskManager.CreateTask("anki_generate", new Dictionary<string, string>
+                            {
+                                ["vaultId"] = vaultId,
+                                ["vaultName"] = vaultName,
+                                ["trigger"] = "vault_generation"
+                            });
+                            _taskManager.UpdateProgress(cardTaskId, 0, 1, $"知识库「{vaultName}」笔记生成完成，等待生成记忆卡片...");
+                            _logger.LogInformation("[AiVaultGeneration] 自动创建记忆卡片任务 {CardTaskId}", cardTaskId);
+                        }
 
                         _logger.LogInformation("[AiVaultGeneration] 任务 {TaskId} 完成: {VaultName}, {NoteCount} 条笔记, 耗时 {ElapsedMs}ms",
                             taskId, vaultName, generatedNotes.Count, stopwatch.ElapsedMilliseconds);

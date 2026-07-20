@@ -30,21 +30,11 @@ public static class OpenTelemetryExtensions
         string? environmentName = null,
         double traceSamplingRatio = 0.1)
     {
-        var baseUrl = webUrl.TrimEnd('/');
-        var hasAuth = !string.IsNullOrWhiteSpace(user) && !string.IsNullOrWhiteSpace(password);
-        var authHeader = hasAuth
-            ? $"Authorization=Basic {Convert.ToBase64String(Encoding.UTF8.GetBytes($"{user}:{password}"))}"
-            : null;
-
-        var metricsEndpoint = new Uri($"{baseUrl}/api/default/v1/metrics");
-        var logsEndpoint = new Uri($"{baseUrl}/api/default/v1/logs");
-        var tracesEndpoint = new Uri($"{baseUrl}/api/default/v1/traces");
-
+        // If exporter not enabled, create builder with resource and return without configuring exporters
         var env = environmentName
             ?? Environment.GetEnvironmentVariable("OTEL_DEPLOYMENT_ENVIRONMENT")
             ?? Environment.GetEnvironmentVariable("ASPNETCORE_ENVIRONMENT")
             ?? "Production";
-        var isDevelopment = env.Equals("Development", StringComparison.OrdinalIgnoreCase);
 
         var serviceVersion = Assembly.GetEntryAssembly()?.GetName().Version?.ToString() ?? "1.0.0";
 
@@ -57,6 +47,23 @@ public static class OpenTelemetryExtensions
                     ["deployment.environment"] = env,
                     ["host.name"] = Environment.MachineName
                 }));
+
+        if (!enabled || string.IsNullOrWhiteSpace(webUrl))
+        {
+            return builder;
+        }
+
+        var baseUrl = webUrl.TrimEnd('/');
+        var hasAuth = !string.IsNullOrWhiteSpace(user) && !string.IsNullOrWhiteSpace(password);
+        var authHeader = hasAuth
+            ? $"Authorization=Basic {Convert.ToBase64String(Encoding.UTF8.GetBytes($"{user}:{password}"))}"
+            : null;
+
+        var metricsEndpoint = new Uri($"{baseUrl}/api/default/v1/metrics");
+        var logsEndpoint = new Uri($"{baseUrl}/api/default/v1/logs");
+        var tracesEndpoint = new Uri($"{baseUrl}/api/default/v1/traces");
+
+        var isDevelopment = env.Equals("Development", StringComparison.OrdinalIgnoreCase);
 
         builder.WithMetrics(metrics =>
         {

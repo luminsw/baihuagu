@@ -1,35 +1,52 @@
 let speechSynthesis = window.speechSynthesis;
 let currentUtterance = null;
 let dotNetRef = null;
+let resumeTimer = null;
 
 window.speakText = function(text, dotNetObjRef, seq) {
-    // 停止之前的播放
     if (speechSynthesis) {
         speechSynthesis.cancel();
     }
+    if (resumeTimer) {
+        clearInterval(resumeTimer);
+        resumeTimer = null;
+    }
     currentUtterance = null;
-    
+
     if (!speechSynthesis) {
         console.warn('浏览器不支持语音合成');
         return;
     }
 
     if (dotNetObjRef) {
+        if (dotNetRef && dotNetRef !== dotNetObjRef) {
+            try { dotNetRef.dispose(); } catch (e) {}
+        }
         dotNetRef = dotNetObjRef;
     }
-    
+
     const utterance = new SpeechSynthesisUtterance(text);
     utterance.lang = 'zh-CN';
     utterance.rate = 1.0;
     utterance.pitch = 1.0;
-    
-    // 捕获当前 seq 值，用于回调时传递
+
     const mySeq = seq;
-    
+
+    utterance.onstart = function() {
+        resumeTimer = setInterval(function() {
+            if (speechSynthesis && speechSynthesis.speaking && speechSynthesis.paused) {
+                speechSynthesis.resume();
+            }
+        }, 10000);
+    };
+
     utterance.onend = function() {
         currentUtterance = null;
+        if (resumeTimer) {
+            clearInterval(resumeTimer);
+            resumeTimer = null;
+        }
         if (dotNetRef) {
-            // 延迟 100ms 通知 Blazor，避免在 headless/无音频环境下过快回调导致无限循环
             setTimeout(function() {
                 try {
                     dotNetRef.invokeMethodAsync('OnSpeechEnded', mySeq);
@@ -39,13 +56,15 @@ window.speakText = function(text, dotNetObjRef, seq) {
             }, 100);
         }
     };
-    
+
     utterance.onerror = function(e) {
         currentUtterance = null;
-        // canceled 是用户主动停止，不需要通知
+        if (resumeTimer) {
+            clearInterval(resumeTimer);
+            resumeTimer = null;
+        }
         if (e && e.error === 'canceled') return;
         if (dotNetRef) {
-            // 延迟 100ms 通知 Blazor
             setTimeout(function() {
                 try {
                     dotNetRef.invokeMethodAsync('OnSpeechEnded', mySeq);
@@ -55,7 +74,7 @@ window.speakText = function(text, dotNetObjRef, seq) {
             }, 100);
         }
     };
-    
+
     currentUtterance = utterance;
     speechSynthesis.speak(utterance);
 };
@@ -63,6 +82,10 @@ window.speakText = function(text, dotNetObjRef, seq) {
 window.stopSpeaking = function() {
     if (speechSynthesis) {
         speechSynthesis.cancel();
+    }
+    if (resumeTimer) {
+        clearInterval(resumeTimer);
+        resumeTimer = null;
     }
     currentUtterance = null;
 };

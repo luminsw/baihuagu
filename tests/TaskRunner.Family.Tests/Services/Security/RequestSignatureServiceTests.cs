@@ -1,6 +1,10 @@
+using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Logging.Abstractions;
+using Moq;
 using TaskRunner.Core.Shared.Security;
+using TaskRunner.Data;
+using TaskRunner.Services;
 using Xunit;
 
 namespace TaskRunner.Family.Tests.Services.Security;
@@ -18,7 +22,14 @@ public class RequestSignatureServiceTests
         var configuration = new ConfigurationBuilder()
             .AddInMemoryCollection(config)
             .Build();
-        return new RequestSignatureService(configuration, NullLogger<RequestSignatureService>.Instance);
+
+        var serverAddressServiceMock = new Mock<ServerAddressService>(
+            new Mock<IDbContextFactory<FamilyDbContext>>().Object,
+            NullLogger<ServerAddressService>.Instance,
+            configuration
+        );
+
+        return new RequestSignatureService(serverAddressServiceMock.Object, configuration, NullLogger<RequestSignatureService>.Instance);
     }
 
     [Fact]

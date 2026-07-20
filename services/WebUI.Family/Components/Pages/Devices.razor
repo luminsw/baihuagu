@@ -1,6 +1,7 @@
 @page "/devices"
 @rendermode InteractiveServer
 @using WebUI.Components
+@using TaskRunner.Contracts.OneHop
 @inject HttpClient HttpClient
 @inject IJSRuntime JSRuntime
 @inject ILogger<Devices> Logger
@@ -795,35 +796,6 @@
         public DateTime? FirstSyncTime { get; set; }
         public List<string> SyncedVaultIds { get; set; } = new();
         public Dictionary<string, string> SyncedVaultNames { get; set; } = new();
-    }
-
-    private class OneHopStatusResponse
-    {
-        public bool IsAvailable { get; set; }
-        public bool IsRunning { get; set; }
-        public string ServiceId { get; set; } = "";
-        public int DiscoveredDevicesCount { get; set; }
-        public OneHopConnectionResponse? CurrentConnection { get; set; }
-    }
-
-    private class OneHopDeviceResponse
-    {
-        public string DeviceId { get; set; } = "";
-        public string DeviceName { get; set; } = "";
-        public string ServiceId { get; set; } = "";
-        public int SignalStrength { get; set; }
-        public DateTime DiscoveredAt { get; set; }
-        public Dictionary<string, string> ExtraData { get; set; } = new();
-    }
-
-    private class OneHopConnectionResponse
-    {
-        public string DeviceId { get; set; } = "";
-        public string DeviceName { get; set; } = "";
-        public string IpAddress { get; set; } = "";
-        public int Port { get; set; }
-        public DateTime ConnectedAt { get; set; }
-        public string Status { get; set; } = "";
     }
 
     #endregion

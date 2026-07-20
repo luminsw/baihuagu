@@ -1,0 +1,254 @@
+@page "/prompt-templates"
+@rendermode InteractiveServer
+@inject WebUI.Services.IApiService ApiService
+@inject IJSRuntime JSRuntime
+@inject Microsoft.Extensions.Logging.ILogger<PromptTemplates> Logger
+
+<PageTitle>行业提示词模板</PageTitle>
+
+<h2 class="mb-4">📝 行业提示词模板</h2>
+
+@if (isLoading)
+{
+    <div class="text-center py-5"><div class="spinner-border text-primary"></div></div>
+}
+else
+{
+    <div class="mb-3">
+        <p class="text-muted">不同行业的知识库使用不同的 AI 系统提示词，影响 AI 生成内容的专业性和结构。修改后立即生效。</p>
+    </div>
+
+    <div class="row g-3">
+        @foreach (var tmpl in templates)
+        {
+            <div class="col-md-6">
+                <div class="card h-100">
+                    <div class="card-header d-flex justify-content-between align-items-center">
+                        <h6 class="mb-0">🏷️ @tmpl.DisplayName</h6>
+                        <div class="d-flex gap-1">
+                            <button class="btn btn-sm btn-outline-primary" @onclick="() => EditTemplate(tmpl)">编辑</button>
+                            @if (tmpl.DisplayName != "通用")
+                            {
+                                <button class="btn btn-sm btn-outline-danger" @onclick="() => DeleteTemplate(tmpl.DisplayName)">删除</button>
+                            }
+                        </div>
+                    </div>
+                    <div class="card-body">
+                        <div class="mb-2">
+                            <small class="text-muted fw-bold">对话系统提示词</small>
+                            <div class="border rounded p-2 mt-1" style="max-height:120px;overflow-y:auto;font-size:0.85em;white-space:pre-wrap;background:#f8f9fa;">@tmpl.ChatSystemPrompt</div>
+                        </div>
+                        <div class="mb-2">
+                            <small class="text-muted fw-bold">笔记拆分提示词</small>
+                            <div class="border rounded p-2 mt-1" style="max-height:80px;overflow-y:auto;font-size:0.85em;white-space:pre-wrap;background:#f8f9fa;">@tmpl.SplitSystemPrompt</div>
+                        </div>
+                        @if (tmpl.DefaultCategories?.Any() == true)
+                        {
+                            <div>
+                                <small class="text-muted">默认分类：</small>
+                                @foreach (var cat in tmpl.DefaultCategories)
+                                {
+                                    <span class="badge bg-secondary me-1" style="font-size:0.7em;">@cat</span>
+                                }
+                            </div>
+                        }
+                    </div>
+                </div>
+            </div>
+        }
+    </div>
+
+    <div class="mt-3">
+        <button class="btn btn-outline-success" @onclick="CreateNewTemplate">+ 新建行业模板</button>
+    </div>
+}
+
+@if (showEditModal)
+{
+    <div class="modal fade show" style="display:block;background:rgba(0,0,0,0.5);" tabindex="-1">
+        <div class="modal-dialog modal-lg">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">@(isNewTemplate ? "新建行业模板" : $"编辑模板 - {editingTemplate.DisplayName}")</h5>
+                    <button type="button" class="btn-close" @onclick="CloseEditModal"></button>
+                </div>
+                <div class="modal-body">
+                    <div class="mb-3">
+                        <label class="form-label fw-bold">行业名称</label>
+                        <input type="text" class="form-control" @bind="editingTemplate.DisplayName" disabled="@(!isNewTemplate)" placeholder="例如：法律、金融、教育" />
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label fw-bold">💬 对话系统提示词</label>
+                        <textarea class="form-control" rows="6" @bind="editingTemplate.ChatSystemPrompt" placeholder="AI 对话时使用的系统提示词..."></textarea>
+                        <small class="text-muted">影响 AI 聊天、知识库问答的回复风格和专业性</small>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label fw-bold">✂️ 笔记拆分系统提示词</label>
+                        <textarea class="form-control" rows="4" @bind="editingTemplate.SplitSystemPrompt" placeholder="AI 拆分笔记时使用的系统提示词..."></textarea>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label fw-bold">📝 笔记拆分用户提示词</label>
+                        <textarea class="form-control" rows="4" @bind="editingTemplate.SplitUserPrompt" placeholder="AI 拆分笔记时使用的用户提示词..."></textarea>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label fw-bold">➕ 补充提示词</label>
+                        <textarea class="form-control" rows="3" @bind="editingTemplate.SupplementUserPrompt" placeholder="AI 补充遗漏笔记时使用的提示词..."></textarea>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label fw-bold">📂 默认分类（逗号分隔）</label>
+                        <input type="text" class="form-control" @bind="categoriesText" placeholder="分类1, 分类2, 分类3" />
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label fw-bold">💡 配置建议</label>
+                        <input type="text" class="form-control" @bind="editingTemplate.ConfigurationAdvice" placeholder="该行业知识库的组织建议" />
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button class="btn btn-secondary" @onclick="CloseEditModal">取消</button>
+                    <button class="btn btn-primary" @onclick="SaveTemplate" disabled="@isSaving">
+                        @(isSaving ? "保存中..." : "保存")
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+}
+
+<style>
+    .card-header h6 { font-size: 1rem; }
+</style>
+
+@code {
+    private List<PromptTemplateDto> templates = new();
+    private bool isLoading = false;
+    private bool showEditModal = false;
+    private bool isNewTemplate = false;
+    private bool isSaving = false;
+    private PromptTemplateDto editingTemplate = new();
+    private string categoriesText = "";
+
+    protected override async Task OnInitializedAsync()
+    {
+        isLoading = true;
+        await LoadTemplates();
+        isLoading = false;
+    }
+
+    private async Task LoadTemplates()
+    {
+        try
+        {
+            var client = new System.Net.Http.HttpClient { BaseAddress = new Uri("http://127.0.0.1:8788") };
+            var resp = await client.GetFromJsonAsync<List<PromptTemplateDto>>("api/ai/prompt-templates");
+            templates = resp ?? new();
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "加载提示词模板失败");
+        }
+    }
+
+    private void EditTemplate(PromptTemplateDto tmpl)
+    {
+        editingTemplate = new PromptTemplateDto
+        {
+            DisplayName = tmpl.DisplayName,
+            ChatSystemPrompt = tmpl.ChatSystemPrompt,
+            SplitSystemPrompt = tmpl.SplitSystemPrompt,
+            SplitUserPrompt = tmpl.SplitUserPrompt,
+            SupplementUserPrompt = tmpl.SupplementUserPrompt,
+            DefaultCategories = tmpl.DefaultCategories,
+            ConfigurationAdvice = tmpl.ConfigurationAdvice,
+            KnowledgeBuildPlaceholder = tmpl.KnowledgeBuildPlaceholder,
+            KnowledgeBuildDescription = tmpl.KnowledgeBuildDescription
+        };
+        categoriesText = string.Join(", ", tmpl.DefaultCategories ?? new());
+        isNewTemplate = false;
+        showEditModal = true;
+    }
+
+    private void CreateNewTemplate()
+    {
+        editingTemplate = new PromptTemplateDto();
+        categoriesText = "";
+        isNewTemplate = true;
+        showEditModal = true;
+    }
+
+    private void CloseEditModal()
+    {
+        showEditModal = false;
+    }
+
+    private async Task SaveTemplate()
+    {
+        isSaving = true;
+        try
+        {
+            editingTemplate.DefaultCategories = categoriesText
+                .Split(',', StringSplitOptions.RemoveEmptyEntries)
+                .Select(c => c.Trim())
+                .Where(c => !string.IsNullOrEmpty(c))
+                .ToList();
+
+            var client = new System.Net.Http.HttpClient { BaseAddress = new Uri("http://127.0.0.1:8788") };
+            var json = System.Text.Json.JsonSerializer.Serialize(editingTemplate);
+            var content = new System.Net.Http.StringContent(json, System.Text.Encoding.UTF8, "application/json");
+
+            HttpResponseMessage resp;
+            if (isNewTemplate)
+                resp = await client.PostAsync("api/ai/prompt-templates", content);
+            else
+                resp = await client.PutAsync($"api/ai/prompt-templates/{Uri.EscapeDataString(editingTemplate.DisplayName)}", content);
+
+            if (resp.IsSuccessStatusCode)
+            {
+                showEditModal = false;
+                await LoadTemplates();
+            }
+            else
+            {
+                await JSRuntime.InvokeVoidAsync("alert", "保存失败");
+            }
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "保存提示词模板失败");
+            await JSRuntime.InvokeVoidAsync("alert", $"保存失败：{ex.Message}");
+        }
+        isSaving = false;
+    }
+
+    private async Task DeleteTemplate(string displayName)
+    {
+        var confirmed = await JSRuntime.InvokeAsync<bool>("confirm", $"确定要删除「{displayName}」模板吗？");
+        if (!confirmed) return;
+
+        try
+        {
+            var client = new System.Net.Http.HttpClient { BaseAddress = new Uri("http://127.0.0.1:8788") };
+            var resp = await client.DeleteAsync($"api/ai/prompt-templates/{Uri.EscapeDataString(displayName)}");
+            if (resp.IsSuccessStatusCode)
+            {
+                await LoadTemplates();
+            }
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "删除提示词模板失败");
+        }
+    }
+
+    public class PromptTemplateDto
+    {
+        public string DisplayName { get; set; } = "";
+        public string ChatSystemPrompt { get; set; } = "";
+        public string SplitSystemPrompt { get; set; } = "";
+        public string SplitUserPrompt { get; set; } = "";
+        public string SupplementUserPrompt { get; set; } = "";
+        public List<string> DefaultCategories { get; set; } = new();
+        public string ConfigurationAdvice { get; set; } = "";
+        public string KnowledgeBuildPlaceholder { get; set; } = "";
+        public string KnowledgeBuildDescription { get; set; } = "";
+    }
+}

@@ -1,8 +1,12 @@
 using System.Net.Http.Json;
 using System.Security.Cryptography;
 using System.Text;
+using System.Threading.RateLimiting;
 
 using Microsoft.AspNetCore.DataProtection;
+
+using Polly.Extensions.Http;
+using Polly;
 
 using OpenTelemetry.Exporter;
 using OpenTelemetry.Metrics;
@@ -12,6 +16,17 @@ using OpenTelemetry.Resources;
 using Serilog;
 using WebUI.Logging;
 using WebUI.Middleware;
+
+// Initialize native SQLite provider early to avoid Microsoft.Data.Sqlite type initializer issues
+try
+{
+    // Batteries_V2 is provided by SQLitePCLRaw.bundle_e_sqlite3 package
+    SQLitePCL.Batteries_V2.Init();
+}
+catch
+{
+    // Ignore if initialization not required or fails; later errors will show up when opening DB
+}
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -42,6 +57,9 @@ var openobserveUrl = builder.Configuration["OpenObserve:WebUrl"] ?? "";
 var openobserveUser = builder.Configuration["OpenObserve:User"] ?? "";
 var openobservePass = builder.Configuration["OpenObserve:Password"] ?? "";
 
+// Diagnostic: print OpenObserve config to console to help debug startup URI issues
+Console.Error.WriteLine($"[WebUI] OpenObserve.Enabled={openobserveEnabled}, WebUrl='{openobserveUrl}'");
+
 // Serilog 仅用于控制台结构化输出
 var serilogConfig = new Serilog.LoggerConfiguration()
     .MinimumLevel.Is(Serilog.Events.LogEventLevel.Information)
@@ -67,7 +85,7 @@ builder.Host.ConfigureHostOptions(options =>
 builder.Services.AddRazorComponents()
     .AddInteractiveServerComponents(options =>
     {
-        options.DetailedErrors = true;
+        options.DetailedErrors = builder.Environment.IsDevelopment();
         options.DisconnectedCircuitMaxRetained = 100;
         options.DisconnectedCircuitRetentionPeriod = TimeSpan.FromMinutes(3);
         options.JSInteropDefaultCallTimeout = TimeSpan.FromMinutes(1);
@@ -82,7 +100,7 @@ builder.Services.AddSignalR(options =>
 {
     options.KeepAliveInterval = TimeSpan.FromSeconds(15);
     options.ClientTimeoutInterval = TimeSpan.FromSeconds(60);
-    options.EnableDetailedErrors = true;
+    options.EnableDetailedErrors = builder.Environment.IsDevelopment();
     // 开发机本地电路握手不宜过长，否则异常网络下首屏长时间无响应
     options.HandshakeTimeout = TimeSpan.FromSeconds(15);
     options.MaximumReceiveMessageSize = 102400; // 100KB
@@ -140,33 +158,39 @@ builder.Services.AddScoped<WebUI.Services.GlobalStateService>();
 // Add Simple Status service (简单状态服务，直接从API获取)
 builder.Services.AddScoped<WebUI.Services.SimpleStatusService>();
 
-// OpenTelemetry Metrics 导出到 OpenObserve
-builder.Services.AddOpenTelemetry()
-    .ConfigureResource(resource => resource.AddService("WebUI"))
-    .WithMetrics(metrics =>
+// OpenTelemetry Metrics 导出到 OpenObserve（仅在明确启用时配置 exporter）
+// 使用与 TaskRunner 相同的安全保护：先构建基础的 OpenTelemetry builder，若未启用或 WebUrl 为空则直接返回，不配置导出器。
+{
+    var otelBuilder = builder.Services.AddOpenTelemetry()
+        .ConfigureResource(resource => resource.AddService("WebUI"));
+
+    if (openobserveEnabled && !string.IsNullOrWhiteSpace(openobserveUrl))
     {
-        metrics.AddMeter("TaskRunner.WebUI")
-               .AddOtlpExporter(options =>
-               {
-                   var baseUrl = openobserveUrl.TrimEnd('/');
-                   options.Endpoint = new Uri($"{baseUrl}/api/default/v1/metrics");
-                   options.Protocol = OtlpExportProtocol.HttpProtobuf;
-                   var authValue = Convert.ToBase64String(Encoding.UTF8.GetBytes($"{openobserveUser}:{openobservePass}"));
-                   options.Headers = $"Authorization=Basic {authValue}";
-               });
-    })
-    .WithLogging(logging =>
-    {
-        if (!openobserveEnabled) return;
-        logging.AddOtlpExporter(options =>
+        otelBuilder.WithMetrics(metrics =>
         {
-            var baseUrl = openobserveUrl.TrimEnd('/');
-            options.Endpoint = new Uri($"{baseUrl}/api/default/v1/logs");
-            options.Protocol = OtlpExportProtocol.HttpProtobuf;
-            var authValue = Convert.ToBase64String(Encoding.UTF8.GetBytes($"{openobserveUser}:{openobservePass}"));
-            options.Headers = $"Authorization=Basic {authValue}";
+            metrics.AddMeter("TaskRunner.WebUI")
+                   .AddOtlpExporter(options =>
+                   {
+                       var baseUrl = openobserveUrl.TrimEnd('/');
+                       options.Endpoint = new Uri($"{baseUrl}/api/default/v1/metrics");
+                       options.Protocol = OtlpExportProtocol.HttpProtobuf;
+                       var authValue = Convert.ToBase64String(Encoding.UTF8.GetBytes($"{openobserveUser}:{openobservePass}"));
+                       options.Headers = $"Authorization=Basic {authValue}";
+                   });
+        })
+        .WithLogging(logging =>
+        {
+            logging.AddOtlpExporter(options =>
+            {
+                var baseUrl = openobserveUrl.TrimEnd('/');
+                options.Endpoint = new Uri($"{baseUrl}/api/default/v1/logs");
+                options.Protocol = OtlpExportProtocol.HttpProtobuf;
+                var authValue = Convert.ToBase64String(Encoding.UTF8.GetBytes($"{openobserveUser}:{openobservePass}"));
+                options.Headers = $"Authorization=Basic {authValue}";
+            });
         });
-    });
+    }
+}
 
 // Add Request Metrics service (WebUI incoming requests)
 builder.Services.AddSingleton<WebUI.Services.RequestMetricsService>();
@@ -195,34 +219,61 @@ builder.Services.AddScoped<WebUI.Services.DevicesService>();
 builder.Services.AddScoped<WebUI.Services.OnboardingService>();
 builder.Services.AddSingleton<WebUI.Services.CapabilityService>();
 
-// Add HttpClient with API base address
+// Add HttpClient with API base address + Polly retry
+var retryPolicy = HttpPolicyExtensions
+    .HandleTransientHttpError()
+    .WaitAndRetryAsync(3, retryAttempt => TimeSpan.FromSeconds(Math.Pow(1.5, retryAttempt - 1)));
+
 var taskRunnerBaseUrl = builder.Configuration["TaskRunnerApi:BaseUrl"] ?? "http://127.0.0.1:8788/";
 builder.Services.AddHttpClient("TaskRunnerApi", client =>
 {
     client.BaseAddress = new Uri(taskRunnerBaseUrl);
     client.Timeout = TimeSpan.FromSeconds(30);
-});
+}).AddPolicyHandler(retryPolicy);
 
 var taskRunnerAiBaseUrl = builder.Configuration["TaskRunnerAiApi:BaseUrl"] ?? "http://127.0.0.1:8791/";
 builder.Services.AddHttpClient("TaskRunnerAiApi", client =>
 {
     client.BaseAddress = new Uri(taskRunnerAiBaseUrl);
     client.Timeout = TimeSpan.FromSeconds(30);
-});
+}).AddPolicyHandler(retryPolicy);
 
 var taskRunnerVaultBaseUrl = builder.Configuration["TaskRunnerVaultApi:BaseUrl"] ?? "http://127.0.0.1:8790/";
 builder.Services.AddHttpClient("TaskRunnerVaultApi", client =>
 {
     client.BaseAddress = new Uri(taskRunnerVaultBaseUrl);
     client.Timeout = TimeSpan.FromSeconds(30);
-});
+}).AddPolicyHandler(retryPolicy);
 
 builder.Services.AddScoped(sp => sp.GetRequiredService<IHttpClientFactory>().CreateClient("TaskRunnerApi"));
 
 // Add HttpContextAccessor for accessing HttpContext in Blazor components
 builder.Services.AddHttpContextAccessor();
 
-var app = builder.Build();
+builder.Services.AddRateLimiter(options =>
+{
+    options.GlobalLimiter = PartitionedRateLimiter.Create<HttpContext, string>(httpContext =>
+        RateLimitPartition.GetFixedWindowLimiter(
+            partitionKey: httpContext.Connection.RemoteIpAddress?.ToString() ?? "unknown",
+            factory: _ => new FixedWindowRateLimiterOptions
+            {
+                PermitLimit = 100,
+                Window = TimeSpan.FromMinutes(1)
+            }));
+    options.RejectionStatusCode = 429;
+});
+
+WebApplication app;
+try
+{
+    app = builder.Build();
+}
+catch (Exception ex)
+{
+    // Make sure the startup exception is visible in console/logs for easier debugging
+    Console.Error.WriteLine("[WebUI] Startup build failed: " + ex.ToString());
+    throw;
+}
 
 // Configure the HTTP request pipeline.
 if (!app.Environment.IsDevelopment())
@@ -238,6 +289,7 @@ if (basePath != "/")
 }
 
 app.UseRouting();
+app.UseRateLimiter();
 app.UseStaticFiles();
 app.MapStaticAssets();
 app.UseAntiforgery();
@@ -269,6 +321,17 @@ app.MapPost("/api/auth/cli-token", (HttpContext context, WebUI.Services.AuthServ
     }
     var token = authService.GenerateCliToken();
     return Results.Ok(new { token });
+});
+
+app.MapPost("/api/auth/logout", (HttpContext context, WebUI.Services.AuthService authService) =>
+{
+    var cookieVal = context.Request.Cookies[WebUI.Services.AuthService.AuthCookieName];
+    if (!string.IsNullOrEmpty(cookieVal))
+    {
+        authService.RevokeToken(cookieVal);
+    }
+    context.Response.Cookies.Delete(WebUI.Services.AuthService.AuthCookieName, new CookieOptions { Path = "/" });
+    return Results.Ok(new { success = true });
 });
 
 // 请求统计 API
@@ -328,8 +391,8 @@ AppDomain.CurrentDomain.UnhandledException += (s, e) =>
     try
     {
         var ex = e.ExceptionObject as Exception;
-        var logger = app.Services.GetService<ILogger<Program>>();
-        logger?.LogCritical(ex, "Unhandled domain exception occurred");
+        var exLogger = app.Services.GetService<ILogger<Program>>();
+        exLogger?.LogCritical(ex, "Unhandled domain exception occurred");
     }
     catch { }
 };
@@ -338,8 +401,8 @@ TaskScheduler.UnobservedTaskException += (s, e) =>
 {
     try
     {
-        var logger = app.Services.GetService<ILogger<Program>>();
-        logger?.LogError(e.Exception, "Unobserved task exception");
+        var exLogger = app.Services.GetService<ILogger<Program>>();
+        exLogger?.LogError(e.Exception, "Unobserved task exception");
         e.SetObserved();
     }
     catch { }
@@ -368,7 +431,17 @@ app.Lifetime.ApplicationStopped.Register(() =>
     cts.Dispose();
 });
 
-app.Run();
+try
+{
+    app.Run();
+}
+catch (Exception ex)
+{
+    // Ensure unhandled startup/run exceptions are visible in console/logs
+    try { var exLogger = app?.Services?.GetService<ILogger<Program>>(); exLogger?.LogCritical(ex, "Unhandled exception in WebUI Run"); } catch { }
+    Console.Error.WriteLine("[WebUI] Unhandled exception: " + ex.ToString());
+    throw;
+}
 
 public class NotifyStateChangeRequest
 {

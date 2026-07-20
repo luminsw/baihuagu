@@ -26,15 +26,16 @@ namespace TaskRunner.Controllers
             };
         }
 
-        private async Task SaveNote(Note note, string vaultPath)
+        private async Task SaveNote(Note note, string vaultPath, string? providerName = null, string? modelName = null)
         {
             if (string.IsNullOrEmpty(vaultPath)) return;
 
             var notesRoot = System.IO.Path.Combine(vaultPath, "notes");
             var fullPath = System.IO.Path.Combine(notesRoot, note.FilePath + ".md");
             System.IO.Directory.CreateDirectory(System.IO.Path.GetDirectoryName(fullPath)!);
-            await System.IO.File.WriteAllTextAsync(fullPath, note.Content);
-            _logger.LogInformation("笔记已保存：{Path}", fullPath);
+            var frontmatter = $"---\nai_generated: true\nai_provider: {providerName ?? ""}\nai_model: {modelName ?? ""}\ngenerated_at: {DateTimeOffset.UtcNow:O}\n---\n";
+            await System.IO.File.WriteAllTextAsync(fullPath, frontmatter + note.Content);
+            _logger.LogDebug("笔记已保存：{Path}", fullPath);
         }
 
         private string GenerateNoteId(string title)

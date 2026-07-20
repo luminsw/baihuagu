@@ -2,6 +2,7 @@ using TaskRunner.Core.Shared;
 using TaskRunner.Core.Shared.Security;
 using TaskRunner.Services;
 using TaskRunner.Core.Shared.Notifications;
+using TaskRunner.Data;
 
 using TaskRunner.Core.Shared.Hubs;
 using TaskRunner.Filters;
@@ -27,6 +28,16 @@ using TaskRunner.OpenTelemetry;
 using TaskRunner.Contracts.Metrics;
 using TaskRunner.Middleware;
 
+
+// Initialize native SQLite provider early to avoid Microsoft.Data.Sqlite type initializer issues
+try
+{
+    SQLitePCL.Batteries_V2.Init();
+}
+catch
+{
+    // Ignore if initialization not required or fails; later errors will show up when opening DB
+}
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -99,8 +110,7 @@ builder.Services.AddControllers(options =>
     .AddJsonOptions(options =>
     {
         options.JsonSerializerOptions.Encoder = JavaScriptEncoder.Create(UnicodeRanges.All);
-        // 支持大小写不敏感的反序列化（移动端发送camelCase，后端使用PascalCase）
-        options.JsonSerializerOptions.PropertyNameCaseInsensitive = true;
+        options.JsonSerializerOptions.PropertyNamingPolicy = null;
     });
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen(c =>
@@ -121,20 +131,33 @@ builder.Services.AddSignalR()
     });
 
 // 注册核心服务
-// 注册 SQLite 数据库上下文 (EF Core)
-// Context 为 Scoped（供 Controller 直接注入），DbContextOptions 为 Singleton（供 Singleton 的 Factory 使用）
-builder.Services.AddDbContext<TaskRunner.Data.AppDbContext>(options =>
+// Family 数据库上下文
+builder.Services.AddDbContext<TaskRunner.Data.FamilyDbContext>(options =>
 {
-    var dbPath = TaskRunner.Data.AppDbContext.GetDbPath();
-    options.UseSqlite($"Data Source={dbPath};Foreign Keys=True;")
+    var dbPath = TaskRunner.Data.FamilyDbContext.GetDbPath();
+    options.UseSqlite($"Data Source={dbPath};Foreign Keys=True;", sqlite => sqlite.MigrationsAssembly("TaskRunner.Data"))
            .ConfigureWarnings(w => w.Ignore(Microsoft.EntityFrameworkCore.Diagnostics.RelationalEventId.PendingModelChangesWarning));
 }, ServiceLifetime.Scoped, ServiceLifetime.Singleton);
 
-// 注册 DbContext Factory 为 Singleton（供后台服务安全使用，避免并发冲突）
-builder.Services.AddDbContextFactory<TaskRunner.Data.AppDbContext>(options =>
+builder.Services.AddDbContextFactory<TaskRunner.Data.FamilyDbContext>(options =>
 {
-    var dbPath = TaskRunner.Data.AppDbContext.GetDbPath();
-    options.UseSqlite($"Data Source={dbPath};Foreign Keys=True;")
+    var dbPath = TaskRunner.Data.FamilyDbContext.GetDbPath();
+    options.UseSqlite($"Data Source={dbPath};Foreign Keys=True;", sqlite => sqlite.MigrationsAssembly("TaskRunner.Data"))
+           .ConfigureWarnings(w => w.Ignore(Microsoft.EntityFrameworkCore.Diagnostics.RelationalEventId.PendingModelChangesWarning));
+}, ServiceLifetime.Singleton);
+
+// Vault 数据库上下文（Family 需要读取知识库信息）
+builder.Services.AddDbContext<TaskRunner.Data.VaultDbContext>(options =>
+{
+    var dbPath = TaskRunner.Data.VaultDbContext.GetDbPath();
+    options.UseSqlite($"Data Source={dbPath};Foreign Keys=True;", sqlite => sqlite.MigrationsAssembly("TaskRunner.Data"))
+           .ConfigureWarnings(w => w.Ignore(Microsoft.EntityFrameworkCore.Diagnostics.RelationalEventId.PendingModelChangesWarning));
+}, ServiceLifetime.Scoped, ServiceLifetime.Singleton);
+
+builder.Services.AddDbContextFactory<TaskRunner.Data.VaultDbContext>(options =>
+{
+    var dbPath = TaskRunner.Data.VaultDbContext.GetDbPath();
+    options.UseSqlite($"Data Source={dbPath};Foreign Keys=True;", sqlite => sqlite.MigrationsAssembly("TaskRunner.Data"))
            .ConfigureWarnings(w => w.Ignore(Microsoft.EntityFrameworkCore.Diagnostics.RelationalEventId.PendingModelChangesWarning));
 }, ServiceLifetime.Singleton);
 
@@ -381,15 +404,15 @@ builder.Logging.AddSerilog(serilogConfig.CreateLogger(), dispose: true);
 builder.Services.AddSingleton<LogSinkConfigService>(logSinkConfig);
 
 var openobserveEnabled = builder.Configuration.GetValue<bool?>("OpenObserve:Enabled") ?? true;
-var ooBaseUrl = ooConfig.WebUrl?.TrimEnd('/') ?? "http://localhost:5082/openobserve";
+var ooBaseUrl = string.IsNullOrWhiteSpace(ooConfig.WebUrl) ? "http://localhost:5082/openobserve" : ooConfig.WebUrl.TrimEnd('/');
 
 // 注册业务指标（单例，全局共享）
 builder.Services.AddSingleton<ServiceMetrics>();
 
-// 配置 OpenTelemetry（Metrics + Logs + Traces），通过 OTLP 推送到 OpenObserve
+// 配置 OpenTelemetry（Metrics + Logs + Traces），通过 OTLP 推送到 OpenObserve（受 openobserveEnabled 控制）
 builder.Services.AddOpenObserveTelemetry(
     serviceName: "TaskRunner",
-    meterNames: [AiMetricsService.MeterName, ServiceMetrics.MeterName],
+    meterNames: new[] { AiMetricsService.MeterName, ServiceMetrics.MeterName },
     webUrl: ooBaseUrl,
     user: ooConfig.User,
     password: ooConfig.Password,
@@ -445,7 +468,7 @@ app.Use(async (context, next) =>
         "/vault/manifest", "/vault/file", "/vault/file_chunk",
         "/api/vaults", "/vault/pair", "/pair",
         "/api/sync/notes", "/api/sync/system", "/api/sync",
-        "/api/test",
+
         "/mobile-vaults/push",
         // MobileGateway 风格路径别名
         "/mg/manifest", "/mg/file", "/mg/cards",
@@ -550,12 +573,10 @@ app.Use(async (context, next) =>
         "/api/sync/notes", "/api/sync/system", "/api/sync",
         "/api/onehop/register-device",
         "/api/discovery", "/mg/discovery",
-        "/api/test",
         "/mobile-vaults/push",
         "/api/mobile-logs", "/api/mobile-logs/batch",
-        // MobileGateway 风格路径别名（Family 版兼容）
         "/mg/vaults", "/mg/manifest", "/mg/file", "/mg/cards",
-        "/mg/pair", "/mg/pair/check", "/mg/pair/code",
+        "/mg/pair", "/mg/pair/check",
         "/mg/onehop/register-device",
         "/mg/auth/config", "/mg/verify-token",
         "/mg/mobile-logs", "/mg/mobile-logs/batch"
@@ -699,13 +720,14 @@ app.Use(async (context, next) =>
 
 app.MapControllers();
 
-// 添加一个简单的测试端点
-app.MapGet("/api/test", () =>
+
+// 根路径健康检查（快速响应，供外部探活使用）
+app.MapGet("/health", () => Results.Ok(new
 {
-    var logger = app.Services.GetRequiredService<ILogger<Program>>();
-    logger.LogInformation("[TestEndpoint] Test endpoint called");
-    return Results.Ok(new { message = "Test endpoint works", timestamp = DateTime.UtcNow });
-});
+    status = "healthy",
+    timestamp = DateTime.UtcNow.ToString("o"),
+    message = "Task Runner Service is running"
+}));
 
 app.MapHub<TaskProgressHub>("/hubs/task-progress");
 app.MapHub<DeviceHub>("/hubs/devices");
@@ -753,6 +775,7 @@ logger.LogInformation("Health: {BaseUrl}/health", displayBaseUrl);
 logger.LogInformation("Full Health: {BaseUrl}/api/health/full", displayBaseUrl);
 logger.LogInformation("Component Check: {BaseUrl}/api/health/check/{{component}}", displayBaseUrl);
 logger.LogInformation("监听开始后将在后台执行自检与 Obsidian 初始化（不阻塞 API/SignalR）");
+
 
 // 测试 PairingService 是否能被正确解析
 try

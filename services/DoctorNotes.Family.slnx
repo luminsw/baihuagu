@@ -1,6 +1,7 @@
 <Solution>
   <Project Path="TaskRunner.Contracts/TaskRunner.Contracts.csproj" />
   <Project Path="TaskRunner.Data/TaskRunner.Data.csproj" />
+  <Project Path="../libs/MobileContract/MobileContract.csproj" />
   <Project Path="Core.Shared/TaskRunner.Core.Shared.csproj" />
   <Project Path="TaskRunner.Family/TaskRunner.Family.csproj" />
   <Project Path="TaskRunner.AI/TaskRunner.AI.csproj" />

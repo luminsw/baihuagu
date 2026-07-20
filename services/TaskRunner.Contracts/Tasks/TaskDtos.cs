@@ -55,6 +55,7 @@ public class VaultGenerationRequest
     public string Keyword { get; set; } = string.Empty;
     public string? Model { get; set; }
     public int NoteCount { get; set; } = 30;
+    public bool GenerateCards { get; set; }
 }
 
 public class VaultGenerationResponse

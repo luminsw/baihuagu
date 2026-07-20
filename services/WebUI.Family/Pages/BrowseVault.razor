@@ -207,6 +207,24 @@
                     }
                     else
                     {
+                        @if (noteContent.AiGenerated)
+                        {
+                            <div class="mb-3 d-flex flex-wrap gap-1 align-items-center">
+                                <span class="badge bg-info">🤖 AI 生成</span>
+                                @if (!string.IsNullOrEmpty(noteContent.AiProvider))
+                                {
+                                    <span class="badge bg-light text-dark border">@noteContent.AiProvider</span>
+                                }
+                                @if (!string.IsNullOrEmpty(noteContent.AiModel))
+                                {
+                                    <span class="badge bg-light text-dark border">@noteContent.AiModel</span>
+                                }
+                                @if (noteContent.GeneratedAt.HasValue)
+                                {
+                                    <span class="badge bg-light text-dark border">@noteContent.GeneratedAt.Value.ToString("yyyy-MM-dd HH:mm")</span>
+                                }
+                            </div>
+                        }
                         @if (noteContent.Tags?.Any() == true)
                         {
                             <div class="mb-3">
@@ -234,62 +252,79 @@
 <!-- 听知识库弹窗 -->
 @if (showListeningModal)
 {
-    <div class="modal-overlay" style="position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,0.5);z-index:1050;display:flex;align-items:center;justify-content:center;">
-        <div class="modal-content" style="background:white;border-radius:8px;width:90%;max-width:800px;max-height:80vh;overflow:auto;padding:20px;box-shadow:0 4px 20px rgba(0,0,0,0.3);">
-            <div class="modal-header" style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;border-bottom:1px solid #eee;padding-bottom:12px;">
-                <h5 class="modal-title" style="margin:0;font-size:18px;">🎧 听知识库 - @listeningVaultName</h5>
-                <button type="button" class="btn-close" @onclick="CloseListening" style="background:none;border:none;font-size:24px;cursor:pointer;">&times;</button>
-            </div>
-            <div class="modal-body" style="margin-bottom:16px;">
-                @if (listeningPlaylist.Count == 0)
-                {
-                    <div class="text-center py-4">
-                        <p class="text-muted">该知识库暂无笔记</p>
-                    </div>
-                }
-                else
-                {
-                    <div class="mb-4" style="border:1px solid #eee;border-radius:6px;padding:16px;">
-                        <div class="d-flex justify-content-between align-items-center mb-2">
-                            <span class="text-muted small">@(listeningCurrentIndex + 1) / @listeningPlaylist.Count</span>
-                            <span style="background:#0d6efd;color:white;padding:2px 8px;border-radius:4px;font-size:12px;">@(isPlaying ? "播放中" : "已暂停")</span>
+    <div class="modal fade show" style="display:block; background:rgba(0,0,0,0.5);" tabindex="-1" @onkeydown="OnListeningKeyDown" @onkeydown:preventDefault>
+        <div class="modal-dialog modal-lg modal-dialog-scrollable">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">🎧 听知识库 - @listeningVaultName</h5>
+                    <button type="button" class="btn-close" @onclick="CloseListening"></button>
+                </div>
+                <div class="modal-body">
+                    @if (listeningPlaylist.Count == 0)
+                    {
+                        <div class="text-center py-4">
+                            <p class="text-muted">该知识库暂无笔记</p>
                         </div>
-                        <h4 style="margin-top:0;">@listeningPlaylist[listeningCurrentIndex].Title</h4>
-                        <p style="color:#666;font-size:14px;overflow:hidden;text-overflow:ellipsis;">
-                            @StripMarkdown(listeningPlaylist[listeningCurrentIndex].Content ?? "").Substring(0, Math.Min(200, StripMarkdown(listeningPlaylist[listeningCurrentIndex].Content ?? "").Length))@(StripMarkdown(listeningPlaylist[listeningCurrentIndex].Content ?? "").Length > 200 ? "..." : "")
-                        </p>
-                    </div>
+                    }
+                    else
+                    {
+                        <div class="mb-4" style="border:1px solid #eee;border-radius:6px;padding:16px;">
+                            <div class="d-flex justify-content-between align-items-center mb-2">
+                                <span class="text-muted small">@(listeningCurrentIndex + 1) / @listeningPlaylist.Count</span>
+                                <span class="badge @(isPlaying ? "bg-primary" : "bg-secondary")">@(isPlaying ? "播放中" : "已暂停")</span>
+                            </div>
+                            <h4 style="margin-top:0;">@listeningPlaylist[listeningCurrentIndex].Title</h4>
+                            <div style="color:#666;font-size:14px;max-height:200px;overflow-y:auto;line-height:1.7;white-space:pre-wrap;">
+                                @StripMarkdown(listeningPlaylist[listeningCurrentIndex].Content ?? "")
+                            </div>
+                        </div>
 
-                    <div class="mb-3" style="display:flex;justify-content:center;gap:12px;">
-                        <button @onclick="PlayPrev" disabled="@(listeningCurrentIndex == 0)" style="padding:8px 16px;border:1px solid #ccc;border-radius:4px;background:white;cursor:pointer;" @class="{ 'opacity-50 cursor-not-allowed': listeningCurrentIndex == 0 }">
-                            ← 上一篇
-                        </button>
-                        <button @onclick="TogglePlayPause" style="padding:8px 24px;border:none;border-radius:4px;background:#0d6efd;color:white;cursor:pointer;font-size:16px;">
-                            @(isPlaying ? "⏸ 暂停" : "▶ 播放")
-                        </button>
-                        <button @onclick="PlayNext" disabled="@(listeningCurrentIndex >= listeningPlaylist.Count - 1)" style="padding:8px 16px;border:1px solid #ccc;border-radius:4px;background:white;cursor:pointer;" @class="{ 'opacity-50 cursor-not-allowed': listeningCurrentIndex >= listeningPlaylist.Count - 1 }">
-                            下一篇 →
-                        </button>
-                    </div>
-
-                    <div style="max-height:300px;overflow:auto;border:1px solid #eee;border-radius:6px;">
-                        <div style="padding:8px 16px;color:#666;font-size:14px;border-bottom:1px solid #eee;">播放列表</div>
-                        @foreach (var (index, item) in listeningPlaylist.Select((item, index) => (index, item)))
-                        {
-                            <button @onclick="() => JumpToNote(index)" 
-                                    class="playlist-item @(index == listeningCurrentIndex ? "playlist-active" : "")">
-                                <span>@(index + 1). @item.Title</span>
-                                @if (index == listeningCurrentIndex && isPlaying)
-                                {
-                                    <span>▶</span>
-                                }
+                        <div class="mb-3 d-flex justify-content-center gap-2">
+                            <button class="btn btn-outline-secondary" @onclick="PlayPrev" disabled="@(listeningCurrentIndex == 0)">
+                                ← 上一篇
                             </button>
-                        }
-                    </div>
-                }
-            </div>
-            <div class="modal-footer" style="display:flex;justify-content:flex-end;gap:12px;border-top:1px solid #eee;padding-top:12px;">
-                <button @onclick="CloseListening" style="padding:8px 20px;border:1px solid #ccc;border-radius:4px;background:white;cursor:pointer;">关闭</button>
+                            <button class="btn btn-primary" @onclick="TogglePlayPause">
+                                @(isPlaying ? "⏸ 暂停" : "▶ 播放")
+                            </button>
+                            <button class="btn btn-outline-secondary" @onclick="PlayNext" disabled="@(listeningCurrentIndex >= listeningPlaylist.Count - 1)">
+                                下一篇 →
+                            </button>
+                        </div>
+
+                        <div style="max-height:300px;overflow-y:auto;border:1px solid #eee;border-radius:6px;">
+                            <div style="padding:8px 16px;color:#666;font-size:14px;border-bottom:1px solid #eee;position:sticky;top:0;background:white;z-index:1;">播放列表</div>
+                            @{
+                                string? lastCategory = null;
+                            }
+                            @foreach (var (index, item) in listeningPlaylist.Select((item, index) => (index, item)))
+                            {
+                                @if (!string.IsNullOrEmpty(item.Category) && item.Category != lastCategory)
+                                {
+                                    lastCategory = item.Category;
+                                    <div style="padding:6px 16px;background:#f0f2f5;color:#555;font-size:12px;font-weight:600;border-bottom:1px solid #e0e0e0;">📁 @item.Category</div>
+                                }
+                                <button @onclick="() => JumpToNote(index)" 
+                                        class="playlist-item @(index == listeningCurrentIndex ? "playlist-active" : "")">
+                                    <span style="display:flex;align-items:center;gap:6px;">
+                                        @if (playedIndices.Contains(index) && index != listeningCurrentIndex)
+                                        {
+                                            <span style="color:#999;font-size:12px;">✓</span>
+                                        }
+                                        <span>@(index + 1).</span>
+                                        <span>@item.Title</span>
+                                    </span>
+                                    @if (index == listeningCurrentIndex && isPlaying)
+                                    {
+                                        <span>▶</span>
+                                    }
+                                </button>
+                            }
+                        </div>
+                    }
+                </div>
+                <div class="modal-footer">
+                    <button class="btn btn-secondary" @onclick="CloseListening">关闭</button>
+                </div>
             </div>
         </div>
     </div>
@@ -401,9 +436,10 @@
     private bool showListeningModal = false;
     private string listeningVaultId = "";
     private string listeningVaultName = "";
-    private List<(string Path, string Title, string? Content)> listeningPlaylist = new();
+    private List<(string Path, string Title, string? Content, string Category)> listeningPlaylist = new();
     private int listeningCurrentIndex = 0;
     private bool isPlaying = false;
+    private HashSet<int> playedIndices = new();
 
 
     protected override async Task OnInitializedAsync()
@@ -522,87 +558,38 @@
         noteContent = null;
     }
 
-    private int clickCount = 0;
 
     private async Task StartListening(string vaultId, string vaultName)
     {
         try
         {
-            clickCount++;
-            Logger.LogInformation("StartListening called: " + clickCount + ", vaultId: " + vaultId + ", vaultName: " + vaultName);
-            
             listeningVaultId = vaultId;
             listeningVaultName = vaultName;
-            listeningPlaylist = new List<(string Path, string Title, string? Content)>();
+            listeningPlaylist = new List<(string Path, string Title, string? Content, string Category)>();
             listeningCurrentIndex = 0;
             isPlaying = false;
+            playedIndices.Clear();
 
-            Logger.LogInformation("Calling BuildVaultPlaylist...");
-            await BuildVaultPlaylist(vaultId, "");
-
-            Logger.LogInformation("Playlist count: " + listeningPlaylist.Count);
-        }
-        catch (Exception ex)
-        {
-            Logger.LogError("StartListening failed: " + ex.Message);
-            Logger.LogError(ex, "StartListening exception");
-        }
-        finally
-        {
-            Logger.LogInformation("Setting showListeningModal to true");
-            showListeningModal = true;
-            await InvokeAsync(StateHasChanged);
-            Logger.LogInformation("StateHasChanged called");
-        }
-    }
-
-    private async Task BuildVaultPlaylist(string vaultId, string path)
-    {
-        try
-        {
-            Logger.LogInformation("BuildVaultPlaylist: vaultId=" + vaultId + ", path=" + path);
-            var response = await ApiService.GetVaultBrowseAsync(vaultId, path);
-            if (response != null)
+            var batch = await ApiService.GetVaultNotesBatchAsync(vaultId);
+            if (batch?.Notes != null)
             {
-                Logger.LogInformation("GetVaultBrowseAsync returned: " + response.Items.Count + " items");
-                foreach (var item in response.Items)
+                foreach (var note in batch.Notes)
                 {
-                    Logger.LogInformation("Item: " + item.Name + ", IsDirectory=" + item.IsDirectory);
-                    if (item.IsDirectory)
-                    {
-                        await BuildVaultPlaylist(vaultId, item.Path);
-                    }
-                    else
-                    {
-                        try
-                        {
-                            var note = await ApiService.ReadVaultNoteAsync(item.Path, vaultId);
-                            if (note != null)
-                            {
-                                listeningPlaylist.Add((item.Path, note.Title ?? item.Name, note.Content));
-                                Logger.LogInformation("Added note: " + (note.Title ?? item.Name));
-                            }
-                            else
-                            {
-                                Logger.LogWarning("Note is null: " + item.Path);
-                            }
-                        }
-                        catch (Exception ex)
-                        {
-                            Logger.LogError("Read note failed: " + item.Path + ", error: " + ex.Message);
-                        }
-                    }
+                    var category = ExtractCategory(note.Path);
+                    listeningPlaylist.Add((note.Path, note.Title, note.Content, category));
                 }
             }
-            else
+
+            if (listeningPlaylist.Count > 0)
             {
-                Logger.LogWarning("GetVaultBrowseAsync returned null: " + vaultId + ", " + path);
+                showListeningModal = true;
             }
         }
         catch (Exception ex)
         {
-            Logger.LogError("BuildVaultPlaylist exception: " + vaultId + ", " + path + ", error: " + ex.Message);
+            Logger.LogError(ex, "StartListening failed");
         }
+        await InvokeAsync(StateHasChanged);
     }
 
     private DotNetObjectReference<BrowseVault>? _dotNetRef = null;
@@ -624,6 +611,7 @@
     private async Task JumpToNote(int index)
     {
         listeningCurrentIndex = index;
+        playedIndices.Add(index);
         await PlayCurrentNote();
     }
 
@@ -637,9 +625,10 @@
             return;
         }
 
-        _speakSeq++; // 递增序号，使之前的 OnSpeechEnded 回调失效
+        _speakSeq++;
         var currentSeq = _speakSeq;
         _isPlayingSpeech = true;
+        playedIndices.Add(listeningCurrentIndex);
 
         var item = listeningPlaylist[listeningCurrentIndex];
         var textToSpeak = $"{item.Title}. {StripMarkdown(item.Content ?? "")}";
@@ -709,8 +698,17 @@
         await StopPlaying();
         showListeningModal = false;
         listeningPlaylist.Clear();
+        playedIndices.Clear();
         _dotNetRef?.Dispose();
         _dotNetRef = null;
+    }
+
+    private async Task OnListeningKeyDown(KeyboardEventArgs e)
+    {
+        if (e.Key == "Escape")
+        {
+            await CloseListening();
+        }
     }
 
     public async ValueTask DisposeAsync()
@@ -727,63 +725,64 @@
         _dotNetRef = null;
     }
 
+    private static string ExtractCategory(string path)
+    {
+        if (string.IsNullOrWhiteSpace(path)) return "";
+        var normalized = path.Replace('\\', '/');
+        var lastSlash = normalized.LastIndexOf('/');
+        if (lastSlash <= 0) return "";
+        var dir = normalized.Substring(0, lastSlash);
+        var parts = dir.Split('/', StringSplitOptions.RemoveEmptyEntries);
+        return parts.Length > 0 ? string.Join(" / ", parts) : "";
+    }
+
+    private static readonly System.Text.RegularExpressions.Regex _reCodeBlock = new(@"```[\s\S]*?```", System.Text.RegularExpressions.RegexOptions.Multiline | System.Text.RegularExpressions.RegexOptions.Compiled);
+    private static readonly System.Text.RegularExpressions.Regex _reInlineCode = new(@"`[^`]+`", System.Text.RegularExpressions.RegexOptions.Compiled);
+    private static readonly System.Text.RegularExpressions.Regex _reTableSep = new(@"^\|[\s:|-]+\|$", System.Text.RegularExpressions.RegexOptions.Multiline | System.Text.RegularExpressions.RegexOptions.Compiled);
+    private static readonly System.Text.RegularExpressions.Regex _reTableRow = new(@"^\|(.+)\|$", System.Text.RegularExpressions.RegexOptions.Multiline | System.Text.RegularExpressions.RegexOptions.Compiled);
+    private static readonly System.Text.RegularExpressions.Regex _reWikiLink = new(@"\[\[([^\]]*\/)?([^\]]+)\]\]", System.Text.RegularExpressions.RegexOptions.Compiled);
+    private static readonly System.Text.RegularExpressions.Regex _reMdLink = new(@"\[([^\]]+)\]\([^)]+\)", System.Text.RegularExpressions.RegexOptions.Compiled);
+    private static readonly System.Text.RegularExpressions.Regex _reUrl = new(@"https?://\S+", System.Text.RegularExpressions.RegexOptions.Compiled);
+    private static readonly System.Text.RegularExpressions.Regex _reImage = new(@"!\[[^\]]*\]\([^)]+\)", System.Text.RegularExpressions.RegexOptions.Compiled);
+    private static readonly System.Text.RegularExpressions.Regex _reHeading = new(@"^#{1,6}\s+", System.Text.RegularExpressions.RegexOptions.Multiline | System.Text.RegularExpressions.RegexOptions.Compiled);
+    private static readonly System.Text.RegularExpressions.Regex _reBlockquote = new(@"^>\s*", System.Text.RegularExpressions.RegexOptions.Multiline | System.Text.RegularExpressions.RegexOptions.Compiled);
+    private static readonly System.Text.RegularExpressions.Regex _reBold1 = new(@"\*\*(.+?)\*\*", System.Text.RegularExpressions.RegexOptions.Compiled);
+    private static readonly System.Text.RegularExpressions.Regex _reBold2 = new(@"__(.+?)__", System.Text.RegularExpressions.RegexOptions.Compiled);
+    private static readonly System.Text.RegularExpressions.Regex _reItalic1 = new(@"\*(.+?)\*", System.Text.RegularExpressions.RegexOptions.Compiled);
+    private static readonly System.Text.RegularExpressions.Regex _reItalic2 = new(@"_(.+?)_", System.Text.RegularExpressions.RegexOptions.Compiled);
+    private static readonly System.Text.RegularExpressions.Regex _reStrike = new(@"~~(.+?)~~", System.Text.RegularExpressions.RegexOptions.Compiled);
+    private static readonly System.Text.RegularExpressions.Regex _reHtml = new(@"<[^>]+>", System.Text.RegularExpressions.RegexOptions.Compiled);
+    private static readonly System.Text.RegularExpressions.Regex _reHr = new(@"^[-*_]{3,}\s*$", System.Text.RegularExpressions.RegexOptions.Multiline | System.Text.RegularExpressions.RegexOptions.Compiled);
+    private static readonly System.Text.RegularExpressions.Regex _reMultiNewline = new(@"\n{3,}", System.Text.RegularExpressions.RegexOptions.Compiled);
+
     private static string StripMarkdown(string markdown)
     {
         if (string.IsNullOrWhiteSpace(markdown)) return "";
 
         var result = markdown;
 
-        // 1. 移除代码块（```...```），包括语言标识
-        result = System.Text.RegularExpressions.Regex.Replace(result, @"```[\s\S]*?```", "", System.Text.RegularExpressions.RegexOptions.Multiline);
-
-        // 2. 移除行内代码（`code`）
-        result = System.Text.RegularExpressions.Regex.Replace(result, @"`[^`]+`", m => m.Value.Trim('`'));
-
-        // 3. 移除表格分隔行（|:---|:---|...）
-        result = System.Text.RegularExpressions.Regex.Replace(result, @"^\|[\s:|-]+\|$", "", System.Text.RegularExpressions.RegexOptions.Multiline);
-
-        // 4. 处理表格行：移除首尾 |，中间 | 替换为逗号
-        result = System.Text.RegularExpressions.Regex.Replace(result, @"^\|(.+)\|$", m =>
+        result = _reCodeBlock.Replace(result, "");
+        result = _reInlineCode.Replace(result, m => m.Value.Trim('`'));
+        result = _reTableSep.Replace(result, "");
+        result = _reTableRow.Replace(result, m =>
         {
             var cells = m.Groups[1].Value.Split('|');
             return string.Join("，", cells.Select(c => c.Trim()).Where(c => !string.IsNullOrWhiteSpace(c)));
-        }, System.Text.RegularExpressions.RegexOptions.Multiline);
-
-        // 5. 移除 wikilink [[分类/标题]]，只保留标题部分
-        result = System.Text.RegularExpressions.Regex.Replace(result, @"\[\[([^\]]*\/)?([^\]]+)\]\]", "$2");
-
-        // 6. 处理 Markdown 链接 [text](url)，只保留 text
-        result = System.Text.RegularExpressions.Regex.Replace(result, @"\[([^\]]+)\]\([^)]+\)", "$1");
-
-        // 7. 移除纯 URL（http/https 开头）
-        result = System.Text.RegularExpressions.Regex.Replace(result, @"https?://\S+", "");
-
-        // 8. 移除图片语法 ![alt](url)
-        result = System.Text.RegularExpressions.Regex.Replace(result, @"!\[[^\]]*\]\([^)]+\)", "");
-
-        // 9. 移除标题标记（# 开头）
-        result = System.Text.RegularExpressions.Regex.Replace(result, @"^#{1,6}\s+", "", System.Text.RegularExpressions.RegexOptions.Multiline);
-
-        // 10. 移除引用块标记（> 开头）
-        result = System.Text.RegularExpressions.Regex.Replace(result, @"^>\s*", "", System.Text.RegularExpressions.RegexOptions.Multiline);
-
-        // 11. 移除粗体/斜体标记
-        result = System.Text.RegularExpressions.Regex.Replace(result, @"\*\*(.+?)\*\*", "$1");
-        result = System.Text.RegularExpressions.Regex.Replace(result, @"__(.+?)__", "$1");
-        result = System.Text.RegularExpressions.Regex.Replace(result, @"\*(.+?)\*", "$1");
-        result = System.Text.RegularExpressions.Regex.Replace(result, @"_(.+?)_", "$1");
-
-        // 12. 移除删除线
-        result = System.Text.RegularExpressions.Regex.Replace(result, @"~~(.+?)~~", "$1");
-
-        // 13. 移除 HTML 标签
-        result = System.Text.RegularExpressions.Regex.Replace(result, @"<[^>]+>", "");
-
-        // 14. 移除水平分割线
-        result = System.Text.RegularExpressions.Regex.Replace(result, @"^[-*_]{3,}\s*$", "", System.Text.RegularExpressions.RegexOptions.Multiline);
-
-        // 15. 清理多余空白
-        result = System.Text.RegularExpressions.Regex.Replace(result, @"\n{3,}", "\n\n");
+        });
+        result = _reWikiLink.Replace(result, "$2");
+        result = _reMdLink.Replace(result, "$1");
+        result = _reUrl.Replace(result, "");
+        result = _reImage.Replace(result, "");
+        result = _reHeading.Replace(result, "");
+        result = _reBlockquote.Replace(result, "");
+        result = _reBold1.Replace(result, "$1");
+        result = _reBold2.Replace(result, "$1");
+        result = _reItalic1.Replace(result, "$1");
+        result = _reItalic2.Replace(result, "$1");
+        result = _reStrike.Replace(result, "$1");
+        result = _reHtml.Replace(result, "");
+        result = _reHr.Replace(result, "");
+        result = _reMultiNewline.Replace(result, "\n\n");
         result = result.Trim();
 
         return result;
