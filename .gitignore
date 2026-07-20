@@ -196,4 +196,5 @@ tests/e2e/playwright-artifacts-*/
 tests/e2e/storage-state.json
 tests/TaskRunner.Family.Tests/TestResults/
 tests/TaskRunner.Family.Tests/*.coverage
+tests/TaskRunner.Family.Tests/prompt-templates.json
 /playwright/.cache/
