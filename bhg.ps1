@@ -106,8 +106,17 @@ function Stop-ServiceProc($name){
 	if ($existingPid -and (Get-Process -Id $existingPid -ErrorAction SilentlyContinue)) {
 		try {
 			Stop-Process -Id $existingPid -Force -ErrorAction Stop
+			# 等待进程完全退出（最多 10 秒）
+			$sw = [System.Diagnostics.Stopwatch]::StartNew()
+			while ((Get-Process -Id $existingPid -ErrorAction SilentlyContinue) -and $sw.Elapsed.TotalSeconds -lt 10) {
+				Start-Sleep -Milliseconds 200
+			}
 			Remove-Item $pidFile -ErrorAction SilentlyContinue
-			Write-Host "Stopped ${name} (PID $existingPid)"
+			if (Get-Process -Id $existingPid -ErrorAction SilentlyContinue) {
+				Write-Host "Stopped ${name} (PID $existingPid) - process still exiting..." -ForegroundColor Yellow
+			} else {
+				Write-Host "Stopped ${name} (PID $existingPid)"
+			}
 		} catch {
 			Write-Host "ERROR: failed to stop ${name}: ${_}"
 		}
@@ -285,8 +294,8 @@ switch ($Command.ToLower()){
 	}
 	'restart' {
 		foreach ($k in $ServiceOrder){ Stop-ServiceProc $k }
-		Write-Host "Waiting for processes to exit and ports to release..."
-		Start-Sleep -Seconds 3
+		Write-Host "Waiting for ports to release..."
+		Start-Sleep -Seconds 1
 		foreach ($k in $ServiceOrder){
 			Start-ServiceProc $k $Services[$k]
 			if ($k -ne 'webui') {
