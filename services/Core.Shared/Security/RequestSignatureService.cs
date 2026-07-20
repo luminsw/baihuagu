@@ -1,28 +1,51 @@
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Logging;
 using TaskRunner.Core.Shared.Security;
+using TaskRunner.Services;
 using System.Security.Cryptography;
 using System.Text;
 
 namespace TaskRunner.Core.Shared.Security;
 
-/// <summary>
-/// 移动端请求签名验证服务
-/// 使用 HMAC-SHA256 对请求进行签名验证，防止未授权访问
-/// </summary>
 public class RequestSignatureService
 {
     private readonly string _sharedSecret;
     private readonly ILogger<RequestSignatureService> _logger;
 
-    // 时间戳容忍窗口：±5 分钟（防止重放攻击）
     private static readonly TimeSpan TimestampTolerance = TimeSpan.FromMinutes(5);
 
-    public RequestSignatureService(IConfiguration configuration, ILogger<RequestSignatureService> logger)
+    public RequestSignatureService(ServerAddressService serverAddressService, IConfiguration configuration, ILogger<RequestSignatureService> logger)
     {
-        // 从配置系统读取（环境变量 MobileAuth__SharedSecret 或 appsettings）
-        _sharedSecret = configuration.GetValue<string>("MobileAuth:SharedSecret") ?? string.Empty;
         _logger = logger;
+        _sharedSecret = ResolveSharedSecret(serverAddressService, configuration);
+        if (!string.IsNullOrEmpty(_sharedSecret))
+        {
+            _logger.LogInformation("[Signature] SharedSecret loaded (length={Len}, source={Source})",
+                _sharedSecret.Length, string.IsNullOrEmpty(configuration.GetValue<string>("MobileAuth:SharedSecret")) ? "auto-generated" : "config");
+        }
+        else
+        {
+            _logger.LogWarning("[Signature] SharedSecret is empty — mobile auth will not work");
+        }
+    }
+
+    private static string ResolveSharedSecret(ServerAddressService serverAddressService, IConfiguration configuration)
+    {
+        var configSecret = configuration.GetValue<string>("MobileAuth:SharedSecret");
+        if (!string.IsNullOrWhiteSpace(configSecret))
+            return configSecret;
+
+        try
+        {
+            var dbSecret = serverAddressService.GetSharedSecret();
+            if (!string.IsNullOrWhiteSpace(dbSecret))
+                return dbSecret;
+        }
+        catch
+        {
+        }
+
+        return string.Empty;
     }
 
     /// <summary>

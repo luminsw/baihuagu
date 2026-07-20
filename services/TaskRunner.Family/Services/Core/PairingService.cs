@@ -8,12 +8,12 @@ namespace TaskRunner.Services
     public class PairingService : IDisposable
     {
         private readonly ILogger<PairingService> _logger;
-        private readonly string _sharedSecret;
+        private readonly ServerAddressService _serverAddressService;
 
-        public PairingService(ILogger<PairingService> logger, IConfiguration configuration)
+        public PairingService(ILogger<PairingService> logger, ServerAddressService serverAddressService)
         {
             _logger = logger;
-            _sharedSecret = configuration.GetValue<string>("MobileAuth:SharedSecret") ?? string.Empty;
+            _serverAddressService = serverAddressService;
             _logger.LogInformation("配对服务已初始化");
         }
 
@@ -31,7 +31,7 @@ namespace TaskRunner.Services
                 baseUrl = url,
                 hostName = hostName,
                 deviceId = deviceId,
-                sharedSecret = _sharedSecret
+                sharedSecret = _serverAddressService.GetSharedSecret()
             });
             
             _logger.LogInformation("生成二维码: Url={Url}, HostName={HostName}, ServerId={ServerId}", 

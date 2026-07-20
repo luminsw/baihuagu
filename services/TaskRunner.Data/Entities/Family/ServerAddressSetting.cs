@@ -36,6 +36,12 @@ namespace TaskRunner.Data.Entities
         public string ServerInstanceId { get; set; } = "";
 
         /// <summary>
+        /// 移动端 HMAC 签名共享密钥，首次运行时自动生成并持久化
+        /// </summary>
+        [MaxLength(100)]
+        public string SharedSecret { get; set; } = "";
+
+        /// <summary>
         /// 创建时间
         /// </summary>
         public DateTime CreatedAt { get; set; } = DateTime.Now;
