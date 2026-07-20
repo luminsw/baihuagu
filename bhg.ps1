@@ -36,8 +36,10 @@ function Get-BhgRoot {
 $BHG_ROOT = Get-BhgRoot
 $TEMP_DIR = $env:TEMP
 
-# 启动顺序：后端服务先启动，WebUI 最后启动
+# 启动顺序：被依赖的先启动（AI → Vault → TaskRunner → WebUI）
 $ServiceOrder = @('ai', 'vault', 'taskrunner', 'webui')
+# 停止顺序：依赖别人的先停止（WebUI → TaskRunner → Vault → AI）
+$StopOrder = @('webui', 'taskrunner', 'vault', 'ai')
 $Services = @{ 
 	ai         = "services/TaskRunner.AI";
 	vault      = "services/TaskRunner.Vault";
@@ -289,11 +291,11 @@ switch ($Command.ToLower()){
 		break
 	}
 	'stop' {
-		foreach ($k in $ServiceOrder){ Stop-ServiceProc $k }
+		foreach ($k in $StopOrder){ Stop-ServiceProc $k }
 		break
 	}
 	'restart' {
-		foreach ($k in $ServiceOrder){ Stop-ServiceProc $k }
+		foreach ($k in $StopOrder){ Stop-ServiceProc $k }
 		Write-Host "Waiting for ports to release..."
 		Start-Sleep -Seconds 1
 		foreach ($k in $ServiceOrder){
