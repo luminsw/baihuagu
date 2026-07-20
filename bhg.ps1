@@ -277,34 +277,36 @@ function Wait-For-Service([string]$name, [int]$timeoutSec = 20, [bool]$wasJustSt
 	return $false
 }
 
+function Cmd-Start {
+	foreach ($k in $ServiceOrder){
+		Start-ServiceProc $k $Services[$k]
+		if ($k -ne 'webui') {
+			Write-Host "  $k : " -NoNewline
+			Wait-For-Service $k 30 -wasJustStarted $true | Out-Null
+		}
+	}
+}
+
+function Cmd-Stop {
+	foreach ($k in $StopOrder){ Stop-ServiceProc $k }
+}
+
 switch ($Command.ToLower()){
 	'help' { Get-Help; break }
 	'setup' { Cmd-Setup; break }
 	'start' {
-		foreach ($k in $ServiceOrder){
-			Start-ServiceProc $k $Services[$k]
-			if ($k -ne 'webui') {
-				Write-Host "  $k : " -NoNewline
-				Wait-For-Service $k 30 -wasJustStarted $true | Out-Null
-			}
-		}
+		Cmd-Start
 		break
 	}
 	'stop' {
-		foreach ($k in $StopOrder){ Stop-ServiceProc $k }
+		Cmd-Stop
 		break
 	}
 	'restart' {
-		foreach ($k in $StopOrder){ Stop-ServiceProc $k }
+		Cmd-Stop
 		Write-Host "Waiting for ports to release..."
 		Start-Sleep -Seconds 1
-		foreach ($k in $ServiceOrder){
-			Start-ServiceProc $k $Services[$k]
-			if ($k -ne 'webui') {
-				Write-Host "  $k : " -NoNewline
-				Wait-For-Service $k 30 -wasJustStarted $true | Out-Null
-			}
-		}
+		Cmd-Start
 		break
 	}
 	'status' { Show-Status; break }
