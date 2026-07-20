@@ -228,7 +228,7 @@ function Wait-For-Service([string]$name, [int]$timeoutSec = 20, [bool]$wasJustSt
 	# 仅对新启动的服务等待 5 秒让 dotnet run 进程稳定（编译+启动）
 	# 已运行的服务直接做健康检查，无需等待
 	if ($wasJustStarted) {
-		Start-Sleep -Seconds 5
+		Start-Sleep -Seconds 3
 	}
 	$sw = [System.Diagnostics.Stopwatch]::StartNew()
 	$crashCheckDone = $false
@@ -279,8 +279,15 @@ switch ($Command.ToLower()){
 	}
 	'restart' {
 		foreach ($k in $ServiceOrder){ Stop-ServiceProc $k }
-		Start-Sleep -Seconds 1
-		foreach ($k in $ServiceOrder){ Start-ServiceProc $k $Services[$k] }
+		Write-Host "Waiting for processes to exit and ports to release..."
+		Start-Sleep -Seconds 3
+		foreach ($k in $ServiceOrder){
+			Start-ServiceProc $k $Services[$k]
+			if ($k -ne 'webui') {
+				Write-Host "  $k : " -NoNewline
+				Wait-For-Service $k 30 -wasJustStarted $true | Out-Null
+			}
+		}
 		break
 	}
 	'status' { Show-Status; break }
@@ -303,29 +310,25 @@ switch ($Command.ToLower()){
 			}
 		}
 
-		# 启动所有服务
-		$serviceWasRunning = @{}
-		foreach ($name in $ServiceOrder) {
-			$serviceWasRunning[$name] = Ensure-ServiceRunning $name
-		}
-
-		# 等待后端服务就绪
+		# 按顺序启动并等待每个后端服务就绪
 		Write-Host ""
-		Write-Host "Waiting for services..." -ForegroundColor Cyan
 		$failedServices = @()
 		foreach ($name in @('ai', 'vault', 'taskrunner')) {
+			$wasRunning = Ensure-ServiceRunning $name
 			Write-Host "  $name : " -NoNewline
-			if (-not (Wait-For-Service $name 20 -wasJustStarted:(-not $serviceWasRunning[$name]))) { $failedServices += $name }
+			if (-not (Wait-For-Service $name 30 -wasJustStarted:(-not $wasRunning))) { $failedServices += $name }
 		}
 
-		# 等待 WebUI 就绪
+		# 启动 WebUI
+		$webuiWasRunning = Ensure-ServiceRunning 'webui'
 		Write-Host "  webui : " -NoNewline
-		if (-not $serviceWasRunning['webui']) { Start-Sleep -Seconds 2 }
-		if (-not (Wait-For-Url 'http://127.0.0.1:5177/login' 15)){
+		if (-not $webuiWasRunning) { Start-Sleep -Seconds 3 }
+		if (-not (Wait-For-Url 'http://127.0.0.1:5177/login' 20)){
 			Write-Host "  webui : ✗ not ready. Check: .\bhg.ps1 logs webui" -ForegroundColor Red
-			break
+			$failedServices += 'webui'
+		} else {
+			Write-Host "  webui : ✓ ready" -ForegroundColor Green
 		}
-		Write-Host "  webui : ✓ ready" -ForegroundColor Green
 
 		# 获取 CLI token 并打开浏览器
 		Write-Host ""

@@ -106,6 +106,7 @@ builder.Services.AddSingleton<VaultSettingsService>();
 builder.Services.AddSingleton<VaultNoteIndexer>();
 builder.Services.AddSingleton<EmbeddingService>();
 builder.Services.AddSingleton<DeviceService>();
+builder.Services.AddSingleton<ServerAddressService>();
 builder.Services.AddSingleton<RequestSignatureService>();
 builder.Services.AddSingleton<WebUINotificationService>();
 builder.Services.AddSingleton<TaskManager>();
