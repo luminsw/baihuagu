@@ -270,7 +270,13 @@ switch ($Command.ToLower()){
 	'help' { Get-Help; break }
 	'setup' { Cmd-Setup; break }
 	'start' {
-		foreach ($k in $ServiceOrder){ Start-ServiceProc $k $Services[$k] }
+		foreach ($k in $ServiceOrder){
+			Start-ServiceProc $k $Services[$k]
+			if ($k -ne 'webui') {
+				Write-Host "  $k : " -NoNewline
+				Wait-For-Service $k 30 -wasJustStarted $true | Out-Null
+			}
+		}
 		break
 	}
 	'stop' {
