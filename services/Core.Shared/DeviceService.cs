@@ -493,6 +493,28 @@ namespace TaskRunner.Core.Shared;
                 });
 
                 dbContext.SaveChanges();
+
+                // 查询知识库名称用于推送
+                string? vaultName = null;
+                if (!string.IsNullOrEmpty(vaultId) && _vaultDbContextFactory != null)
+                {
+                    try
+                    {
+                        using var vaultDb = _vaultDbContextFactory.CreateDbContext();
+                        vaultName = vaultDb.Vaults
+                            .Where(v => v.VaultId == vaultId)
+                            .Select(v => v.Name)
+                            .FirstOrDefault();
+                    }
+                    catch { /* best effort */ }
+                }
+
+                _ = NotifyDeviceStatusChangedAsync("sync_updated", deviceName, null, vaultId, vaultName)
+                    .ContinueWith(t =>
+                    {
+                        if (t.IsFaulted)
+                            _logger.LogError(t.Exception, "发送同步推送通知失败");
+                    });
             }
             catch (Exception ex)
             {
@@ -612,8 +634,19 @@ namespace TaskRunner.Core.Shared;
             };
         }
 
-        private async Task NotifyDeviceStatusChangedAsync(string action, string deviceName, string? requestId)
+        private async Task NotifyDeviceStatusChangedAsync(string action, string deviceName, string? requestId,
+            string? vaultId = null, string? vaultName = null)
         {
+            var pushType = action switch
+            {
+                "authorized" => "Authorized",
+                "revoked" => "Revoked",
+                "rejected" => "Rejected",
+                "sync_updated" => "SyncRequest",
+                "pair_request" or "lan_discovered" => "PairRequest",
+                _ => null
+            };
+
             // 推送到 SignalR Hub（WebUI 使用）
             if (_deviceHub != null)
             {
@@ -624,6 +657,9 @@ namespace TaskRunner.Core.Shared;
                         action = action,
                         deviceName = deviceName,
                         requestId = requestId,
+                        type = pushType,
+                        vaultId = vaultId,
+                        vaultName = vaultName,
                         timestamp = DateTime.UtcNow
                     });
                 }
@@ -638,7 +674,7 @@ namespace TaskRunner.Core.Shared;
             {
                 try
                 {
-                    await _wsHub.BroadcastAsync(action, deviceName, requestId);
+                    await _wsHub.BroadcastAsync(action, deviceName, requestId, pushType, vaultId, vaultName);
                 }
                 catch (Exception ex)
                 {

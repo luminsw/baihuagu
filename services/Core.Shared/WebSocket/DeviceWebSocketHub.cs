@@ -51,17 +51,23 @@ public class DeviceWebSocketHub
         }
     }
 
-    public async Task BroadcastAsync(string action, string? deviceName = null, string? requestId = null)
+    public async Task BroadcastAsync(string action, string? deviceName = null, string? requestId = null,
+        string? type = null, string? vaultId = null, string? vaultName = null)
     {
         if (_connections.IsEmpty) return;
 
-        var message = JsonSerializer.Serialize(new
+        var msg = new Dictionary<string, object?>
         {
-            action,
-            deviceName,
-            requestId,
-            timestamp = DateTime.UtcNow.ToString("o")
-        });
+            ["action"] = action,
+            ["deviceName"] = deviceName,
+            ["requestId"] = requestId,
+            ["timestamp"] = DateTime.UtcNow.ToString("o")
+        };
+        if (!string.IsNullOrEmpty(type)) msg["type"] = type;
+        if (!string.IsNullOrEmpty(vaultId)) msg["vaultId"] = vaultId;
+        if (!string.IsNullOrEmpty(vaultName)) msg["vaultName"] = vaultName;
+
+        var message = JsonSerializer.Serialize(msg);
         var bytes = Encoding.UTF8.GetBytes(message);
 
         var dead = new List<string>();
