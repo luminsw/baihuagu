@@ -65,6 +65,7 @@ namespace TaskRunner.Core.Shared;
         private readonly ILogger<DeviceService> _logger;
         private string _pairCode;
         private readonly IHubContext<Hubs.DeviceHub>? _deviceHub;
+        private readonly WebSocket.DeviceWebSocketHub? _wsHub;
         private readonly IDbContextFactory<FamilyDbContext> _dbContextFactory;
         private readonly IDbContextFactory<VaultDbContext>? _vaultDbContextFactory;
         
@@ -82,12 +83,14 @@ namespace TaskRunner.Core.Shared;
             ILogger<DeviceService> logger, 
             IDbContextFactory<FamilyDbContext> dbContextFactory,
             IDbContextFactory<VaultDbContext>? vaultDbContextFactory = null,
-            IHubContext<Hubs.DeviceHub>? deviceHub = null)
+            IHubContext<Hubs.DeviceHub>? deviceHub = null,
+            WebSocket.DeviceWebSocketHub? wsHub = null)
         {
             _logger = logger;
             _dbContextFactory = dbContextFactory;
             _vaultDbContextFactory = vaultDbContextFactory;
             _deviceHub = deviceHub;
+            _wsHub = wsHub;
             
             // 优先使用配置中的配对码，如果没有则生成随机配对码
             _pairCode = configuration["PairCode"] ?? GenerateRandomPairCode();
@@ -611,25 +614,36 @@ namespace TaskRunner.Core.Shared;
 
         private async Task NotifyDeviceStatusChangedAsync(string action, string deviceName, string? requestId)
         {
-            if (_deviceHub == null)
+            // 推送到 SignalR Hub（WebUI 使用）
+            if (_deviceHub != null)
             {
-                _logger.LogWarning("无法通知：_deviceHub 为 null");
-                return;
+                try
+                {
+                    await _deviceHub.Clients.All.SendAsync("DeviceStatusChanged", new
+                    {
+                        action = action,
+                        deviceName = deviceName,
+                        requestId = requestId,
+                        timestamp = DateTime.UtcNow
+                    });
+                }
+                catch (Exception ex)
+                {
+                    _logger.LogError(ex, "发送 SignalR 通知失败: {Action} - {DeviceName}", action, deviceName);
+                }
             }
 
-            try
+            // 推送到纯 WebSocket Hub（移动端使用）
+            if (_wsHub != null)
             {
-                await _deviceHub.Clients.All.SendAsync("DeviceStatusChanged", new
+                try
                 {
-                    action = action,
-                    deviceName = deviceName,
-                    requestId = requestId,
-                    timestamp = DateTime.UtcNow
-                });
-            }
-            catch (Exception ex)
-            {
-                _logger.LogError(ex, "发送 WebSocket 通知失败: {Action} - {DeviceName}", action, deviceName);
+                    await _wsHub.BroadcastAsync(action, deviceName, requestId);
+                }
+                catch (Exception ex)
+                {
+                    _logger.LogError(ex, "发送纯 WebSocket 通知失败: {Action} - {DeviceName}", action, deviceName);
+                }
             }
         }
     }

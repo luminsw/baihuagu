@@ -217,6 +217,7 @@ builder.Services.AddSingleton<LearnerService>();
 builder.Services.AddSingleton<AchievementEngine>();
 builder.Services.AddSingleton<LeaderboardService>();
 builder.Services.AddHostedService<StudyRecordMigrationService>();
+builder.Services.AddSingleton<TaskRunner.Core.Shared.WebSocket.DeviceWebSocketHub>();
 builder.Services.AddSingleton<DeviceService>();
 builder.Services.AddSingleton<PairingService>();
 
@@ -731,6 +732,20 @@ app.MapGet("/health", () => Results.Ok(new
 
 app.MapHub<TaskProgressHub>("/hubs/task-progress");
 app.MapHub<DeviceHub>("/hubs/devices");
+
+// 纯 WebSocket 端点（供移动端使用，无需 SignalR 协议）
+app.Map("/ws/devices", async (HttpContext context, TaskRunner.Core.Shared.WebSocket.DeviceWebSocketHub hub) =>
+{
+    if (!context.WebSockets.IsWebSocketRequest)
+    {
+        context.Response.StatusCode = 400;
+        return;
+    }
+
+    var deviceName = context.Request.Query["deviceName"].ToString();
+    var webSocket = await context.WebSockets.AcceptWebSocketAsync();
+    await hub.AcceptAsync(webSocket, deviceName);
+});
 
 // 启动信息
 var host = app.Services.GetRequiredService<IHostEnvironment>().ContentRootPath;
