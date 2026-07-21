@@ -65,7 +65,7 @@ public class PushWebSocketService : IDisposable
 
         var wsUrl = _serverBaseUrl.Replace("https://", "wss://")
             .Replace("http://", "ws://")
-            + $"/ws/push?deviceName={Uri.EscapeDataString(deviceName)}";
+            + $"/ws/devices?deviceName={Uri.EscapeDataString(deviceName)}";
 
         Log($"PushWebSocket connecting to {wsUrl}");
         _pendingPollUrl = null;
@@ -216,7 +216,7 @@ public class PushWebSocketService : IDisposable
             {
                 var wsUrl = _serverBaseUrl.Replace("https://", "wss://")
                     .Replace("http://", "ws://")
-                    + $"/ws/push?deviceName={Uri.EscapeDataString(_deviceName)}";
+                    + $"/ws/devices?deviceName={Uri.EscapeDataString(_deviceName)}";
                 await ConnectLoopAsync(wsUrl, ct);
             }
         }
@@ -233,6 +233,7 @@ public class PushWebSocketService : IDisposable
         _pollCts?.Dispose();
         _pollCts = new CancellationTokenSource();
 
+        // TODO: push-pending 端点尚未实现，轮询降级暂不可用
         _pendingPollUrl = $"{_serverBaseUrl}/mg/devices/push-pending?deviceName={Uri.EscapeDataString(_deviceName)}&wait=false";
         _ = PollLoopAsync(_pollCts.Token);
     }
