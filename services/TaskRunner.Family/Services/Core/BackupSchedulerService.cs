@@ -84,13 +84,13 @@ namespace TaskRunner.Services
             try
             {
                 var backupDir = string.IsNullOrEmpty(_backupDir)
-                    ? Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.MyDocuments), "DoctorNotesBackups")
+                    ? Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.MyDocuments), "HuajiBackups")
                     : _backupDir;
 
                 if (!Directory.Exists(backupDir))
                     return Task.CompletedTask;
 
-                var files = Directory.GetFiles(backupDir, "doctor_notes_backup_*.zip")
+                var files = Directory.GetFiles(backupDir, "huaji_backup_*.zip")
                     .Select(f => new FileInfo(f))
                     .OrderByDescending(f => f.CreationTime)
                     .ToList();

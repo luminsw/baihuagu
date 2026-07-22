@@ -61,8 +61,8 @@ jobs:
           restore-keys: |
             ${{ runner.os }}-nuget-
 
-      - name: Build DoctorNotes.Family solution
-        run: dotnet build services/DoctorNotes.Family.slnx -c Release
+      - name: Build BaiHuaGu solution
+        run: dotnet build services/BaiHuaGu.slnx -c Release
 
   # ── Android 编译（.NET 9 MAUI） ──
   android-build:

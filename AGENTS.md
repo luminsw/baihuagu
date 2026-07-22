@@ -60,7 +60,7 @@ cd services/TaskRunner.Family && dotnet watch run --non-interactive --no-hot-rel
 cd services/WebUI.Family && dotnet watch run --non-interactive
 
 # 编译验证（推送前必须执行）
-dotnet build services/DoctorNotes.Family.slnx -c Release
+dotnet build services/BaiHuaGu.slnx -c Release
 ```
 
 ## 端口

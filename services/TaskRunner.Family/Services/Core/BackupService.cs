@@ -84,9 +84,9 @@ public class BackupService
     public async Task<FullBackupResult> CreateFullBackupAsync(string? backupDir = null, string? password = null, CancellationToken cancellationToken = default)
     {
         var timestamp = DateTime.UtcNow;
-        var backupFileName = $"doctor_notes_backup_{timestamp:yyyyMMdd_HHmmss}.zip";
+        var backupFileName = $"huaji_backup_{timestamp:yyyyMMdd_HHmmss}.zip";
         var backupFullPath = string.IsNullOrEmpty(backupDir)
-            ? Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.MyDocuments), "DoctorNotesBackups", backupFileName)
+            ? Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.MyDocuments), "HuajiBackups", backupFileName)
             : Path.Combine(backupDir, backupFileName);
 
         var backupDirPath = Path.GetDirectoryName(backupFullPath);
@@ -401,7 +401,7 @@ public class BackupService
     public List<TaskRunner.Contracts.Backup.BackupFileInfo> GetBackupList(string? backupPath = null)
     {
         var backupDir = string.IsNullOrEmpty(backupPath)
-            ? Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.MyDocuments), "DoctorNotesBackups")
+            ? Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.MyDocuments), "HuajiBackups")
             : backupPath;
 
         if (!Directory.Exists(backupDir))
@@ -409,7 +409,7 @@ public class BackupService
             return new List<TaskRunner.Contracts.Backup.BackupFileInfo>();
         }
 
-        return Directory.GetFiles(backupDir, "doctor_notes_backup_*.zip")
+        return Directory.GetFiles(backupDir, "huaji_backup_*.zip")
             .Concat(Directory.GetFiles(backupDir, "backup_*.zip"))
             .OrderByDescending(f => File.GetLastWriteTime(f))
             .Select(f => new TaskRunner.Contracts.Backup.BackupFileInfo

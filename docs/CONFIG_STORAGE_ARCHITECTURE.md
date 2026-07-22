@@ -118,7 +118,7 @@
 全量备份为 ZIP 文件，内部结构：
 
 ```
-doctor_notes_backup_yyyyMMdd_HHmmss.zip
+huaji_backup_yyyyMMdd_HHmmss.zip
 ├── manifest.json          # 元数据（版本、时间、源平台、是否有密码）
 ├── db/
 │   ├── vaults.json        # Vaults 表（含相对路径，用于跨平台重映射）
