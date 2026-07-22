@@ -23,6 +23,10 @@ public class VaultConfig
     /// 知识库来源：local=本地创建, mobile=移动端推送, cloud=官网同步
     /// </summary>
     public string Source { get; set; } = "local";
+
+    public string PushedByDeviceId { get; set; } = "";
+    public string PushedByDeviceName { get; set; } = "";
+    public DateTime? PushedAt { get; set; }
 }
 
 public class VaultsResponse
@@ -81,6 +85,8 @@ public class MobileVaultPushRequest
     public string VaultName { get; set; } = "";
     public string Industry { get; set; } = "";
     public List<MobileVaultNoteDto> Notes { get; set; } = new();
+    public string DeviceId { get; set; } = "";
+    public string DeviceName { get; set; } = "";
 }
 
 public class MobileVaultNoteDto

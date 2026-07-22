@@ -102,6 +102,10 @@ public class VaultDbContext : DbContext
             entity.Property(e => e.IsActive).HasDefaultValue(false);
             entity.Property(e => e.Tags).HasMaxLength(500).HasDefaultValue("");
             entity.Property(e => e.Industry).HasMaxLength(100).HasDefaultValue("");
+            entity.Property(e => e.Source).HasMaxLength(20).HasDefaultValue("local");
+            entity.Property(e => e.PushedByDeviceId).HasMaxLength(100).HasDefaultValue("");
+            entity.Property(e => e.PushedByDeviceName).HasMaxLength(200).HasDefaultValue("");
+            entity.Property(e => e.PushedAt).IsRequired(false);
             entity.Property(e => e.IsDeleted).HasDefaultValue(false);
             entity.Property(e => e.DeletedAt).IsRequired(false);
             entity.Property(e => e.CreatedAt).HasDefaultValueSql("datetime('now')");

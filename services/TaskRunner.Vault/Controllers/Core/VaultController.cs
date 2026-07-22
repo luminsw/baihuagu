@@ -99,7 +99,10 @@ namespace TaskRunner.Vault.Controllers;
                 name = v.Name,
                 path = v.Path,
                 industry = v.Industry,
-                source = v.Source
+                source = v.Source,
+                pushedByDeviceId = v.PushedByDeviceId,
+                pushedByDeviceName = v.PushedByDeviceName,
+                pushedAt = v.PushedAt
             });
 
             _logger.LogDebug("返回知识库列表，共 {Count} 个", vaults.Count);

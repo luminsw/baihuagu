@@ -57,7 +57,11 @@ public partial class VaultSettingsService
                     Path = v.Path,
                     CreatedAt = v.CreatedAt,
                     Tags = ParseTags(v.Tags),
-                    Industry = v.Industry
+                    Industry = v.Industry,
+                    Source = v.Source,
+                    PushedByDeviceId = v.PushedByDeviceId,
+                    PushedByDeviceName = v.PushedByDeviceName,
+                    PushedAt = v.PushedAt
                 })
                 .ToList();
         }

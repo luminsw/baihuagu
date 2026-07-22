@@ -30,6 +30,21 @@ public class Vault
     public string Source { get; set; } = "local";
 
     /// <summary>
+    /// 推送来源设备ID（移动端推送时记录）
+    /// </summary>
+    public string PushedByDeviceId { get; set; } = "";
+
+    /// <summary>
+    /// 推送来源设备名（移动端推送时记录，如"听风笔"）
+    /// </summary>
+    public string PushedByDeviceName { get; set; } = "";
+
+    /// <summary>
+    /// 推送时间
+    /// </summary>
+    public DateTime? PushedAt { get; set; }
+
+    /// <summary>
     /// 是否已删除（移入回收站）
     /// </summary>
     public bool IsDeleted { get; set; }

@@ -128,6 +128,10 @@ public partial class VaultController
             }
 
             // 注册到数据库（仅当是新知识库时）
+            var pushedByDeviceId = request.DeviceId ?? "";
+            var pushedByDeviceName = request.DeviceName ?? "";
+            var pushedAt = DateTime.UtcNow;
+
             if (isNewVault)
             {
                 dbContext.Vaults.Add(new Data.Entities.Vault
@@ -138,14 +142,24 @@ public partial class VaultController
                     IsActive = true,
                     Industry = industry,
                     Source = "mobile",
+                    PushedByDeviceId = pushedByDeviceId,
+                    PushedByDeviceName = pushedByDeviceName,
+                    PushedAt = pushedAt,
                     CreatedAt = DateTime.UtcNow,
                     UpdatedAt = DateTime.UtcNow
                 });
                 await dbContext.SaveChangesAsync();
             }
-            else if (migrated)
+            else
             {
                 existingVault!.UpdatedAt = DateTime.UtcNow;
+                existingVault.PushedByDeviceId = pushedByDeviceId;
+                existingVault.PushedByDeviceName = pushedByDeviceName;
+                existingVault.PushedAt = pushedAt;
+                if (migrated)
+                {
+                    existingVault.Path = vaultDir;
+                }
                 await dbContext.SaveChangesAsync();
             }
 
