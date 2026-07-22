@@ -723,12 +723,18 @@ app.MapControllers();
 
 
 // 根路径健康检查（快速响应，供外部探活使用）
-app.MapGet("/health", () => Results.Ok(new
+app.MapGet("/health", (TaskRunner.Services.ServerAddressService sas) =>
 {
-    status = "healthy",
-    timestamp = DateTime.UtcNow.ToString("o"),
-    message = "Task Runner Service is running"
-}));
+    var settings = sas.GetSettings();
+    return Results.Ok(new
+    {
+        status = "healthy",
+        timestamp = DateTime.UtcNow.ToString("o"),
+        message = "Task Runner Service is running",
+        serverId = settings.ServerInstanceId,
+        serverName = settings.DisplayName
+    });
+});
 
 app.MapHub<TaskProgressHub>("/hubs/task-progress");
 app.MapHub<DeviceHub>("/hubs/devices");

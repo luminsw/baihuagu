@@ -98,12 +98,12 @@ namespace TaskRunner.Services
                 var setting = dbContext.ServerAddressSettings.OrderBy(s => s.Id).FirstOrDefault();
                 if (setting == null)
                 {
-                    // 创建默认配置
                     setting = new ServerAddressSetting
                     {
                         Domain = "",
                         Url = "",
-                        ServerInstanceId = GenerateServerInstanceId()
+                        ServerInstanceId = GenerateServerInstanceId(),
+                        DisplayName = GenerateCulturalDisplayName()
                     };
                     dbContext.ServerAddressSettings.Add(setting);
                     dbContext.SaveChanges();
@@ -111,6 +111,11 @@ namespace TaskRunner.Services
                 else if (string.IsNullOrWhiteSpace(setting.ServerInstanceId))
                 {
                     setting.ServerInstanceId = GenerateServerInstanceId();
+                    dbContext.SaveChanges();
+                }
+                else if (string.IsNullOrWhiteSpace(setting.DisplayName))
+                {
+                    setting.DisplayName = GenerateCulturalDisplayName();
                     dbContext.SaveChanges();
                 }
 
@@ -144,7 +149,7 @@ namespace TaskRunner.Services
                     setting = new ServerAddressSetting
                     {
                         Domain = normalizedDomain,
-                        DisplayName = displayName ?? "",
+                        DisplayName = displayName ?? GenerateCulturalDisplayName(),
                         Url = "",
                         ServerInstanceId = GenerateServerInstanceId(),
                         SharedSecret = GenerateSharedSecret()
@@ -264,6 +269,27 @@ namespace TaskRunner.Services
         private static string GenerateSharedSecret()
         {
             return $"sec-{Guid.NewGuid():N}";
+        }
+
+        private static readonly string[] CulturalNamePrefixes =
+        [
+            "听风", "望月", "拾光", "寻芳", "踏雪", "观云", "沐雨", "临水",
+            "知秋", "迎春", "听雨", "看花", "折柳", "采菊", "抚琴", "煮茶",
+            "清心", "静思", "悠然", "闲云", "素心", "雅韵", "墨香", "竹影",
+            "松风", "梅骨", "兰心", "菊韵", "荷香", "桃夭", "杏雨", "梨云"
+        ];
+
+        private static readonly string[] CulturalNameSuffixes =
+        [
+            "阁", "轩", "斋", "居", "堂", "舍", "庐", "苑",
+            "院", "楼", "亭", "台", "馆", "室", "房", "庄"
+        ];
+
+        private static string GenerateCulturalDisplayName()
+        {
+            var prefix = CulturalNamePrefixes[Random.Shared.Next(CulturalNamePrefixes.Length)];
+            var suffix = CulturalNameSuffixes[Random.Shared.Next(CulturalNameSuffixes.Length)];
+            return $"{prefix}{suffix}";
         }
 
         /// <summary>
