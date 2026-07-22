@@ -230,6 +230,31 @@ try
     using var scope = app.Services.CreateScope();
     var db = scope.ServiceProvider.GetRequiredService<TaskRunner.Data.VaultDbContext>();
     db.Database.Migrate();
+    var conn = db.Database.GetDbConnection();
+    conn.Open();
+    using var cmd = conn.CreateCommand();
+    cmd.CommandText = "PRAGMA table_info(Vaults)";
+    var columns = new HashSet<string>();
+    using (var reader = cmd.ExecuteReader())
+    {
+        while (reader.Read()) columns.Add(reader.GetString(1));
+    }
+    if (!columns.Contains("PushedByDeviceId"))
+    {
+        cmd.CommandText = "ALTER TABLE Vaults ADD COLUMN PushedByDeviceId TEXT NOT NULL DEFAULT ''";
+        cmd.ExecuteNonQuery();
+    }
+    if (!columns.Contains("PushedByDeviceName"))
+    {
+        cmd.CommandText = "ALTER TABLE Vaults ADD COLUMN PushedByDeviceName TEXT NOT NULL DEFAULT ''";
+        cmd.ExecuteNonQuery();
+    }
+    if (!columns.Contains("PushedAt"))
+    {
+        cmd.CommandText = "ALTER TABLE Vaults ADD COLUMN PushedAt TEXT NULL";
+        cmd.ExecuteNonQuery();
+    }
+    conn.Close();
     logger.LogInformation("Vault 数据库迁移完成");
 }
 catch (Exception ex)
