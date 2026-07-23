@@ -321,8 +321,15 @@ function Wait-For-Service([string]$name, [int]$timeoutSec = 20, [bool]$wasJustSt
 function Cmd-Start {
 	foreach ($k in $ServiceOrder){
 		Start-ServiceProc $k $Services[$k]
-		if ($k -ne 'webui') {
-			Write-Host "  $k : " -NoNewline
+		Write-Host "  $k : " -NoNewline
+		if ($k -eq 'webui') {
+			Start-Sleep -Seconds 3
+			if (Wait-For-Url 'http://127.0.0.1:5177/login' 30) {
+				Write-Host "ready" -ForegroundColor Green
+			} else {
+				Write-Host "not ready" -ForegroundColor Red
+			}
+		} else {
 			Wait-For-Service $k 30 -wasJustStarted $true | Out-Null
 		}
 	}
