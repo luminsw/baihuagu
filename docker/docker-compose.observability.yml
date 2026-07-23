@@ -1,6 +1,6 @@
 services:
   openobserve:
-    image: public.ecr.aws/zinclabs/openobserve:v0.80.1
+    image: public.ecr.aws/zinclabs/openobserve:latest
     container_name: bhg-openobserve
     restart: unless-stopped
     ports:
