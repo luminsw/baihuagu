@@ -28,7 +28,6 @@ public class FamilyDbContext : DbContext
     public DbSet<AuthorizedDevice> AuthorizedDevices => Set<AuthorizedDevice>();
     public DbSet<DeviceSyncLog> DeviceSyncLogs => Set<DeviceSyncLog>();
     public DbSet<ServerAddressSetting> ServerAddressSettings => Set<ServerAddressSetting>();
-    public DbSet<MobileLogRecord> MobileLogs => Set<MobileLogRecord>();
     public DbSet<ChatMemoryEntry> ChatMemoryEntries => Set<ChatMemoryEntry>();
 
     public string DatabasePath
@@ -255,20 +254,6 @@ public class FamilyDbContext : DbContext
             entity.Property(e => e.ServerInstanceId).HasMaxLength(100).IsRequired().HasDefaultValue("");
             entity.Property(e => e.CreatedAt).HasDefaultValueSql("datetime('now')");
             entity.Property(e => e.UpdatedAt).HasDefaultValueSql("datetime('now')");
-        });
-
-        modelBuilder.Entity<MobileLogRecord>(entity =>
-        {
-            entity.ToTable("MobileLogs");
-            entity.HasKey(e => e.Id);
-            entity.HasIndex(e => e.DeviceId);
-            entity.HasIndex(e => e.Timestamp);
-
-            entity.Property(e => e.DeviceId).HasMaxLength(100).IsRequired();
-            entity.Property(e => e.DeviceName).HasMaxLength(200);
-            entity.Property(e => e.Level).HasMaxLength(20).IsRequired().HasDefaultValue("info");
-            entity.Property(e => e.Message).IsRequired();
-            entity.Property(e => e.Timestamp).HasDefaultValueSql("datetime('now')");
         });
 
         modelBuilder.Entity<ChatMemoryEntry>(entity =>

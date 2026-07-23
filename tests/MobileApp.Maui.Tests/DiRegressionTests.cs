@@ -6,11 +6,6 @@ using Moq;
 
 namespace MobileApp.Maui.Tests;
 
-/// <summary>
-/// 回归测试：确保 MauiProgram 中所有 DI 注册的服务都可以正确构造。
-/// 之前 PairingServiceImpl/LogServiceImpl 的构造函数包含 string
-/// 参数，而 DI 容器无法解析，导致 Blazor 路由器静默崩溃。
-/// </summary>
 public class DiRegressionTests
 {
     // ---- PairingServiceImpl ----
@@ -37,28 +32,6 @@ public class DiRegressionTests
         Assert.Contains(stringParams, p => p.Name == "deviceName");
     }
 
-    // ---- LogServiceImpl ----
-
-    [Fact]
-    public void LogServiceImpl_CanBeConstructed_WithCorrectFactoryPattern()
-    {
-        var client = new HttpClient();
-        var signer = Mock.Of<IRequestSigner>();
-
-        var service = new LogServiceImpl(client, signer, "device-1", "test-device");
-
-        Assert.NotNull(service);
-    }
-
-    [Fact]
-    public void LogServiceImpl_Ctor_RequiresDeviceIdAndDeviceName()
-    {
-        var ctor = typeof(LogServiceImpl).GetConstructors().Single();
-        var stringParams = ctor.GetParameters().Where(p => p.ParameterType == typeof(string));
-
-        Assert.Equal(2, stringParams.Count());
-    }
-
     // ---- SyncServiceImpl ----
 
     [Fact]
@@ -78,7 +51,7 @@ public class DiRegressionTests
         var ctor = typeof(SyncServiceImpl).GetConstructors().Single();
         var stringParams = ctor.GetParameters().Where(p => p.ParameterType == typeof(string));
 
-        Assert.Empty(stringParams); // 可以直接通过 DI 容器构造，无需工厂方法
+        Assert.Empty(stringParams);
     }
 
     // ---- PushWebSocketService ----
@@ -111,11 +84,9 @@ public class DiRegressionTests
         var client = new HttpClient();
         var signer = Mock.Of<IRequestSigner>();
 
-        // 这些类型在 MauiProgram.cs 中注册为 DI 服务，并被各页面 @inject
         var services = new object[]
         {
             new PairingServiceImpl(client, signer, "test-device", "test-name"),
-            new LogServiceImpl(client, signer, "test-device", "test-name"),
             new SyncServiceImpl(client, signer),
             new PushWebSocketService(client),
         };

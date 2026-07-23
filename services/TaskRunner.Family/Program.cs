@@ -225,7 +225,6 @@ builder.Services.AddSingleton<PairingService>();
 builder.Services.AddSingleton<TaskRunner.Services.Strategies.IPairingStrategy, TaskRunner.Services.Strategies.FamilyPairingStrategy>();
 builder.Services.AddSingleton<TaskRunner.Services.Strategies.ISyncAuthorizationStrategy, TaskRunner.Services.Strategies.FamilySyncAuthorizationStrategy>();
 builder.Services.AddSingleton<ServerAddressService>();
-builder.Services.AddSingleton<MobileLogService>();
 builder.Services.AddSingleton<WebUINotificationService>();
 builder.Services.AddSingleton<RequestSignatureService>();
 
@@ -235,7 +234,6 @@ builder.Services.AddSingleton<MobileContract.Services.IPairingService, TaskRunne
 // 管理后台接口
 builder.Services.AddSingleton<MobileContract.Admin.IDeviceAdminService, TaskRunner.Services.Adapters.MobileDeviceServiceAdapter>();
 builder.Services.AddSingleton<MobileContract.Admin.IPushAdminService, TaskRunner.Services.Adapters.MobileDeviceServiceAdapter>();
-builder.Services.AddSingleton<MobileContract.Admin.ILogAdminService, TaskRunner.Services.Adapters.MobileLogServiceAdapter>();
 builder.Services.AddSingleton<MobileContract.Admin.IOneHopAdminService, TaskRunner.Services.Adapters.OneHopAdminServiceAdapter>();
 
 // 注册OneHop服务（基于TCP的局域网设备连接）
@@ -575,12 +573,10 @@ app.Use(async (context, next) =>
         "/api/onehop/register-device",
         "/api/discovery", "/mg/discovery",
         "/mobile-vaults/push",
-        "/api/mobile-logs", "/api/mobile-logs/batch",
         "/mg/vaults", "/mg/manifest", "/mg/file", "/mg/cards",
         "/mg/pair", "/mg/pair/check",
         "/mg/onehop/register-device",
         "/mg/auth/config", "/mg/verify-token",
-        "/mg/mobile-logs", "/mg/mobile-logs/batch"
     };
 
     if (publicPaths.Any(p => path.StartsWith(p)))

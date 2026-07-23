@@ -7,7 +7,6 @@
 @inject MobileApp.Maui.Services.IVaultStorageFactory VaultStorageFactory
 @inject NavigationManager Nav
 @inject IJSRuntime JS
-@inject MobileContract.Services.IRemoteLogService Logger
 @implements IDisposable
 
 <PageTitle>百花谷 - 同步</PageTitle>
@@ -215,7 +214,6 @@ else
 
         try
         {
-            Logger.Info($"[{source}] 开始查询注册/授权状态", "SyncPage");
             var result = await Watcher.WaitForAuthorizationAsync(
                 _selectedServer.HttpUrl,
                 MobileApp.Maui.Services.DeviceInfoHelper.GetDeviceName(),
@@ -223,12 +221,10 @@ else
 
             if (result.IsAuthorized && !string.IsNullOrEmpty(result.SharedSecret))
             {
-                Logger.Info($"[{source}] 已授权，准备保存密钥并加载知识库", "SyncPage");
                 await ApplyAuthorizedSecretAsync(result.SharedSecret, source);
             }
             else if (_watchCts.IsCancellationRequested)
             {
-                Logger.Info($"[{source}] 授权等待已取消", "SyncPage");
             }
             else if (!string.IsNullOrEmpty(result.ErrorMessage))
             {
@@ -247,12 +243,10 @@ else
         }
         catch (OperationCanceledException)
         {
-            Logger.Info($"[{source}] 授权等待已取消", "SyncPage");
         }
         catch (Exception ex)
         {
             _error = ex.Message;
-            Logger.Info($"[{source}] 等待授权异常: {ex.Message}", "SyncPage");
         }
         finally
         {
@@ -278,16 +272,13 @@ else
         await SecureStore.SetAsync($"secret_{_selectedServer.HttpUrl}", secret);
         _hasSecret = true;
         _regResult = null;
-        Logger.Info($"[{source}] 授权完成，密钥已保存，准备加载知识库列表", "SyncPage");
         StateHasChanged();
         await FetchVaults();
-        Logger.Info($"[{source}] 知识库列表加载完成: {_vaults.Count} 个", "SyncPage");
     }
 
     private void OnWebSocketConnectionStateChange(bool connected)
     {
         _pushConnected = connected;
-        Logger.Info($"[WebSocket] 连接状态变化: {(connected ? "已连接" : "已断开")}", "SyncPage");
         InvokeAsync(StateHasChanged);
     }
 
@@ -361,7 +352,6 @@ else
         }
         catch (Exception ex)
         {
-            Logger.Info($"保存知识库元数据失败: {ex.Message}", "SyncPage");
         }
     }
 }

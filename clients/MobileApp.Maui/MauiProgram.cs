@@ -76,19 +76,7 @@ public static class MauiProgram
         builder.Services.AddSingleton(sp =>
         {
             var client = sp.GetRequiredService<HttpClient>();
-            var signer = sp.GetRequiredService<IRequestSigner>();
-            return new LogServiceImpl(client, signer,
-                DeviceInfoHelper.GetDeviceId(), DeviceInfoHelper.GetDeviceName());
-        });
-        builder.Services.AddSingleton<IRemoteLogService>(sp => sp.GetRequiredService<LogServiceImpl>());
-
-        builder.Services.AddSingleton(sp =>
-        {
-            var client = sp.GetRequiredService<HttpClient>();
             var pushService = new PushWebSocketService(client);
-            // 统一设置 WebSocket 日志回调（避免各页面重复配置）
-            var logger = sp.GetRequiredService<IRemoteLogService>();
-            pushService.OnLog = msg => logger.Info(msg, "PushWebSocket");
             return pushService;
         });
         builder.Services.AddTransient<AuthorizationWatcher>(sp =>

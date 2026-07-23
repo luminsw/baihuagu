@@ -5,17 +5,8 @@ using Xunit;
 
 namespace BaihuaguSdk.Tests.Services;
 
-/// <summary>
-/// 验证 SDK 实现类正确实现了 MobileContract 中定义的移动端接口。
-/// </summary>
 public class ContractAlignmentTests
 {
-    [Fact]
-    public void LogServiceImpl_Implements_IRemoteLogService()
-    {
-        Assert.True(typeof(IRemoteLogService).IsAssignableFrom(typeof(LogServiceImpl)));
-    }
-
     [Fact]
     public void PairingServiceImpl_Implements_IPairingService()
     {
