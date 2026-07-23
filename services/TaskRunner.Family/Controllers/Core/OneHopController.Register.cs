@@ -68,10 +68,32 @@ public partial class OneHopController
                         });
                     }
 
-                    // deviceName 匹配但 deviceId 不匹配：可能是设备重置后 ANDROID_ID 变更
-                    // 创建新的待授权请求，让用户在 WebUI 中手动确认授权（而非直接拒绝）
-                    _logger.LogWarning("Device id mismatch: name={DeviceName} existingId={ExistingId} requestId={RequestId}, creating new pair request",
+                    // deviceName 匹配且已授权，但 deviceId 不匹配（手机重装/换设备后新ID）
+                    // 自动更新 DeviceId 并放行，无需重新授权
+                    _logger.LogInformation("Device ID updated for authorized device: name={DeviceName} oldId={OldId} newId={NewId}",
                         deviceName, deviceByName.DeviceId, request.DeviceId);
+                    _deviceService.UpdateDeviceId(deviceByName.DeviceId, request.DeviceId, deviceName);
+                    return Ok(new
+                    {
+                        message = "设备已授权（已更新设备标识）",
+                        deviceId = request.DeviceId,
+                        deviceName = deviceName,
+                        serverName = serverName,
+                        ipAddress = ipAddress,
+                        requestId = request.DeviceId,
+                        authorized = true,
+                        accessToken = deviceByName.AccessToken,
+                        sharedSecret = _signatureService.GetSharedSecret()
+                    });
+                }
+
+                // 检查是否有同名的已撤销设备：未被明确撤销过的设备不应出现在待授权列表
+                // 如果设备之前被撤销（用户主动取消授权），仍需重新授权
+                var anyNameDevice = _deviceService.GetDeviceByNameAnyStatus(deviceName);
+                if (anyNameDevice != null && anyNameDevice.Status == DeviceStatus.Revoked)
+                {
+                    _logger.LogWarning("Revoked device re-registering: name={DeviceName} oldId={OldId} newId={NewId}, creating new pair request",
+                        deviceName, anyNameDevice.DeviceId, request.DeviceId);
                     var pairRequest2 = _deviceService.SubmitLanDiscoveryRequest(deviceName, ipAddress, request.DeviceId);
                     return Ok(new
                     {

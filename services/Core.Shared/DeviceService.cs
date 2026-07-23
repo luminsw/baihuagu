@@ -586,6 +586,39 @@ namespace TaskRunner.Core.Shared;
             return device == null ? null : MapToDeviceInfo(device);
         }
 
+        public DeviceInfo? GetDeviceByNameAnyStatus(string deviceName)
+        {
+            using var dbContext = _dbContextFactory.CreateDbContext();
+            var device = dbContext.AuthorizedDevices
+                .Where(d => d.DeviceName == deviceName)
+                .OrderByDescending(d => d.UpdatedAt)
+                .FirstOrDefault();
+
+            return device == null ? null : MapToDeviceInfo(device);
+        }
+
+        public bool ReactivateRevokedDevice(string deviceName, string newDeviceId, string? ipAddress = null)
+        {
+            using var dbContext = _dbContextFactory.CreateDbContext();
+            var device = dbContext.AuthorizedDevices
+                .Where(d => d.DeviceName == deviceName && d.Status == "Revoked")
+                .OrderByDescending(d => d.UpdatedAt)
+                .FirstOrDefault();
+
+            if (device == null) return false;
+
+            device.Status = "Authorized";
+            device.DeviceId = newDeviceId;
+            if (ipAddress != null) device.IpAddress = ipAddress;
+            device.UpdatedAt = DateTime.UtcNow;
+            dbContext.SaveChanges();
+
+            _logger.LogInformation("已撤销设备重新激活: {DeviceName}, 新DeviceId: {NewDeviceId}", deviceName, newDeviceId);
+
+            _ = NotifyDeviceStatusChangedAsync("authorized", device.DeviceName, null);
+            return true;
+        }
+
         /// <summary>
         /// 更新旧设备的 DeviceId（兼容恢复场景）
         /// </summary>

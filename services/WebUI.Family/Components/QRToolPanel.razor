@@ -23,23 +23,48 @@
         <div class="card-body">
             @if (_serverQRCode != null)
             {
-                <div class="server-qr-compact">
-                    <div class="qr-code-wrapper qr-compact" @ref="_serverQrContainer"></div>
-                    <div class="server-info-compact">
-                        <div class="info-row">
+                @if (_isEditingName)
+                {
+                    <div class="name-edit-section">
+                        <div class="name-edit-row">
                             <span class="info-label">名称</span>
-                            <span class="info-value">@_serverQRCode.HostName</span>
+                            <input class="name-edit-input" @bind="_editingName" @bind:event="oninput" @onkeydown="OnNameKeydown" placeholder="输入服务器名称" autofocus />
+                            <button class="name-edit-btn name-save" @onclick="SaveDisplayNameAsync" disabled="@_isSavingName" title="保存">
+                                @if (_isSavingName) { <span class="spinner-border spinner-border-sm"></span> } else { <span>✓</span> }
+                            </button>
+                            <button class="name-edit-btn name-cancel" @onclick="CancelEditName" disabled="@_isSavingName" title="取消">✗</button>
                         </div>
-                        <div class="info-row">
-                            <span class="info-label">ServerId</span>
-                            <span class="info-value text-truncate" title="@_serverQRCode.ServerId">@_serverQRCode.ServerId</span>
-                        </div>
-                        <div class="info-row">
-                            <span class="info-label">地址</span>
-                            <span class="info-value text-truncate" title="@_serverQRCode.Url">@_serverQRCode.Url</span>
+                        @if (!string.IsNullOrEmpty(_nameSaveMessage))
+                        {
+                            <div class="name-save-msg @(_nameSaveSuccess ? "success" : "error")">@_nameSaveMessage</div>
+                        }
+                    </div>
+                }
+                else
+                {
+                    <div class="server-qr-compact">
+                        <div class="qr-code-wrapper qr-compact" @ref="_serverQrContainer"></div>
+                        <div class="server-info-compact">
+                            <div class="info-row info-row-editable">
+                                <span class="info-label">名称</span>
+                                <span class="info-value">@_serverQRCode.HostName</span>
+                                <button class="name-edit-trigger" @onclick="StartEditName" title="修改名称">✏️</button>
+                            </div>
+                            @if (!string.IsNullOrEmpty(_nameSaveMessage))
+                            {
+                                <div class="name-save-msg @(_nameSaveSuccess ? "success" : "error")">@_nameSaveMessage</div>
+                            }
+                            <div class="info-row">
+                                <span class="info-label">ServerId</span>
+                                <span class="info-value text-truncate" title="@_serverQRCode.ServerId">@_serverQRCode.ServerId</span>
+                            </div>
+                            <div class="info-row">
+                                <span class="info-label">地址</span>
+                                <span class="info-value text-truncate" title="@_serverQRCode.Url">@_serverQRCode.Url</span>
+                            </div>
                         </div>
                     </div>
-                </div>
+                }
             }
             else if (!string.IsNullOrEmpty(_serverQRError))
             {
@@ -139,6 +164,13 @@
     private bool _isLoadingAiKey = false;
     private string _aiKeyQRError = "";
 
+    // 名称内联编辑
+    private bool _isEditingName = false;
+    private string _editingName = "";
+    private bool _isSavingName = false;
+    private string _nameSaveMessage = "";
+    private bool _nameSaveSuccess = false;
+
     // 折叠状态
     private bool _showAiKey = false;
     private bool _showGeneralQR = false;
@@ -193,11 +225,7 @@
         {
             var apiClient = HttpClientFactory.CreateClient("TaskRunnerApi");
             _serverQRCode = await apiClient.GetFromJsonAsync<ServerQRResponse>("api/pairing/qrcode");
-            if (_serverQRCode != null && !string.IsNullOrEmpty(_serverQRCode.QrCodeData))
-            {
-                await Task.Yield();
-                await JS.InvokeVoidAsync("generateCompactQRCode", _serverQrContainer, _serverQRCode.QrCodeData);
-            }
+            await RenderServerQRCodeAsync();
         }
         catch (Exception ex)
         {
@@ -228,6 +256,74 @@
         _inputText = "";
         _showQR = false;
         _errorMessage = "";
+    }
+
+    private async Task RenderServerQRCodeAsync()
+    {
+        if (_serverQRCode != null && !string.IsNullOrEmpty(_serverQRCode.QrCodeData))
+        {
+            await Task.Yield();
+            await JS.InvokeVoidAsync("generateCompactQRCode", _serverQrContainer, _serverQRCode.QrCodeData);
+        }
+    }
+
+    private void StartEditName()
+    {
+        _editingName = _serverQRCode?.HostName ?? "";
+        _isEditingName = true;
+        _nameSaveMessage = "";
+    }
+
+    private async Task CancelEditName()
+    {
+        _isEditingName = false;
+        _nameSaveMessage = "";
+        await RenderServerQRCodeAsync();
+    }
+
+    private async Task OnNameKeydown(KeyboardEventArgs e)
+    {
+        if (e.Key == "Enter") await SaveDisplayNameAsync();
+        else if (e.Key == "Escape") CancelEditName();
+    }
+
+    private async Task SaveDisplayNameAsync()
+    {
+        if (string.IsNullOrWhiteSpace(_editingName))
+        {
+            _nameSaveSuccess = false;
+            _nameSaveMessage = "名称不能为空";
+            return;
+        }
+
+        _isSavingName = true;
+        _nameSaveMessage = "";
+        try
+        {
+            var apiClient = HttpClientFactory.CreateClient("TaskRunnerApi");
+            var response = await apiClient.PostAsJsonAsync("api/server-address", new { displayName = _editingName.Trim() });
+            if (response.IsSuccessStatusCode)
+            {
+                _isEditingName = false;
+                _nameSaveSuccess = true;
+                _nameSaveMessage = "名称已更新";
+                await LoadServerQRCode();
+            }
+            else
+            {
+                _nameSaveSuccess = false;
+                _nameSaveMessage = "保存失败";
+            }
+        }
+        catch (Exception ex)
+        {
+            _nameSaveSuccess = false;
+            _nameSaveMessage = $"保存失败: {ex.Message}";
+        }
+        finally
+        {
+            _isSavingName = false;
+        }
     }
 }
 
@@ -377,4 +473,64 @@
     .qr-result-compact.d-none {
         display: none;
     }
+
+    /* 名称内联编辑 */
+    .name-edit-section {
+        max-width: 320px;
+    }
+    .name-edit-row {
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+        margin-bottom: 0.5rem;
+    }
+    .name-edit-input {
+        flex: 1;
+        padding: 0.2rem 0.4rem;
+        border: 1px solid #c8d4dc;
+        border-radius: 3px;
+        font-size: 0.85rem;
+        font-weight: 500;
+        min-width: 0;
+    }
+    .name-edit-input:focus {
+        outline: none;
+        border-color: #80bdff;
+        box-shadow: 0 0 0 0.15rem rgba(0,123,255,.2);
+    }
+    .name-edit-btn {
+        border: none;
+        border-radius: 3px;
+        cursor: pointer;
+        font-size: 0.85rem;
+        padding: 0.15rem 0.5rem;
+        line-height: 1.3;
+    }
+    .name-save {
+        background: #6b9e75;
+        color: white;
+    }
+    .name-save:disabled { opacity: 0.6; cursor: not-allowed; }
+    .name-cancel {
+        background: #e8eef2;
+        color: #5a6a72;
+    }
+    .name-edit-trigger {
+        background: none;
+        border: none;
+        cursor: pointer;
+        font-size: 0.8rem;
+        opacity: 0.4;
+        padding: 0 0.2rem;
+        transition: opacity 0.2s;
+    }
+    .name-edit-trigger:hover { opacity: 1; }
+    .name-save-msg {
+        font-size: 0.75rem;
+        padding: 0.15rem 0.4rem;
+        margin-top: 0.15rem;
+        border-radius: 3px;
+    }
+    .name-save-msg.success { color: #3d6b45; background: #e0f0e5; }
+    .name-save-msg.error { color: #4a2a30; background: #e0ecf4; }
 </style>
