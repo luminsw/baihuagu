@@ -30,15 +30,11 @@ public class StartupOrchestratorHostedService : IHostedService
 
     public Task StartAsync(CancellationToken cancellationToken)
     {
-        _logger.LogInformation("启动编排开始...");
-
         try
         {
             LoadFromDatabase();
             _localModelSettings.LoadLocalModelConfigFromFile();
             TrySyncVaultsOnStartup();
-
-            _logger.LogInformation("启动编排完成");
         }
         catch (Exception ex)
         {
@@ -109,10 +105,6 @@ public class StartupOrchestratorHostedService : IHostedService
         try
         {
             var (added, removed) = _vaultSettings.SyncVaultsWithFilesystem(rootPath);
-            if (added > 0 || removed > 0)
-            {
-                _logger.LogInformation("启动时自动同步知识库完成：新增 {Added} 个，移除 {Removed} 个", added, removed);
-            }
         }
         catch (Exception ex)
         {

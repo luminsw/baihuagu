@@ -29,8 +29,6 @@ public partial class AnkiController
                 ["vaultName"] = vault.Name,
                 ["notesPath"] = notesPath
             });
-            _logger.LogInformation("[AnkiController] 创建卡片生成任务 {TaskId}，知识库 {VaultName}({VaultId})", taskId, vault.Name, vaultId);
-
             _ = Task.Run(async () =>
             {
                 try
@@ -39,7 +37,6 @@ public partial class AnkiController
                     var result = await _cardGenerator.GenerateFromDirectory(notesPath, recursive: true, vaultId: vaultId);
                     await _taskManager.UpdateProgress(taskId, 100, 100, result.Message);
                     await _taskManager.UpdateStatus(taskId, RunnerTaskStatus.Success, data: new { totalCards = result.TotalCards, message = result.Message });
-                    _logger.LogInformation("[AnkiController] 任务 {TaskId} 完成：{Message}", taskId, result.Message);
                 }
                 catch (Exception ex)
                 {
@@ -89,8 +86,6 @@ public partial class AnkiController
                 ["vaultName"] = vault.Name,
                 ["notesPath"] = notesPath
             });
-            _logger.LogInformation("[AnkiController] 创建 AI 卡片生成任务 {TaskId}，知识库 {VaultName}({VaultId})", taskId, vault.Name, vaultId);
-
             _ = Task.Run(async () =>
             {
                 try
@@ -99,7 +94,6 @@ public partial class AnkiController
                     var result = await _cardGenerator.GenerateBatchWithAiAsync(notesPath, recursive: true, vaultId: vaultId);
                     await _taskManager.UpdateProgress(taskId, 100, 100, result.Message);
                     await _taskManager.UpdateStatus(taskId, RunnerTaskStatus.Success, data: new { totalCards = result.TotalCards, message = result.Message });
-                    _logger.LogInformation("[AnkiController] AI 任务 {TaskId} 完成：{Message}", taskId, result.Message);
                 }
                 catch (Exception ex)
                 {

@@ -94,7 +94,6 @@ namespace TaskRunner.Controllers
                 try
                 {
                     Directory.CreateDirectory(vaultPath);
-                    _logger.LogInformation("创建知识库目录: {Path}", vaultPath);
                 }
                 catch (Exception ex)
                 {
@@ -111,7 +110,6 @@ namespace TaskRunner.Controllers
 
             // 启动 Obsidian
             var obsidianExe = ObsidianExecutableResolver.Resolve();
-            _logger.LogInformation("启动 Obsidian: {Exe} {Path}", obsidianExe, vaultPath);
 
             var startInfo = new ProcessStartInfo
             {

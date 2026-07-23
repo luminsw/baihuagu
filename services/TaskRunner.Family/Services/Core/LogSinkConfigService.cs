@@ -46,7 +46,6 @@ public class LogSinkConfigService
     {
         _config = config;
         Save();
-        _logger.LogInformation("OpenObserve 配置已更新：{WebUrl}", _config.WebUrl);
     }
 
     /// <summary>获取 Web UI 地址</summary>

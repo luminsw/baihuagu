@@ -99,7 +99,6 @@ namespace TaskRunner.Services
 
             // 安全：mDNS 广播不再包含 serverId 和完整 apiUrl，减少信息泄露
             var args = $"-s {hostName} {_serviceType} {port} \"serviceId=com.lumin.huaji.sync\" \"hostName={hostName}\"";
-            _logger.LogInformation("Starting avahi-publish-service: {Args}", args);
 
             // Use nohup to keep the process running even if parent's stdout closes
             _avahiProcess = new Process
@@ -204,8 +203,6 @@ namespace TaskRunner.Services
 
             _multicastService.QueryReceived += (s, e) =>
             {
-                _logger.LogDebug("mDNS query from {Remote}: {Query}",
-                    e.RemoteEndPoint, e.Message.Questions.FirstOrDefault()?.Name);
             };
 
             _serviceDiscovery.Advertise(_serviceProfile);
@@ -214,7 +211,6 @@ namespace TaskRunner.Services
 
         public Task StopAsync(CancellationToken cancellationToken)
         {
-            _logger.LogInformation("Stopping mDNS service...");
             _isRunning = false;
 
             try
@@ -223,7 +219,6 @@ namespace TaskRunner.Services
                 {
                     if (_avahiChildPid > 0)
                     {
-                        _logger.LogInformation("Stopping avahi-publish-service (PID: {Pid})...", _avahiChildPid);
                         try
                         {
                             using var killProc = new Process
@@ -259,7 +254,6 @@ namespace TaskRunner.Services
                 _logger.LogWarning(ex, "Error stopping mDNS service");
             }
 
-            _logger.LogInformation("mDNS service stopped");
             return Task.CompletedTask;
         }
 

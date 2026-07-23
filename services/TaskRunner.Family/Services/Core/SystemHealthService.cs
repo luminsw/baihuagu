@@ -81,8 +81,6 @@ namespace TaskRunner.Services
                 wallClockMs: report.TotalWallClockMs,
                 score: report.HealthScore);
 
-            _logger.LogInformation("健康检查完成：{Status}，健康度：{Score}%", report.Status, report.HealthScore);
-
             return report;
         }
 

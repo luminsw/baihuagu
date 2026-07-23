@@ -34,8 +34,6 @@ namespace TaskRunner.Controllers
                 }
 
                 var provider = ResolveProvider(modelName);
-                _logger.LogInformation("创建 AI 任务: Query={Query}, VaultId={VaultId}, SaveToVault={SaveToVault}, AutoSplit={AutoSplit}",
-                    request.Query, request.VaultId ?? "(null)", request.SaveToVault, request.AutoSplit);
 
                 var vault = !string.IsNullOrWhiteSpace(request.VaultId)
                     ? _vaultSettings.GetVaults().FirstOrDefault(v => v.Id == request.VaultId)
@@ -68,8 +66,6 @@ namespace TaskRunner.Controllers
 
                 var scene = ResolveScene(request.Industry, request.VaultId);
                 var taskId = _taskManager.CreateTask("ai_query", parameters);
-                _logger.LogInformation("[CreateDebug] CreateAiTask: model={Model}, industry={Industry}, vaultId={VaultId}, scene={Scene}",
-                    modelName, request.Industry, request.VaultId, scene?.ToString() ?? "(null)");
 
                 _ = Task.Run(async () =>
                 {
@@ -101,8 +97,6 @@ namespace TaskRunner.Controllers
                         if (request.SaveToVault)
                         {
                             var vault = await FindVaultWithRetryAsync(request.VaultId ?? "");
-                            _logger.LogInformation("AI 任务查找知识库: VaultId={VaultId}, Found={Found}, Path={Path}",
-                                request.VaultId ?? "(null)", vault != null, vault?.Path ?? "(null)");
                             var vaultPath = vault?.Path;
                             if (string.IsNullOrEmpty(vaultPath))
                             {
@@ -145,7 +139,6 @@ namespace TaskRunner.Controllers
                                         await _taskManager.UpdateStatus(cardTaskId, RunnerTaskStatus.Failed, error: ex.Message);
                                     }
                                 });
-                                _logger.LogInformation("[AI Task] 笔记已保存，已创建卡片生成任务 {TaskId}：{Path}", cardTaskId, notePath);
                             }
                             catch (Exception ex)
                             {

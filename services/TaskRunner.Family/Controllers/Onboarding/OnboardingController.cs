@@ -72,7 +72,6 @@ public partial class OnboardingController : ControllerBase
         // 确保初始化任务记录已创建
         await EnsureInitTasksCreatedAsync();
 
-        _logger.LogInformation("Onboarding 已完成");
         return Ok(new { success = true });
     }
     /// <summary>

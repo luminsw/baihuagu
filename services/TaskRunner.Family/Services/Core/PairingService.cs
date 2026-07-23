@@ -14,7 +14,6 @@ namespace TaskRunner.Services
         {
             _logger = logger;
             _serverAddressService = serverAddressService;
-            _logger.LogInformation("配对服务已初始化");
         }
 
         /// <summary>
@@ -33,9 +32,6 @@ namespace TaskRunner.Services
                 deviceId = deviceId,
                 sharedSecret = _serverAddressService.GetSharedSecret()
             });
-            
-            _logger.LogInformation("生成二维码: Url={Url}, HostName={HostName}, ServerId={ServerId}", 
-                url, hostName, serverId);
             
             return (url, hostName, qrCodeData);
         }

@@ -101,8 +101,6 @@ public class OpenClawTaskService : IOpenClawTaskService
             startInfo.ArgumentList.Add("--timeout");
             startInfo.ArgumentList.Add(((int)OpenClawTaskTimeout.TotalSeconds).ToString());
 
-            _logger.LogInformation("Starting OpenClaw: {FileName} {Arguments}", startInfo.FileName, startInfo.Arguments);
-
             using var process = Process.Start(startInfo);
             if (process == null)
             {
@@ -128,9 +126,6 @@ public class OpenClawTaskService : IOpenClawTaskService
                 _logger.LogWarning("OpenClaw stderr: {Stderr}", stderr);
             }
 
-            _logger.LogInformation("OpenClaw exited with code {ExitCode}, stdout length {Length}",
-                process.ExitCode, stdout.Length);
-
             if (process.ExitCode != 0)
             {
                 task.Status = "failed";
@@ -151,9 +146,6 @@ public class OpenClawTaskService : IOpenClawTaskService
             task.Result = reportContent[..Math.Min(reportContent.Length, 2000)];
             task.CompletedAt = DateTime.UtcNow;
             await db.SaveChangesAsync();
-
-            _logger.LogInformation("OpenClaw task {TaskId} completed, report saved to {ReportPath}",
-                task.TaskId, reportPath);
         }
         catch (OperationCanceledException)
         {

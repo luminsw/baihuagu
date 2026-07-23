@@ -42,9 +42,6 @@ namespace TaskRunner.Controllers
                     return BadRequest(new { error = "未找到可用的 AI 提供商，请检查模型配置" });
                 }
 
-                _logger.LogInformation("创建 AI 知识库生成任务: Industry={Industry}, Keyword={Keyword}, Model={Model}, NoteCount={NoteCount}",
-                    request.Industry, request.Keyword, modelName, noteCount);
-
                 var parameters = new Dictionary<string, string>
                 {
                     ["industry"] = request.Industry,
@@ -74,19 +71,16 @@ namespace TaskRunner.Controllers
                         currentStep++;
                         await _taskManager.UpdateProgress(taskId, currentStep, totalSteps, "生成知识库名称...");
                         var vaultName = await GenerateVaultNameAsync(provider, modelName, request.Industry, request.Keyword, options, linkedCts.Token);
-                        _logger.LogInformation("[AiVaultGeneration] 任务 {TaskId} 生成名称: {VaultName}", taskId, vaultName);
 
                         // Step 2: 生成 system prompt
                         currentStep++;
                         await _taskManager.UpdateProgress(taskId, currentStep, totalSteps, "生成系统提示词...");
                         var systemPrompt = await GenerateSystemPromptAsync(provider, modelName, request.Industry, options, linkedCts.Token);
-                        _logger.LogInformation("[AiVaultGeneration] 任务 {TaskId} 生成 system prompt, 长度={Length}", taskId, systemPrompt.Length);
 
                         // Step 3: 生成笔记列表
                         currentStep++;
                         await _taskManager.UpdateProgress(taskId, currentStep, totalSteps, "生成笔记大纲...");
                         var outline = await GenerateNoteListAsync(provider, modelName, vaultName, request.Industry, request.Keyword, systemPrompt, options, linkedCts.Token);
-                        _logger.LogInformation("[AiVaultGeneration] 任务 {TaskId} 生成大纲: {Count} 条", taskId, outline.Count);
 
                         if (outline.Count == 0)
                         {
@@ -100,7 +94,6 @@ namespace TaskRunner.Controllers
                         var vault = _vaultSettings.AddVault(vaultName, "", request.Industry);
                         var vaultId = vault.Id;
                         var vaultPath = vault.Path;
-                        _logger.LogInformation("[AiVaultGeneration] 任务 {TaskId} 创建知识库: {VaultId}", taskId, vaultId);
 
                         // Ensure notes directory exists
                         var notesRoot = System.IO.Path.Combine(vaultPath, "notes");
@@ -167,11 +160,8 @@ namespace TaskRunner.Controllers
                                 ["trigger"] = "vault_generation"
                             });
                             _taskManager.UpdateProgress(cardTaskId, 0, 1, $"知识库「{vaultName}」笔记生成完成，等待生成记忆卡片...");
-                            _logger.LogInformation("[AiVaultGeneration] 自动创建记忆卡片任务 {CardTaskId}", cardTaskId);
                         }
 
-                        _logger.LogInformation("[AiVaultGeneration] 任务 {TaskId} 完成: {VaultName}, {NoteCount} 条笔记, 耗时 {ElapsedMs}ms",
-                            taskId, vaultName, generatedNotes.Count, stopwatch.ElapsedMilliseconds);
                     }
                     catch (OperationCanceledException)
                     {

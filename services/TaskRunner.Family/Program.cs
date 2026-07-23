@@ -98,7 +98,6 @@ if (string.IsNullOrEmpty(Environment.GetEnvironmentVariable("YJ_DATA_DIR")))
 var mobileAuthSecret = builder.Configuration["MobileAuth:SharedSecret"];
 if (!string.IsNullOrEmpty(mobileAuthSecret))
 {
-    Console.WriteLine($"[Startup] MobileAuth shared secret configured (length={mobileAuthSecret.Length})");
 }
 
 // 添加服务 - 配置 JSON 序列化不转义中文
@@ -492,7 +491,7 @@ app.Use(async (context, next) =>
         !isWebUiBrowse &&
         !isPublicPath)
     {
-        logger.LogInformation("[SignatureDebug] path={Path} isConfigured={IsConfigured} secretLen={SecretLen}", path, signatureService.IsConfigured, signatureService.GetSharedSecret().Length);
+        logger.LogInformation("[SignatureDebug] path={Path} isConfigured={IsConfigured}", path, signatureService.IsConfigured);
 
         // 读取请求体
         string? body = null;

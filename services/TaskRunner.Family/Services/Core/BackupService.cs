@@ -128,8 +128,6 @@ public class BackupService
             // 5. 创建 ZIP
             ZipFile.CreateFromDirectory(tempDir, backupFullPath, CompressionLevel.Optimal, includeBaseDirectory: false);
 
-            _logger.LogInformation("全量备份创建成功：{Path}，大小：{Size} bytes", backupFullPath, new FileInfo(backupFullPath).Length);
-
             return new FullBackupResult
             {
                 Success = true,

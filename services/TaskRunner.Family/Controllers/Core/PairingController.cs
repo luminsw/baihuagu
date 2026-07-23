@@ -93,9 +93,6 @@ namespace TaskRunner.Controllers
                 serverIp = uri3.Host;
             }
 
-            _logger.LogInformation("HTTP discovery request from {Remote}, returning: {Url}", 
-                HttpContext.Connection.RemoteIpAddress, url);
-            
             return Ok(new
             {
                 serviceName = "baihuagu",
@@ -142,9 +139,6 @@ namespace TaskRunner.Controllers
                 serverIp = uri3.Host;
             }
 
-            _logger.LogInformation("Mobile scan discovery request from {Remote}, returning: {Url}", 
-                HttpContext.Connection.RemoteIpAddress, url);
-            
             return Ok(new
             {
                 serviceId = "com.lumin.huaji.sync",

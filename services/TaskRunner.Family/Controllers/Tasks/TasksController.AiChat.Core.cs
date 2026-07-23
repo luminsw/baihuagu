@@ -17,19 +17,16 @@ namespace TaskRunner.Controllers
         {
             // 优先使用显式传入的行业
             var target = !string.IsNullOrWhiteSpace(industry) ? industry.Trim() : null;
-            _logger.LogInformation("[SceneDebug] ResolveScene input: industry={Industry}, vaultId={VaultId}, initialTarget={Target}", industry, vaultId, target);
 
             // 其次从知识库的 Industry 字段推导
             if (target == null && !string.IsNullOrWhiteSpace(vaultId))
             {
                 var vault = _vaultSettings.GetVaults().FirstOrDefault(v => v.Id == vaultId);
                 target = vault?.Industry;
-                _logger.LogInformation("[SceneDebug] looked up vault: name={VaultName}, industry={VaultIndustry}", vault?.Name, vault?.Industry);
             }
 
             if (string.IsNullOrWhiteSpace(target))
             {
-                _logger.LogInformation("[SceneDebug] ResolveScene result: (null) - empty target");
                 return null;
             }
 
@@ -38,9 +35,8 @@ namespace TaskRunner.Controllers
                 "开发" or "计算机" or "技术" => AppScene.Computer,
                 "通用" => AppScene.General,
                 "中医" or "中药" or "笔记" => AppScene.Tcm,
-                _ => null // 自定义行业暂无内置模板，回退到全局默认
+                _ => null
             };
-            _logger.LogInformation("[SceneDebug] ResolveScene result: {Result} for target='{Target}'", result?.ToString() ?? "(null)", target);
             return result;
         }
 
@@ -58,8 +54,6 @@ namespace TaskRunner.Controllers
                 throw new Exception("未找到可用的AI提供商");
 
             var apiEndpoint = provider.AiBaseUrl.TrimEnd('/') + "/chat/completions";
-            _logger.LogInformation("AI 请求路由到 provider [{ProviderId}] {ProviderName}，模型：{Model}，行业：{Industry}，端点：{Endpoint}",
-                provider.Id, provider.Name, model, industry ?? "(未指定)", apiEndpoint);
 
             // 使用自定义提示词 > 行业提示词 > 场景提示词 > 默认中医提示词
             // 注意：场景(Scene)只用于菜单分类，不允许影响生成笔记；行业(Industry)决定提示词
@@ -67,25 +61,21 @@ namespace TaskRunner.Controllers
             if (!string.IsNullOrWhiteSpace(customSystemPrompt))
             {
                 systemPrompt = customSystemPrompt;
-                _logger.LogInformation("[SceneDebug] system prompt source: custom");
             }
             else if (!string.IsNullOrWhiteSpace(industry))
             {
                 // 优先根据行业名称查找模板（支持自定义场景配置）
                 var template = _scenePromptService.GetTemplateByName(industry);
                 systemPrompt = template.ChatSystemPrompt;
-                _logger.LogInformation("[SceneDebug] system prompt source: industry={Industry}, template={TemplateName}", industry, template.DisplayName);
             }
             else if (scene.HasValue)
             {
                 systemPrompt = _scenePromptService.GetTemplate(scene.Value).ChatSystemPrompt;
-                _logger.LogInformation("[SceneDebug] system prompt source: scene={Scene}", scene.Value);
             }
             else
             {
                 // 默认使用中医提示词（与Cloud版本保持一致）
                 systemPrompt = _scenePromptService.GetTemplateByName("笔记").ChatSystemPrompt;
-                _logger.LogInformation("[SceneDebug] system prompt source: default(笔记)");
             }
 
             var messages = new List<ChatMessage>

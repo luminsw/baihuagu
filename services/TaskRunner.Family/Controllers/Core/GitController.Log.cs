@@ -117,8 +117,6 @@ public partial class GitController
                 // 删除未跟踪的文件
                 await RunGitCommand(vaultPath, "clean -fd");
                 
-                _logger.LogInformation("已撤销工作区更改");
-                
                 return Ok(new GitResultResponse
                 {
                     Success = true,

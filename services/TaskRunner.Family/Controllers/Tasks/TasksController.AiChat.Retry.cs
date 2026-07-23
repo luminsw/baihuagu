@@ -42,9 +42,6 @@ namespace TaskRunner.Controllers
                 return await HandleRetryVaultGenerationTaskAsync(task, retryRequest);
             }
 
-            _logger.LogInformation("[RetryDebug] taskId={TaskId}, rawModel={RawModel}, industry={Industry}, vaultId={VaultId}, retryRequest.Model={RetryModel}, timeout={Timeout}",
-                taskId, model, industry, vaultId, retryRequest?.Model, timeoutMinutes);
-
             if (string.IsNullOrWhiteSpace(query))
             {
                 return BadRequest(new { error = "原任务缺少查询内容" });
@@ -59,10 +56,8 @@ namespace TaskRunner.Controllers
             {
                 modelName = _aiSettings.AiModel;
             }
-            _logger.LogInformation("[RetryDebug] resolved modelName={ModelName}, settings.AiModel={SettingsModel}", modelName, _aiSettings.AiModel);
 
             var retryProvider = ResolveProvider(modelName);
-            _logger.LogInformation("[RetryDebug] resolved provider={ProviderId}", retryProvider?.Id ?? "(null)");
             var retryVault = !string.IsNullOrWhiteSpace(vaultId)
                 ? _vaultSettings.GetVaults().FirstOrDefault(v => v.Id == vaultId)
                 : null;
@@ -94,7 +89,6 @@ namespace TaskRunner.Controllers
             }
 
             var retryScene = ResolveScene(industry, vaultId);
-            _logger.LogInformation("[RetryDebug] resolved scene={Scene} from industry={Industry}, vaultId={VaultId}", retryScene?.ToString() ?? "(null)", industry, vaultId);
 
             // 创建新任务
             var newTaskId = _taskManager.CreateTask("ai_query", retryParameters);
@@ -110,7 +104,6 @@ namespace TaskRunner.Controllers
                     var stopwatch = System.Diagnostics.Stopwatch.StartNew();
                     var requestTime = DateTime.Now;
                     await _taskManager.UpdateProgress(newTaskId, 2, 3, $"调用 AI 模型：{modelName}（超时 {timeoutMinutes} 分钟）...");
-                    _logger.LogInformation("[RetryDebug] about to CallAiApiAsync with model={Model}, scene={Scene}", modelName, retryScene?.ToString() ?? "(null)");
                     var aiResult = await CallAiApiAsync(query, modelName, cts.Token, scene: retryScene, industry: industry);
                     stopwatch.Stop();
 
@@ -166,16 +159,15 @@ namespace TaskRunner.Controllers
                                     _logger.LogError(ex, "[Retry AI Task] 卡片生成失败");
                                     await _taskManager.UpdateStatus(cardTaskId, RunnerTaskStatus.Failed, error: ex.Message);
                                 }
-                            });
-                            _logger.LogInformation("[Retry AI Task] 笔记已保存，已创建卡片生成任务 {TaskId}：{Path}", cardTaskId, notePath);
+                                });
+                            }
+                            catch (Exception ex)
+                            {
+                                _logger.LogWarning(ex, "[Retry AI Task] 自动触发卡片生成失败");
+                            }
                         }
-                        catch (Exception ex)
-                        {
-                            _logger.LogWarning(ex, "[Retry AI Task] 自动触发卡片生成失败");
-                        }
-                    }
 
-                    await _taskManager.UpdateProgress(newTaskId, 3, 3, "任务完成");
+                        await _taskManager.UpdateProgress(newTaskId, 3, 3, "任务完成");
                     await _taskManager.UpdateStatus(newTaskId, RunnerTaskStatus.Success, data: new
                     {
                         notes = new[] { new { title = title, path = notePath ?? "" } },

@@ -21,8 +21,6 @@ namespace TaskRunner.Services
 
         protected override async Task ExecuteAsync(CancellationToken stoppingToken)
         {
-            _logger.LogInformation("Task Cleanup Service started");
-
             // 防御性日志：记录托管环境的简要状态以便排查启动时问题
             try
             {
@@ -35,14 +33,9 @@ namespace TaskRunner.Services
             {
                 try
                 {
-                    _logger.LogInformation("Starting task cleanup...");
-
                     using var scope = _serviceProvider.CreateScope();
                     var taskManager = scope.ServiceProvider.GetRequiredService<TaskManager>();
-                    
-                    var cleanedCount = taskManager.CleanupOldTasks(TimeSpan.FromHours(24));
-                    
-                    _logger.LogInformation("Cleanup completed. Removed {Count} old tasks", cleanedCount);
+                    taskManager.CleanupOldTasks(TimeSpan.FromHours(24));
                 }
                 catch (Exception ex)
                 {
@@ -55,7 +48,6 @@ namespace TaskRunner.Services
                 }
                 catch (TaskCanceledException)
                 {
-                    _logger.LogInformation("Task Cleanup Service stopping");
                     break;
                 }
             }
@@ -63,9 +55,7 @@ namespace TaskRunner.Services
 
         public override async Task StopAsync(CancellationToken cancellationToken)
         {
-            _logger.LogInformation("Task Cleanup Service stopping gracefully");
             await base.StopAsync(cancellationToken);
-            _logger.LogInformation("Task Cleanup Service stopped");
         }
     }
 }

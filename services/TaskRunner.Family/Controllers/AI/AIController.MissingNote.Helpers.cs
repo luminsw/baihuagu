@@ -16,8 +16,6 @@ namespace TaskRunner.Controllers
 
             try
             {
-                _logger.LogInformation("生成缺失笔记：{LinkPath}", request.LinkPath);
-
                 var (provider, model) = ResolveProviderAndModel(request.ProviderId, request.Model);
 
                 // 解析知识库
@@ -80,7 +78,6 @@ namespace TaskRunner.Controllers
                 var fullDir = System.IO.Path.GetDirectoryName(fullPath) ?? throw new InvalidOperationException($"无法获取目录：{fullPath}");
                 System.IO.Directory.CreateDirectory(fullDir);
                 await System.IO.File.WriteAllTextAsync(fullPath, content);
-                _logger.LogInformation("缺失笔记已生成并保存：{Path}", notePath);
 
                 // 自动为该笔记生成 Anki 记忆卡片
                 try
@@ -108,7 +105,6 @@ namespace TaskRunner.Controllers
                             await _taskManager.UpdateStatus(taskId, RunnerTaskStatus.Failed, error: ex.Message);
                         }
                     });
-                    _logger.LogInformation("[GenerateMissingNote] 笔记已保存，已创建卡片生成任务 {TaskId}：{Path}", taskId, notePath);
                 }
                 catch (Exception ex)
                 {
@@ -241,8 +237,6 @@ namespace TaskRunner.Controllers
                         {
                             System.IO.File.WriteAllText(file, content);
                             fixedCount++;
-                            _logger.LogInformation("纠正链接：{File} 中 [[{Title}]] -> [[{Path}]]",
-                                System.IO.Path.GetRelativePath(notesPath, file), title, correctPath);
                         }
                     }
                     catch { /* 跳过无法处理的文件 */ }

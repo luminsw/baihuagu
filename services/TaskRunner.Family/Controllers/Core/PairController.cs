@@ -80,7 +80,6 @@ namespace TaskRunner.Controllers
         public IActionResult RefreshPairCode()
         {
             var newCode = _deviceService.RefreshPairCode();
-            _logger.LogInformation("配对码已通过 API 刷新");
             return Ok(new { pairCode = newCode, message = "配对码已刷新" });
         }
     }

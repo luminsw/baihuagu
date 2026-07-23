@@ -56,8 +56,6 @@ namespace TaskRunner.Services
                     break;
                 }
             }
-
-            _logger.LogInformation("自动备份服务已停止");
         }
 
         private async Task RunBackupAsync(CancellationToken stoppingToken)
@@ -65,13 +63,10 @@ namespace TaskRunner.Services
             using var scope = _serviceProvider.CreateScope();
             var backupService = scope.ServiceProvider.GetRequiredService<BackupService>();
 
-            _logger.LogInformation("开始执行定时全量备份...");
             var result = await backupService.CreateFullBackupAsync(_backupDir, cancellationToken: stoppingToken);
 
             if (result.Success)
             {
-                var sizeMb = result.FileSize.HasValue ? result.FileSize.Value / (1024.0 * 1024.0) : 0;
-                _logger.LogInformation("定时备份成功: {Path} ({Size:F1} MB)", result.BackupPath, sizeMb);
             }
             else
             {
@@ -104,7 +99,6 @@ namespace TaskRunner.Services
                     try
                     {
                         file.Delete();
-                        _logger.LogInformation("删除过期备份: {Path}", file.FullName);
                     }
                     catch (Exception ex)
                     {

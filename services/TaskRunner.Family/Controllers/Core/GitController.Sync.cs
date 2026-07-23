@@ -37,8 +37,6 @@ public partial class GitController
                 var escapedMessage = request.Message.Replace("\"", "\\\"");
                 var commitResult = await RunGitCommand(vaultPath, $"commit -m \"{escapedMessage}\"");
                 
-                _logger.LogInformation("Git 提交成功: {Message}", request.Message);
-                
                 return Ok(new GitResultResponse
                 {
                     Success = true,
@@ -84,8 +82,6 @@ public partial class GitController
                 // 推送
                 var pushResult = await RunGitCommand(vaultPath, $"push origin {branch.Trim()}", timeoutMs: 60000);
                 
-                _logger.LogInformation("Git 推送成功: {Branch}", branch.Trim());
-                
                 return Ok(new GitResultResponse
                 {
                     Success = true,
@@ -119,8 +115,6 @@ public partial class GitController
                 }
 
                 var pullResult = await RunGitCommand(vaultPath, "pull", timeoutMs: 60000);
-                
-                _logger.LogInformation("Git 拉取成功");
                 
                 return Ok(new GitResultResponse
                 {

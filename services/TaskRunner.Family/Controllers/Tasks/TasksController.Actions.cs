@@ -133,7 +133,6 @@ namespace TaskRunner.Controllers
                     count = _taskManager.CleanupAllCompletedTasks();
                 }
                 
-                _logger.LogInformation("已清理 {Count} 个任务", count);
                 return Ok(new CleanupResponse { Success = true, DeletedCount = count });
             }
             catch (Exception ex)

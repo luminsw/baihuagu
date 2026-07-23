@@ -10,8 +10,6 @@ public partial class HealthController
         {
             try
             {
-                _logger.LogInformation("开始一键配置 OpenClaw 环境...");
-
                 // 1. 检查 openclaw 是否已安装
                 var checkPsi = new System.Diagnostics.ProcessStartInfo
                 {

@@ -106,7 +106,6 @@ public class RequestSignatureService
             ? string.Empty
             : Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(body))).ToLowerInvariant();
         var signString = $"{timestamp}\n{method.ToUpperInvariant()}\n{path}\n{bodyHash}";
-        _logger.LogDebug("[Signature] signString={SignString} secretLen={SecretLen}", signString, _sharedSecret.Length);
 
         // 使用固定时间比较防止时序攻击
         var providedBytes = Convert.FromBase64String(parts[1]);
@@ -125,7 +124,6 @@ public class RequestSignatureService
         }
         else
         {
-            _logger.LogInformation("[Signature] Valid signature for {Method} {Path}", method, path);
         }
 
         return isValid;

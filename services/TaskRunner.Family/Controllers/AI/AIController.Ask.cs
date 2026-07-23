@@ -22,8 +22,6 @@ namespace TaskRunner.Controllers
 
             try
             {
-                _logger.LogInformation("收到 AI 查询：{Query}", request.Query);
-
                 var (provider, model) = ResolveProviderAndModel(request.ProviderId, request.Model);
 
                 // RAG 增强：检索知识库上下文
@@ -90,7 +88,6 @@ namespace TaskRunner.Controllers
                                 await _taskManager.UpdateStatus(taskId, RunnerTaskStatus.Failed, error: ex.Message);
                             }
                         });
-                        _logger.LogInformation("[AI Ask] 笔记已保存，已创建卡片生成任务 {TaskId}：{Path}", taskId, note.FilePath);
                     }
                     catch (Exception ex)
                     {

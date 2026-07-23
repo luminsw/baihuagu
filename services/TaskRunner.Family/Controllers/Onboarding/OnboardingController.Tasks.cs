@@ -87,7 +87,6 @@ public partial class OnboardingController
         progress.CompletedAt = DateTime.UtcNow;
         await _dbContext.SaveChangesAsync();
 
-        _logger.LogInformation("初始化任务已完成: {TaskId}", taskId);
         return Ok(new { success = true });
     }
 
@@ -109,7 +108,6 @@ public partial class OnboardingController
         progress.CompletedAt = DateTime.UtcNow;
         await _dbContext.SaveChangesAsync();
 
-        _logger.LogInformation("初始化任务已跳过: {TaskId}", taskId);
         return Ok(new { success = true });
     }
 

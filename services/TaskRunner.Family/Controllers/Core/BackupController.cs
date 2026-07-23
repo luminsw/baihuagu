@@ -21,7 +21,6 @@ public partial class BackupController : ControllerBase
     {
         try
         {
-            _logger.LogInformation("开始创建全量备份");
             var result = await _backupService.CreateFullBackupAsync(request.BackupDir, request.Password, HttpContext.RequestAborted);
 
             return Ok(new FullBackupResponse
@@ -45,7 +44,6 @@ public partial class BackupController : ControllerBase
     {
         try
         {
-            _logger.LogInformation("开始恢复全量备份：{BackupPath}", request.BackupPath);
             var result = await _backupService.RestoreFullBackupAsync(
                 request.BackupPath, request.Password, request.VaultRootPathOverride, request.Overwrite, HttpContext.RequestAborted);
 

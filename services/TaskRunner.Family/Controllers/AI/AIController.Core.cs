@@ -29,7 +29,6 @@ namespace TaskRunner.Controllers
                 throw new Exception("未找到可用的AI提供商");
 
             var apiEndpoint = provider.AiBaseUrl.TrimEnd('/') + "/chat/completions";
-            _logger.LogInformation("调用 AI API: {Endpoint}, 提供商：{Provider}, 模型：{Model}, tools={Tools}", apiEndpoint, provider.Name, model, enableTools);
 
             using var timeoutCts = new CancellationTokenSource(TimeSpan.FromMinutes(_aiSettings.AiRequestTimeoutMinutes));
             using var linkedCts = CancellationTokenSource.CreateLinkedTokenSource(ct, timeoutCts.Token);
@@ -63,9 +62,6 @@ namespace TaskRunner.Controllers
 
                     if (functionCalls.Count > 0)
                     {
-                        _logger.LogInformation("AI 请求执行 {Count} 个函数", functionCalls.Count);
-
-                        // 添加 AI 的 function call 消息
                         var assistantContents = response.Messages.SelectMany(m => m.Contents).ToList();
                         messages.Add(new ChatMessage(ChatRole.Assistant, assistantContents));
 
@@ -80,7 +76,6 @@ namespace TaskRunner.Controllers
                                     var result = await aiFunc.InvokeAsync(new AIFunctionArguments(fc.Arguments), linkedCts.Token);
                                     messages.Add(new ChatMessage(ChatRole.Tool,
                                         new[] { new FunctionResultContent(fc.CallId, result?.ToString() ?? "") }));
-                                    _logger.LogInformation("函数 {Name} 执行成功", fc.Name);
                                 }
                                 catch (Exception ex)
                                 {
@@ -115,7 +110,6 @@ namespace TaskRunner.Controllers
                     var retryResponse = await _aiClientService.GetChatResponseWithAutoStartAsync(
                         provider, model, messages, retryOptions, linkedCts.Token, operation: "chat-retry-no-tools");
                     content = retryResponse.Text;
-                    _logger.LogInformation("AI ({Provider}/{Model}) 重试结果：{HasContent}", provider.Name, model, !string.IsNullOrWhiteSpace(content));
                 }
 
                 if (string.IsNullOrWhiteSpace(content))

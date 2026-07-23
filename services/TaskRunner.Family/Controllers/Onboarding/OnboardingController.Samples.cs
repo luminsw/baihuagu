@@ -56,8 +56,6 @@ public partial class OnboardingController
                 createdNotes.Add(notePath);
             }
 
-            _logger.LogInformation("示例知识库已创建: {VaultName} at {VaultPath}", vaultName, vaultPath);
-
             return Ok(new CreateSampleVaultResponse
             {
                 Success = true,

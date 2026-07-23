@@ -18,8 +18,6 @@ namespace TaskRunner.Controllers
 
             try
             {
-                _logger.LogInformation("收到 AI 聊天：{Message}", request.Message);
-
                 var (provider, model) = ResolveProviderAndModel(request.ProviderId, request.Model);
 
                 // 构建消息列表（使用三层记忆系统）

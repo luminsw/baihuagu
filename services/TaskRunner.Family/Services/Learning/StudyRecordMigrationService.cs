@@ -46,7 +46,6 @@ public class StudyRecordMigrationService : BackgroundService
         var hasExistingRecords = await db.StudyActivities.AnyAsync(cancellationToken);
         if (hasExistingRecords)
         {
-            _logger.LogInformation("StudyActivities 已有记录，跳过迁移");
             return;
         }
 
@@ -54,7 +53,6 @@ public class StudyRecordMigrationService : BackgroundService
         var defaultLearner = await learnerService.GetDefaultAsync();
         if (defaultLearner == null)
         {
-            _logger.LogInformation("没有学习者，跳过迁移（等待用户创建学习者）");
             return;
         }
 
@@ -119,10 +117,6 @@ public class StudyRecordMigrationService : BackgroundService
         {
             await db.SaveChangesAsync(cancellationToken);
             _logger.LogInformation("学习记录迁移完成：共迁移 {Count} 条记录", totalMigrated);
-        }
-        else
-        {
-            _logger.LogInformation("没有需要迁移的旧学习记录");
         }
     }
 }

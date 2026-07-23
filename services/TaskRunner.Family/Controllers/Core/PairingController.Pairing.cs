@@ -13,9 +13,6 @@ public partial class PairingController : ControllerBase
         var (baseUrl, name, qrCodeData) = _pairingService.GenerateQRCodeContent(
             url, hostName, _oneHopService.DeviceId);
         
-        _logger.LogInformation("生成二维码: Url={Url}, HostName={HostName}", 
-            url, hostName);
-        
         return Ok(new ServerQRResponse
         {
             Url = baseUrl,
