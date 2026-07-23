@@ -1,7 +1,7 @@
 ﻿<#
 百花谷 Family 版 - Windows (PowerShell) 轻量 CLI
 用法: .\bhg.ps1 [command]
-  bhg.ps1                打开 dashboard
+  bhg.ps1                打开 dashboard（自动检测代码更新，有新提交时重编译重启）
   bhg.ps1 setup          首次配置（交互）
   bhg.ps1 start          启动服务（在后台运行 dotnet run）
   bhg.ps1 stop           停止服务
@@ -9,10 +9,13 @@
   bhg.ps1 restart        重启服务
   bhg.ps1 logs <name>    查看日志（taskrunner, webui, ai, vault）
   bhg.ps1 open           打开 Web 管理界面 (http://localhost:5177)
+  bhg.ps1 dev            开发模式（监听文件变动自动重编译重启）
 
 说明:
 - 该脚本为简易移植，依赖 PowerShell (推荐 pwsh) 和 dotnet SDK
 - 后台进程 PID 与日志保存在 $env:TEMP\bhg-<service>.*
+- dashboard 命令会比较当前 git HEAD 与上次启动时的 commit，不同则自动重编译重启
+- dev 命令监听 services/ 下 .cs/.razor 文件变动，2秒防抖后自动重编译重启
 #>
 param(
 	[string]$Command = 'dashboard',
@@ -57,6 +60,44 @@ $HealthUrls = @{
 
 function Get-LogPath($name){ Join-Path $TEMP_DIR "bhg-$name.log" }
 function Get-PidPath($name){ Join-Path $TEMP_DIR "bhg-$name.pid" }
+function Get-CommitPath{ Join-Path $TEMP_DIR "bhg-git-commit.txt" }
+
+function Get-CurrentGitCommit{
+	try {
+		$commit = git -C $BHG_ROOT rev-parse HEAD 2>$null
+		if ($commit) { return $commit.Trim() }
+	} catch {}
+	return $null
+}
+
+function Get-SavedGitCommit{
+	$path = Get-CommitPath
+	if (Test-Path $path) {
+		$content = Get-Content $path -ErrorAction SilentlyContinue
+		if ($content) { return $content.Trim() }
+	}
+	return $null
+}
+
+function Save-GitCommit{
+	$commit = Get-CurrentGitCommit
+	if ($commit) {
+		Set-Content -Path (Get-CommitPath) -Value $commit -Force
+	}
+}
+
+function Test-NeedsRebuild{
+	$current = Get-CurrentGitCommit
+	$saved = Get-SavedGitCommit
+	if (-not $current) { return $false }
+	if (-not $saved) { return $true }
+	if ($current -ne $saved) { return $true }
+	try {
+		$dirty = git -C $BHG_ROOT status --short 2>$null
+		if ($dirty -and $dirty.Trim().Length -gt 0) { return $true }
+	} catch {}
+	return $false
+}
 
 function Start-ServiceProc($name, $projRelPath){
 	$projPath = Join-Path $BHG_ROOT $projRelPath
@@ -318,6 +359,36 @@ switch ($Command.ToLower()){
 	'dashboard' {
 		Write-Host "=== 百花谷 Dashboard ===" -ForegroundColor Cyan
 
+		# 检测是否需要重新编译
+		$needsRebuild = Test-NeedsRebuild
+		if ($needsRebuild) {
+			$curr = Get-CurrentGitCommit
+			$saved = Get-SavedGitCommit
+			Write-Host ""
+			if ($saved) {
+				Write-Host "[i] 检测到代码更新" -ForegroundColor Yellow
+				Write-Host "    上次: $($saved.Substring(0,8))"
+				Write-Host "    当前: $($curr.Substring(0,8))"
+			} else {
+				Write-Host "[i] 首次运行或无构建记录" -ForegroundColor Yellow
+			}
+			Write-Host "[...] 停止旧服务并重新编译..." -ForegroundColor Cyan
+			Cmd-Stop
+			Write-Host "Waiting for ports to release..."
+			Start-Sleep -Seconds 1
+
+			Write-Host "[...] dotnet build..." -ForegroundColor Cyan
+			$buildResult = dotnet build (Join-Path $BHG_ROOT 'services\BaiHuaGu.slnx') -c Release 2>&1
+			$buildExit = $LASTEXITCODE
+			if ($buildExit -ne 0) {
+				Write-Host "[X] 编译失败!" -ForegroundColor Red
+				$buildResult | Select-Object -Last 10 | ForEach-Object { Write-Host "    $_" }
+				break
+			}
+			Write-Host "[v] 编译成功" -ForegroundColor Green
+			Save-GitCommit
+		}
+
 		# 清理僵尸进程
 		foreach ($name in $ServiceOrder) {
 			$pidFile = Get-PidPath $name
@@ -343,11 +414,14 @@ switch ($Command.ToLower()){
 		Write-Host "  webui : " -NoNewline
 		if (-not $webuiWasRunning) { Start-Sleep -Seconds 3 }
 		if (-not (Wait-For-Url 'http://127.0.0.1:5177/login' 20)){
-			Write-Host "  webui : ✗ not ready. Check: .\bhg.ps1 logs webui" -ForegroundColor Red
+			Write-Host "  webui : X not ready. Check: .\bhg.ps1 logs webui" -ForegroundColor Red
 			$failedServices += 'webui'
 		} else {
-			Write-Host "  webui : ✓ ready" -ForegroundColor Green
+			Write-Host "  webui : v ready" -ForegroundColor Green
 		}
+
+		# 首次启动保存 commit
+		if (-not $needsRebuild) { Save-GitCommit }
 
 		# 获取 CLI token 并打开浏览器
 		Write-Host ""
@@ -369,10 +443,87 @@ switch ($Command.ToLower()){
 
 		if ($failedServices.Count -gt 0) {
 			Write-Host ""
-			Write-Host "⚠ Some services failed: $($failedServices -join ', ')" -ForegroundColor Yellow
+			Write-Host "! Some services failed: $($failedServices -join ', ')" -ForegroundColor Yellow
 			Write-Host "  Check logs: .\bhg.ps1 logs <name>" -ForegroundColor Yellow
 		}
 		break
 	}
 	default { Open-Dashboard }
+	'dev' {
+		Write-Host "=== 百花谷 Dev Mode (auto-rebuild on change) ===" -ForegroundColor Cyan
+		Write-Host "  Watching: $BHG_ROOT\services\*.cs, *.razor" -ForegroundColor DarkGray
+		Write-Host "  Press Ctrl+C to stop" -ForegroundColor DarkGray
+		Write-Host ""
+
+		# 首次编译+启动
+		Cmd-Stop
+		Start-Sleep -Seconds 1
+		Write-Host "[...] dotnet build..." -ForegroundColor Cyan
+		dotnet build (Join-Path $BHG_ROOT 'services\BaiHuaGu.slnx') -c Release 2>&1 | Select-Object -Last 3 | ForEach-Object { Write-Host "    $_" }
+		if ($LASTEXITCODE -ne 0) { Write-Host "[X] Build failed" -ForegroundColor Red; break }
+		Write-Host "[v] Build OK" -ForegroundColor Green
+		Save-GitCommit
+
+		foreach ($k in $ServiceOrder){
+			Start-ServiceProc $k $Services[$k]
+			if ($k -ne 'webui') {
+				Write-Host "  $k : " -NoNewline
+				Wait-For-Service $k 30 -wasJustStarted $true | Out-Null
+			}
+		}
+		Start-Sleep -Seconds 3
+		Write-Host "  webui : " -NoNewline
+		if (Wait-For-Url 'http://127.0.0.1:5177/login' 20) {
+			Write-Host "v ready" -ForegroundColor Green
+		} else {
+			Write-Host "X not ready" -ForegroundColor Red
+		}
+
+		# 文件监听
+		$watcher = New-Object System.IO.FileSystemWatcher
+		$watcher.Path = Join-Path $BHG_ROOT 'services'
+		$watcher.Filter = '*.*'
+		$watcher.IncludeSubdirectories = $true
+		$watcher.EnableRaisingEvents = $true
+
+		$exts = @('.cs', '.razor', '.cshtml', '.css', '.js')
+		$changeTimer = $null
+		$debounceMs = 2000
+
+		$action = {
+			$ext = [System.IO.Path]::GetExtension($Event.SourceEventArgs.Name)
+			if ($ext -in $exts) {
+				if ($null -ne $changeTimer) { $changeTimer.Dispose() }
+				$changeTimer = New-Object System.Timers.Timer($debounceMs)
+				$changeTimer.AutoReset = $false
+				Register-ObjectEvent -InputObject $changeTimer -EventName Elapsed -Action {
+					Write-Host ""
+					Write-Host "[i] Change detected, rebuilding..." -ForegroundColor Yellow
+					Cmd-Stop
+					Start-Sleep -Seconds 1
+					dotnet build (Join-Path $BHG_ROOT 'services\BaiHuaGu.slnx') -c Release 2>&1 | Select-Object -Last 3 | ForEach-Object { Write-Host "    $_" }
+					if ($script:LASTEXITCODE -ne 0) { Write-Host "[X] Build failed" -ForegroundColor Red; return }
+					Write-Host "[v] Build OK, restarting..." -ForegroundColor Green
+					Save-GitCommit
+					foreach ($k in $ServiceOrder){
+						Start-ServiceProc $k $Services[$k]
+					}
+				} | Out-Null
+				$changeTimer.Start()
+			}
+		}
+
+		Register-ObjectEvent -InputObject $watcher -EventName Changed -Action $action | Out-Null
+		Register-ObjectEvent -InputObject $watcher -EventName Created -Action $action | Out-Null
+		Register-ObjectEvent -InputObject $watcher -EventName Renamed -Action $action | Out-Null
+
+		Write-Host "[v] Watching for changes... (debounce ${debounceMs}ms)" -ForegroundColor Green
+		try {
+			while ($true) { Start-Sleep -Seconds 1 }
+		} finally {
+			$watcher.Dispose()
+			Cmd-Stop
+		}
+		break
+	}
 }
