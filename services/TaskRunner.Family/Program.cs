@@ -118,7 +118,7 @@ builder.Services.AddSwaggerGen(c =>
     {
         Title = "Task Runner API",
         Version = "v1",
-        Description = "百花谷后台服务 - 健康检查与运行状态 API"
+        Description = "百花后台服务 - 健康检查与运行状态 API"
     });
 });
 

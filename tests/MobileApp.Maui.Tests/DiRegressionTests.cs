@@ -1,7 +1,7 @@
-using BaihuaguSdk.Push;
-using BaihuaguSdk.Services;
-using BaihuaguSdk.Signing;
-using BaihuaguSdk.Storage;
+using BaihuaSdk.Push;
+using BaihuaSdk.Services;
+using BaihuaSdk.Signing;
+using BaihuaSdk.Storage;
 using Moq;
 
 namespace MobileApp.Maui.Tests;

@@ -7,7 +7,7 @@ GIT_DIR="$PROJECT_ROOT/.git"
 HOOK_FILE="$GIT_DIR/hooks/post-commit"
 
 echo "========================================"
-echo "  百花谷 - 自动构建部署环境初始化"
+echo "  百花 - 自动构建部署环境初始化"
 echo "========================================"
 
 # 1. 确保脚本可执行
@@ -40,7 +40,7 @@ mkdir -p "$HOME/.config/systemd/user"
 
 cat > "$HOME/.config/systemd/user/yj-watchdog.service" << EOF
 [Unit]
-Description=百花谷 - 文件变化监控与自动构建
+Description=百花 - 文件变化监控与自动构建
 After=docker.service
 
 [Service]

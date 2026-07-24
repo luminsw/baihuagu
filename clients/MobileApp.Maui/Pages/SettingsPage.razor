@@ -1,8 +1,8 @@
 @page "/settings"
-@inject BaihuaguSdk.Signing.RequestSigner Signer
-@inject BaihuaguSdk.Storage.IServerConfigStore ServerStore
+@inject BaihuaSdk.Signing.RequestSigner Signer
+@inject BaihuaSdk.Storage.IServerConfigStore ServerStore
 
-<PageTitle>百花谷 - 设置</PageTitle>
+<PageTitle>百花 - 设置</PageTitle>
 
 <h1>设置</h1>
 
@@ -35,9 +35,9 @@
 
 <div class="settings-section">
     <h3>关于</h3>
-    <p>百花谷移动端</p>
+    <p>百花移动端</p>
     <p>版本: 1.0.0-preview</p>
-    <p>技术栈: .NET MAUI Blazor Hybrid + BaihuaguSdk</p>
+    <p>技术栈: .NET MAUI Blazor Hybrid + BaihuaSdk</p>
 </div>
 
 @code {
@@ -55,7 +55,7 @@
         var current = await ServerStore.GetCurrentServerAsync();
         if (current != null)
         {
-            BaihuaguSdk.Services.SyncServiceImpl.ClearVaultListCache(current.HttpUrl);
+            BaihuaSdk.Services.SyncServiceImpl.ClearVaultListCache(current.HttpUrl);
         }
         _message = "✅ 缓存已清除";
         StateHasChanged();

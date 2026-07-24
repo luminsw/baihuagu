@@ -4,7 +4,7 @@ namespace MobileContract.Services;
 
 /// <summary>
 /// 知识库同步服务接口。
-/// 封装与百花谷后端的所有同步协议交互。
+/// 封装与百花后端的所有同步协议交互。
 /// </summary>
 public interface ISyncService
 {

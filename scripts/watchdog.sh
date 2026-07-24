@@ -1,5 +1,5 @@
 #!/bin/bash
-# 百花谷 - 文件变化监控守护进程
+# 百花 - 文件变化监控守护进程
 # 监控源码目录变化，自动触发构建部署
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -9,7 +9,7 @@ LOG_FILE="/tmp/yj-watchdog.log"
 echo "[$(date '+%Y-%m-%d %H:%M:%S')] 👁️  watchdog 启动，监控目录: $PROJECT_ROOT/services/ $PROJECT_ROOT/docker/" | tee -a "$LOG_FILE"
 
 # 使用 inotifywait 监控文件变化（创建、修改、移动）
-# 排除 bin/ obj/ .git/ 等目录；baihuagu 的 libs/ 通过 NuGet 引用，不监控
+# 排除 bin/ obj/ .git/ 等目录；baihua 的 libs/ 通过 NuGet 引用，不监控
 inotifywait -mr \
     -e modify,create,moved_to,delete \
     --exclude '.*\.(dll|pdb|cache|tmp|swp|swo|swn|log|pyc)|/(bin|obj|\.git|node_modules|\.playwright-cli|test-results)/' \

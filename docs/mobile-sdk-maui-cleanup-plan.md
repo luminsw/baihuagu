@@ -1,4 +1,4 @@
-# 百花谷移动端 SDK / MAUI 收尾计划
+# 百花移动端 SDK / MAUI 收尾计划
 
 ## 目标
 
@@ -13,7 +13,7 @@
 | UI 文案清理 | ✅ 完成 | `HomePage`、`SettingsPage` 已移除「SDK 试验版」等过时描述 |
 | 未实现后端接口标记 | ✅ 完成 | `IPairingService` 与 `PairingServiceImpl` 已用 `[后端未实现 /mg/xxx]` 标记三个未实现端点；对应单元测试已验证 `NotSupportedException` |
 | MAUI Android Release 构建 | ✅ 通过 | `dotnet build clients/MobileApp.Maui/MobileApp.Maui.csproj -c Release -f net9.0-android`（已降级到 .NET 9 解决 Honor 设备兼容性问题） |
-| SDK 单元测试 | ✅ 153 通过 | `dotnet test tests/BaihuaguSdk.Tests` |
+| SDK 单元测试 | ✅ 153 通过 | `dotnet test tests/BaihuaSdk.Tests` |
 | MAUI 单元测试 | ✅ 9 通过 | `dotnet test tests/MobileApp.Maui.Tests` |
 | 服务端单元测试 | ✅ 536 通过 | `dotnet test tests/TaskRunner.Family.Tests` |
 | 轮询策略精确化 | ✅ 完成 | WebSocket 连接成功时不启动轮询，断开后才回退轮询；已更新 `AuthorizationWatcher` |
@@ -42,7 +42,7 @@
 现状：轮询/WebSocket 切换逻辑原本写在 `.razor` 的 `@code` 里，无法单元测试。
 
 实施方案：
-- 新增 `AuthorizationWatcher`（`libs/BaihuaguSdk/src/Services/AuthorizationWatcher.cs`），职责：
+- 新增 `AuthorizationWatcher`（`libs/BaihuaSdk/src/Services/AuthorizationWatcher.cs`），职责：
   - 持有 `IDeviceRegistrationService` 和 `PushWebSocketService`
   - 提供 `WaitForAuthorizationAsync(serverUrl, deviceName, ct)`，内部优先 WebSocket，WebSocket 不可用时回退轮询
   - 暴露 `WebSocketConnectionStateChanged` 事件供 UI 显示连接状态
@@ -59,7 +59,7 @@
 
 ### 3. 清理 UI 文案与细节（✅ 已完成）
 
-- `SettingsPage.razor`：已移除「百花谷 iOS SDK 试验项目」等过时文案
+- `SettingsPage.razor`：已移除「百花 iOS SDK 试验项目」等过时文案
 - `HomePage.razor`：已同步清理「SDK 试验版」等描述
 
 ### 4. 标记未实现的后端接口（✅ 已完成）
@@ -68,7 +68,7 @@
   - `CheckPairStatusAsync` → `[后端未实现 /mg/pair/status]`
   - `VerifyTokenAsync` → `[后端未实现 /mg/verify-token]`
   - `GetAuthConfigAsync` → `[后端未实现 /mg/auth/config]`
-- `PairingServiceImpl`（`libs/BaihuaguSdk/src/Services/PairingServiceImpl.cs`）中对应实现已同步调整异常消息与注释，统一使用 `[后端未实现 /mg/xxx]` 前缀，并说明待后端实现后可移除。
+- `PairingServiceImpl`（`libs/BaihuaSdk/src/Services/PairingServiceImpl.cs`）中对应实现已同步调整异常消息与注释，统一使用 `[后端未实现 /mg/xxx]` 前缀，并说明待后端实现后可移除。
 - 这些接口需要后端先实现 `/mg/pair/status`、`/mg/verify-token`、`/mg/auth/config` 后方可移除 `NotSupportedException`。
 - 未新增后端契约扩展，因为当前 MobileContract 中的 DTO（`AuthConfigRequest`、`AuthConfigResponse`、`VerifyTokenRequest`）与接口定义已足够；后续后端实现时直接按上述端点路径添加控制器方法即可。
 
@@ -83,12 +83,12 @@
    - **问题背景**：Honor 真机（`ADNQUT5813009383`）安装 MAUI 10 版本 APK 后启动崩溃，错误为 `java.lang.IllegalArgumentException: No view found for id 0x7f0800ff for fragment NavigationRootManager_ElementBasedFragment`。这是 MAUI 10 在部分 Android 设备上的已知框架问题（[dotnet/maui#32029](https://github.com/dotnet/maui/issues/32029)）。
    - **解决方案**：将 MAUI 项目 Android TargetFramework 从 `net10.0-android` 降级到 `net9.0-android`（LTS 版本），同时将 `ZXing.Net.Maui.Controls` 从 `0.10.1` 降级到 `0.6.0`（兼容 .NET 9）。
    - **验证结果**：
-     - 模拟器（AVD `baihuagu_test` / Pixel 6 / Android 14）：应用启动正常，UI 渲染无异常。
+     - 模拟器（AVD `baihua_test` / Pixel 6 / Android 14）：应用启动正常，UI 渲染无异常。
      - Honor 真机（`ADNQUT5813009383`）：安装 .NET 9 版本 APK 后成功启动并进入主界面，首页、配对页、同步页导航正常。
 
 ## 验收标准
 
-- [x] `dotnet test tests/BaihuaguSdk.Tests` 全部通过，且新增 WebSocket 行为测试
+- [x] `dotnet test tests/BaihuaSdk.Tests` 全部通过，且新增 WebSocket 行为测试
 - [x] `dotnet test tests/MobileApp.Maui.Tests` 全部通过
 - [x] MAUI Android Release 构建通过
 - [x] 无过时/误导性 UI 文案

@@ -46,7 +46,7 @@ builder.Services.AddSwaggerGen(c =>
     {
         Title = "TaskRunner AI API",
         Version = "v1",
-        Description = "百花谷 AI 服务 - 模型、聊天、搜索、指标"
+        Description = "百花 AI 服务 - 模型、聊天、搜索、指标"
     });
 });
 

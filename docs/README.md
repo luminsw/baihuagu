@@ -31,8 +31,8 @@
 
 ## 相关文档位置
 
-- **项目根目录**：`baihuagu/README.md` - 项目介绍
-- **开发助手**：`baihuagu/AGENTS.md` - 开发助手说明
+- **项目根目录**：`baihua/README.md` - 项目介绍
+- **开发助手**：`baihua/AGENTS.md` - 开发助手说明
 - **移动端文档**：`arkts/docs/` / `kotlin/docs/`
 - **后端服务文档**：`services/TaskRunner.Family/` 内联文档
 - **WebUI 文档**：`services/WebUI.Family/` 内联文档

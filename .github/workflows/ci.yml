@@ -32,8 +32,8 @@ jobs:
           restore-keys: |
             ${{ runner.os }}-nuget-
 
-      - name: Run BaihuaguSdk tests
-        run: dotnet test tests/BaihuaguSdk.Tests/BaihuaguSdk.Tests.csproj -c Release
+      - name: Run BaihuaSdk tests
+        run: dotnet test tests/BaihuaSdk.Tests/BaihuaSdk.Tests.csproj -c Release
 
       - name: Run MobileApp.Maui tests
         run: dotnet test tests/MobileApp.Maui.Tests/MobileApp.Maui.Tests.csproj -c Release
@@ -61,8 +61,8 @@ jobs:
           restore-keys: |
             ${{ runner.os }}-nuget-
 
-      - name: Build BaiHuaGu solution
-        run: dotnet build services/BaiHuaGu.slnx -c Release
+      - name: Build BaiHua solution
+        run: dotnet build services/BaiHua.slnx -c Release
 
   # ── Android 编译（.NET 9 MAUI） ──
   android-build:

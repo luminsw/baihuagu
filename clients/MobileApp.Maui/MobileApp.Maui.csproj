@@ -16,8 +16,8 @@
     <AndroidEnableCompressionInNativeLibraries>false</AndroidEnableCompressionInNativeLibraries>
     <AndroidEnableFastDeployment>false</AndroidEnableFastDeployment>
     <EmbedAssembliesIntoApk>true</EmbedAssembliesIntoApk>
-    <ApplicationTitle>百花谷</ApplicationTitle>
-    <ApplicationId>com.lumin.baihuagu</ApplicationId>
+    <ApplicationTitle>百花</ApplicationTitle>
+    <ApplicationId>com.lumin.baihua</ApplicationId>
     <ApplicationDisplayVersion>1.0</ApplicationDisplayVersion>
     <ApplicationVersion>1</ApplicationVersion>
     <SupportedOSPlatformVersion Condition="$([MSBuild]::GetTargetPlatformIdentifier('$(TargetFramework)')) == 'android'">24.0</SupportedOSPlatformVersion>
@@ -38,7 +38,7 @@
   </ItemGroup>
   <ItemGroup>
     <ProjectReference Include="..\..\libs\MobileContract\MobileContract.csproj" />
-    <ProjectReference Include="..\..\libs\BaihuaguSdk\BaihuaguSdk.csproj" />
+    <ProjectReference Include="..\..\libs\BaihuaSdk\BaihuaSdk.csproj" />
   </ItemGroup>
 
   <PropertyGroup Condition="'$(Configuration)' == 'Release'">

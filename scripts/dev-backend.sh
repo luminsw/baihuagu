@@ -7,7 +7,7 @@ set -euo pipefail
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 
 echo "========================================"
-echo "百花谷 - 开发环境启动 (macOS/Linux)"
+echo "百花 - 开发环境启动 (macOS/Linux)"
 echo "========================================"
 echo ""
 

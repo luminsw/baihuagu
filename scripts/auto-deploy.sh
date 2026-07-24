@@ -1,7 +1,7 @@
 #!/bin/bash
 set -e
 
-# 百花谷 - 本地自动构建与部署脚本
+# 百花 - 本地自动构建与部署脚本
 # 用法: ./scripts/auto-deploy.sh [--force] [--all]
 #   --force: 跳过防抖，立即构建
 #   --all:   强制构建所有服务（taskrunner + webui），忽略增量判断

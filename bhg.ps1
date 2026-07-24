@@ -1,5 +1,5 @@
-﻿﻿<#
-百花谷 Family 版 - Windows (PowerShell) 轻量 CLI
+<#
+百花 Family 版 - Windows (PowerShell) 轻量 CLI
 用法: .\bhg.ps1 [command]
   bhg.ps1                打开 dashboard（自动检测代码更新，有新提交时重编译重启）
   bhg.ps1 setup          首次配置（交互）
@@ -434,7 +434,7 @@ function Cmd-Start-Observability {
 }
 
 function Cmd-All {
-	Write-Host "=== 百花谷 - 启动全部服务 ===" -ForegroundColor Cyan
+	Write-Host "=== 百花 - 启动全部服务 ===" -ForegroundColor Cyan
 	Write-Host ""
 
 	$needsRebuild = Test-NeedsRebuild
@@ -451,7 +451,7 @@ function Cmd-All {
 		Start-Sleep -Seconds 1
 
 		Write-Host "[...] dotnet build..." -ForegroundColor Cyan
-		$buildResult = dotnet build (Join-Path $BHG_ROOT 'services\BaiHuaGu.slnx') -c Release 2>&1
+		$buildResult = dotnet build (Join-Path $BHG_ROOT 'services\BaiHua.slnx') -c Release 2>&1
 		$buildExit = $LASTEXITCODE
 		if ($buildExit -ne 0) {
 			Write-Host "[X] 编译失败!" -ForegroundColor Red
@@ -554,7 +554,7 @@ switch ($Command.ToLower()){
 	'observe' { Cmd-Observe; break }
 	'all' { Cmd-All; break }
 	'dashboard' {
-		Write-Host "=== 百花谷 Dashboard ===" -ForegroundColor Cyan
+		Write-Host "=== 百花 Dashboard ===" -ForegroundColor Cyan
 
 		# 检测是否需要重新编译
 		$needsRebuild = Test-NeedsRebuild
@@ -575,7 +575,7 @@ switch ($Command.ToLower()){
 			Start-Sleep -Seconds 1
 
 			Write-Host "[...] dotnet build..." -ForegroundColor Cyan
-			$buildResult = dotnet build (Join-Path $BHG_ROOT 'services\BaiHuaGu.slnx') -c Release 2>&1
+			$buildResult = dotnet build (Join-Path $BHG_ROOT 'services\BaiHua.slnx') -c Release 2>&1
 			$buildExit = $LASTEXITCODE
 			if ($buildExit -ne 0) {
 				Write-Host "[X] 编译失败!" -ForegroundColor Red
@@ -647,7 +647,7 @@ switch ($Command.ToLower()){
 	}
 	default { Open-Dashboard }
 	'dev' {
-		Write-Host "=== 百花谷 Dev Mode (auto-rebuild on change) ===" -ForegroundColor Cyan
+		Write-Host "=== 百花 Dev Mode (auto-rebuild on change) ===" -ForegroundColor Cyan
 		Write-Host "  Watching: $BHG_ROOT\services\*.cs, *.razor" -ForegroundColor DarkGray
 		Write-Host "  Press Ctrl+C to stop" -ForegroundColor DarkGray
 		Write-Host ""
@@ -656,7 +656,7 @@ switch ($Command.ToLower()){
 		Cmd-Stop
 		Start-Sleep -Seconds 1
 		Write-Host "[...] dotnet build..." -ForegroundColor Cyan
-		dotnet build (Join-Path $BHG_ROOT 'services\BaiHuaGu.slnx') -c Release 2>&1 | Select-Object -Last 3 | ForEach-Object { Write-Host "    $_" }
+		dotnet build (Join-Path $BHG_ROOT 'services\BaiHua.slnx') -c Release 2>&1 | Select-Object -Last 3 | ForEach-Object { Write-Host "    $_" }
 		if ($LASTEXITCODE -ne 0) { Write-Host "[X] Build failed" -ForegroundColor Red; break }
 		Write-Host "[v] Build OK" -ForegroundColor Green
 		Save-GitCommit
@@ -698,7 +698,7 @@ switch ($Command.ToLower()){
 					Write-Host "[i] Change detected, rebuilding..." -ForegroundColor Yellow
 					Cmd-Stop
 					Start-Sleep -Seconds 1
-					dotnet build (Join-Path $BHG_ROOT 'services\BaiHuaGu.slnx') -c Release 2>&1 | Select-Object -Last 3 | ForEach-Object { Write-Host "    $_" }
+					dotnet build (Join-Path $BHG_ROOT 'services\BaiHua.slnx') -c Release 2>&1 | Select-Object -Last 3 | ForEach-Object { Write-Host "    $_" }
 					if ($script:LASTEXITCODE -ne 0) { Write-Host "[X] Build failed" -ForegroundColor Red; return }
 					Write-Host "[v] Build OK, restarting..." -ForegroundColor Green
 					Save-GitCommit

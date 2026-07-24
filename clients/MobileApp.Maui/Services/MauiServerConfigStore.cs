@@ -1,6 +1,6 @@
 using System.Text.Json;
-using BaihuaguSdk.Models;
-using BaihuaguSdk.Storage;
+using BaihuaSdk.Models;
+using BaihuaSdk.Storage;
 
 namespace MobileApp.Maui.Services;
 
@@ -10,8 +10,8 @@ namespace MobileApp.Maui.Services;
 /// </summary>
 public class MauiServerConfigStore : IServerConfigStore
 {
-    private const string ServersKey = "baihuagu_servers";
-    private const string CurrentServerKey = "baihuagu_current_server";
+    private const string ServersKey = "baihua_servers";
+    private const string CurrentServerKey = "baihua_current_server";
 
     public Task<IReadOnlyList<ServerConfig>> GetServersAsync()
     {

@@ -12,7 +12,7 @@ namespace TaskRunner.OpenTelemetry;
 
 /// <summary>
 /// OpenTelemetry 扩展方法，支持向 OpenObserve 推送 Metrics、Logs 和 Traces。
-/// 与 ivory-tower/Cloud 版本保持一致。
+/// 与 hua-ge/Cloud 版本保持一致。
 /// </summary>
 public static class OpenTelemetryExtensions
 {

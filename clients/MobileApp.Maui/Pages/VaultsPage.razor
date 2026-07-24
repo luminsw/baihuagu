@@ -1,11 +1,11 @@
 @page "/vaults"
-@inject BaihuaguSdk.Storage.IServerConfigStore ServerStore
-@inject BaihuaguSdk.Signing.RequestSigner Signer
-@inject BaihuaguSdk.Services.SyncServiceImpl SyncService
+@inject BaihuaSdk.Storage.IServerConfigStore ServerStore
+@inject BaihuaSdk.Signing.RequestSigner Signer
+@inject BaihuaSdk.Services.SyncServiceImpl SyncService
 @inject MobileApp.Maui.Services.IVaultStorageFactory VaultStorageFactory
 @inject NavigationManager Nav
 
-<PageTitle>百花谷 - 已同步</PageTitle>
+<PageTitle>百花 - 已同步</PageTitle>
 
 <h1>已同步的知识库</h1>
 
@@ -118,7 +118,7 @@ else
     private string? _viewFilePath;
     private bool _syncing = false;
     private string? _error;
-    private BaihuaguSdk.Models.ServerConfig? _currentServer;
+    private BaihuaSdk.Models.ServerConfig? _currentServer;
     private VaultEntry? _confirmDelete;
 
     private record VaultEntry(string Id, string DisplayName, List<FileEntry> Files);

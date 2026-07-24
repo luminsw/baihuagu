@@ -48,7 +48,7 @@ builder.Services.AddSwaggerGen(c =>
     {
         Title = "TaskRunner Vault API",
         Version = "v1",
-        Description = "百花谷知识库服务 - Vault、同步、搜索"
+        Description = "百花知识库服务 - Vault、同步、搜索"
     });
 });
 

@@ -12,7 +12,7 @@
     <PackageReference Include="Moq" Version="4.20.*" />
   </ItemGroup>
   <ItemGroup>
-    <ProjectReference Include="..\..\libs\BaihuaguSdk\BaihuaguSdk.csproj" />
+    <ProjectReference Include="..\..\libs\BaihuaSdk\BaihuaSdk.csproj" />
     <ProjectReference Include="..\..\libs\MobileContract\MobileContract.csproj" />
   </ItemGroup>
 </Project>

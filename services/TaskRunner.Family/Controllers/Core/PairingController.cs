@@ -95,7 +95,7 @@ namespace TaskRunner.Controllers
 
             return Ok(new
             {
-                serviceName = "baihuagu",
+                serviceName = "baihua",
                 serviceType = "_http._tcp.local",
                 serviceId = "com.lumin.huaji.sync",
                 serverId = _oneHopService.DeviceId,

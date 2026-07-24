@@ -1,7 +1,7 @@
 namespace MobileContract.VaultSync;
 
 /// <summary>
-/// 移动端向百花谷推送 AI 生成知识库的请求体。
+/// 移动端向百花推送 AI 生成知识库的请求体。
 /// 对应 POST /mobile-vaults/push 端点。
 /// </summary>
 public record MobileVaultPushRequest(

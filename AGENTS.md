@@ -24,13 +24,13 @@
 - `services/TaskRunner.Contracts/`：共享 DTO 与接口契约
 - `services/Core.Shared/`：共享服务层（含 VaultSettingsService、DeviceService 等）
 - `services/TaskRunner.Data/`：共享 EF Core 数据层
-- `libs/BaihuaguSdk/`：跨平台移动端 SDK（net9.0;net10.0，零 MAUI 依赖，主要 target net10.0）
+- `libs/BaihuaSdk/`：跨平台移动端 SDK（net9.0;net10.0，零 MAUI 依赖，主要 target net10.0）
 - `libs/MobileContract/`：移动端契约（DTO、接口定义）
 - `clients/MobileApp.Maui/`：MAUI Blazor Hybrid 移动客户端
 - `bhg`：极简 CLI 工具（Linux/Mac）
 - `docs/`：协议与架构文档
 - `scripts/`：开发、发布、部署脚本
-- `tests/BaihuaguSdk.Tests/`：SDK 单元测试与集成测试
+- `tests/BaihuaSdk.Tests/`：SDK 单元测试与集成测试
 - `tests/MobileApp.Maui.Tests/`：MAUI DI 回归测试
 - `tests/TaskRunner.Family.Tests/`：后端配对服务测试
 
@@ -60,7 +60,7 @@ cd services/TaskRunner.Family && dotnet watch run --non-interactive --no-hot-rel
 cd services/WebUI.Family && dotnet watch run --non-interactive
 
 # 编译验证（推送前必须执行）
-dotnet build services/BaiHuaGu.slnx -c Release
+dotnet build services/BaiHua.slnx -c Release
 ```
 
 ## 端口
@@ -81,11 +81,11 @@ dotnet build services/BaiHuaGu.slnx -c Release
 - 局域网发现/配对阶段通过 HMAC 签名（共享 `sharedSecret`）校验设备身份。
 - 转发到 `TaskRunner.Vault` 时，`TaskRunner.Family` 会为已授权设备自动附加 `Authorization: Bearer <accessToken>`，Vault 侧校验 Bearer Token 或本机回环请求。
 
-## BaihuaguSdk（跨平台移动端 SDK）
+## BaihuaSdk（跨平台移动端 SDK）
 
-**位置**: `libs/BaihuaguSdk/` — 纯 C# `net9.0;net10.0` 类库，零 MAUI 依赖。
+**位置**: `libs/BaihuaSdk/` — 纯 C# `net9.0;net10.0` 类库，零 MAUI 依赖。
 
-封装了与百花谷服务器通信的全部协议层：
+封装了与百花服务器通信的全部协议层：
 
 | 模块 | 说明 |
 |------|------|
@@ -100,20 +100,20 @@ dotnet build services/BaiHuaGu.slnx -c Release
 
 ```bash
 # 运行 SDK 单元测试
-dotnet test tests/BaihuaguSdk.Tests/BaihuaguSdk.Tests.csproj
+dotnet test tests/BaihuaSdk.Tests/BaihuaSdk.Tests.csproj
 
-# 运行集成测试（需要百花谷服务器）
-export BAIHUAGU_TEST_URL=http://192.168.3.x:8788
-export BAIHUAGU_TEST_SECRET=<shared-secret>
-export BAIHUAGU_TEST_VAULT_ID=<vault-id>
-dotnet test tests/BaihuaguSdk.Tests/BaihuaguSdk.Tests.csproj --filter Integration
+# 运行集成测试（需要百花服务器）
+export BaiHua_TEST_URL=http://192.168.3.x:8788
+export BaiHua_TEST_SECRET=<shared-secret>
+export BaiHua_TEST_VAULT_ID=<vault-id>
+dotnet test tests/BaihuaSdk.Tests/BaihuaSdk.Tests.csproj --filter Integration
 ```
 
-## MobileApp.Maui（百花谷移动客户端）
+## MobileApp.Maui（百花移动客户端）
 
 **位置**: `clients/MobileApp.Maui/` — .NET MAUI Blazor Hybrid App。
 
-- **Android**: `dotnet build -f net9.0-android -c Release` → APK 在 `bin/Release/net9.0-android/com.lumin.baihuagu-Signed.apk`
+- **Android**: `dotnet build -f net9.0-android -c Release` → APK 在 `bin/Release/net9.0-android/com.lumin.BaiHua-Signed.apk`
 - **iOS**: 需要 macOS + Xcode（GitHub Actions CI 已配置 `.github/workflows/ci.yml`）
 
 ```bash
@@ -121,7 +121,7 @@ dotnet test tests/BaihuaguSdk.Tests/BaihuaguSdk.Tests.csproj --filter Integratio
 dotnet build -f net9.0-android -c Release
 
 # 安装到手机
-adb install clients/MobileApp.Maui/bin/Release/net9.0-android/com.lumin.baihuagu-Signed.apk
+adb install clients/MobileApp.Maui/bin/Release/net9.0-android/com.lumin.BaiHua-Signed.apk
 ```
 
 ### Honor/部分 Android 设备 .NET 10 兼容性
@@ -158,12 +158,12 @@ Debug 构建跳过 TLS 证书验证（方便本地自签名证书开发），Rel
 
 ## 测试
 
-### BaihuaguSdk 测试
+### BaihuaSdk 测试
 
 **单元测试**（无需服务器，覆盖核心算法和逻辑）：
 
 ```bash
-dotnet test tests/BaihuaguSdk.Tests/BaihuaguSdk.Tests.csproj --filter Unit
+dotnet test tests/BaihuaSdk.Tests/BaihuaSdk.Tests.csproj --filter Unit
 ```
 
 覆盖模块：
@@ -172,13 +172,13 @@ dotnet test tests/BaihuaguSdk.Tests/BaihuaguSdk.Tests.csproj --filter Unit
 - `Services/SyncServiceImpl`：文件类型判断、路径安全验证
 - `Services/PairingServiceImpl`：QR 码解析（新旧格式）、服务器地址提取
 
-**集成测试**（需要运行中的百花谷服务器）：
+**集成测试**（需要运行中的百花服务器）：
 
 ```bash
-export BAIHUAGU_TEST_URL=http://192.168.x.x:8788
-export BAIHUAGU_TEST_SECRET=<shared-secret>
-export BAIHUAGU_TEST_VAULT_ID=<vault-id>
-dotnet test tests/BaihuaguSdk.Tests/BaihuaguSdk.Tests.csproj --filter Integration
+export BaiHua_TEST_URL=http://192.168.x.x:8788
+export BaiHua_TEST_SECRET=<shared-secret>
+export BaiHua_TEST_VAULT_ID=<vault-id>
+dotnet test tests/BaihuaSdk.Tests/BaihuaSdk.Tests.csproj --filter Integration
 ```
 
 测试完整流程：配对 → 获取知识库列表 → 获取 manifest → 同步文件

@@ -1,4 +1,4 @@
-using BaihuaguSdk.Storage;
+using BaihuaSdk.Storage;
 
 namespace MobileApp.Maui.Services;
 

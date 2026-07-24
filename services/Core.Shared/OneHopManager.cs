@@ -67,7 +67,7 @@ namespace TaskRunner.Services
                     { "deviceName", hostName },
                     { "ipAddress", ipAddress },
                     { "httpPort", port.ToString() },
-                    { "serviceType", "baihuagu" },
+                    { "serviceType", "baihua" },
                     { "version", "1.0.0" },
                     { "capabilities", "file-sync,manifest,health-check" }
                 };

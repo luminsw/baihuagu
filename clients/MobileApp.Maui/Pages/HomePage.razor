@@ -1,12 +1,12 @@
 @page "/"
-@inject BaihuaguSdk.Storage.IServerConfigStore ServerStore
-@inject BaihuaguSdk.Storage.ISecureStore SecureStore
-@inject BaihuaguSdk.Signing.IRequestSigner Signer
+@inject BaihuaSdk.Storage.IServerConfigStore ServerStore
+@inject BaihuaSdk.Storage.ISecureStore SecureStore
+@inject BaihuaSdk.Signing.IRequestSigner Signer
 @inject NavigationManager Nav
 
-<PageTitle>百花谷</PageTitle>
+<PageTitle>百花</PageTitle>
 
-<h1>百花谷</h1>
+<h1>百花</h1>
 <p>个人知识库集散地 · 移动端</p>
 
 <h2>已配对服务器</h2>
@@ -56,9 +56,9 @@ else
 }
 
 @code {
-    private IReadOnlyList<BaihuaguSdk.Models.ServerConfig> _servers = Array.Empty<BaihuaguSdk.Models.ServerConfig>();
-    private BaihuaguSdk.Models.ServerConfig? _selectedServer;
-    private BaihuaguSdk.Models.ServerConfig? _confirmDelete;
+    private IReadOnlyList<BaihuaSdk.Models.ServerConfig> _servers = Array.Empty<BaihuaSdk.Models.ServerConfig>();
+    private BaihuaSdk.Models.ServerConfig? _selectedServer;
+    private BaihuaSdk.Models.ServerConfig? _confirmDelete;
 
     protected override async Task OnInitializedAsync()
     {
@@ -76,14 +76,14 @@ else
         if (current != null) _selectedServer = current;
     }
 
-    private async Task SelectServer(BaihuaguSdk.Models.ServerConfig server)
+    private async Task SelectServer(BaihuaSdk.Models.ServerConfig server)
     {
         _selectedServer = server;
         await ServerStore.SetCurrentServerAsync(server.Id);
         StateHasChanged();
     }
 
-    private void DeleteServer(BaihuaguSdk.Models.ServerConfig server)
+    private void DeleteServer(BaihuaSdk.Models.ServerConfig server)
     {
         _confirmDelete = server;
     }

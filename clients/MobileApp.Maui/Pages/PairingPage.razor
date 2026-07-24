@@ -1,20 +1,20 @@
 @page "/pairing"
-@inject BaihuaguSdk.Services.PairingServiceImpl PairingService
+@inject BaihuaSdk.Services.PairingServiceImpl PairingService
 @inject MobileContract.Services.IDeviceRegistrationService DeviceRegistration
-@inject BaihuaguSdk.Storage.IServerConfigStore ServerStore
-@inject BaihuaguSdk.Signing.IRequestSigner Signer
-@inject BaihuaguSdk.Storage.ISecureStore SecureStore
+@inject BaihuaSdk.Storage.IServerConfigStore ServerStore
+@inject BaihuaSdk.Signing.IRequestSigner Signer
+@inject BaihuaSdk.Storage.ISecureStore SecureStore
 @inject MobileApp.Maui.Services.IQrScanner QrScanner
-@inject BaihuaguSdk.Push.PushWebSocketService PushService
+@inject BaihuaSdk.Push.PushWebSocketService PushService
 
-<PageTitle>百花谷 - 配对</PageTitle>
+<PageTitle>百花 - 配对</PageTitle>
 
 <h1>连接服务器</h1>
 
 <div class="pair-methods">
     <div class="method-card">
         <h3>扫码连接</h3>
-        <p>扫描百花谷管理后台的二维码</p>
+        <p>扫描百花管理后台的二维码</p>
         <button class="btn primary" @onclick="ScanQrCode" disabled="@_isLoading">
             @(_isLoading ? "打开相机..." : "📷 扫描二维码")
         </button>
@@ -31,7 +31,7 @@
 
     <div class="method-card">
         <h3>手动输入</h3>
-        <p>直接输入百花谷服务器地址</p>
+        <p>直接输入百花服务器地址</p>
         <input @bind="_manualUrl" placeholder="例如: http://192.168.1.100:8788" />
         <button class="btn primary" @onclick="ManualRegister" disabled="@_isLoading">
             @(_isLoading ? "注册中..." : "注册设备")
@@ -105,10 +105,10 @@
         StateHasChanged();
         try
         {
-            var content = BaihuaguSdk.Services.PairingServiceImpl.ParseQrCode(_qrInput);
+            var content = BaihuaSdk.Services.PairingServiceImpl.ParseQrCode(_qrInput);
             if (content == null) { _qrError = "无法解析二维码内容"; StateHasChanged(); return; }
 
-            var addrs = BaihuaguSdk.Services.PairingServiceImpl.GetServerAddresses(content);
+            var addrs = BaihuaSdk.Services.PairingServiceImpl.GetServerAddresses(content);
             _result = await DeviceRegistration.RegisterDeviceAsync(addrs.HttpUrl);
             await SaveResult(addrs.ServerId, addrs.HostName, addrs.HttpUrl);
         }
@@ -123,7 +123,7 @@
         StateHasChanged();
         try
         {
-            var url = BaihuaguSdk.Transport.HttpTransport.NormalizeBaseUrl(_manualUrl);
+            var url = BaihuaSdk.Transport.HttpTransport.NormalizeBaseUrl(_manualUrl);
             _result = await DeviceRegistration.RegisterDeviceAsync(url);
             var serverId = $"manual-{DateTimeOffset.UtcNow.ToUnixTimeMilliseconds()}";
             await SaveResult(serverId, new Uri(url).Host, url);
@@ -143,7 +143,7 @@
             await SecureStore.SetAsync($"secret_{httpUrl}", _result.SharedSecret);
         }
 
-        await ServerStore.AddOrUpdateServerAsync(new BaihuaguSdk.Models.ServerConfig
+        await ServerStore.AddOrUpdateServerAsync(new BaihuaSdk.Models.ServerConfig
         {
             Id = serverId, Name = serverName,
             HttpUrl = httpUrl, IsOnline = true, LastUsedAt = DateTimeOffset.UtcNow

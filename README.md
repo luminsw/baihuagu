@@ -1,4 +1,4 @@
-# 百花谷
+# 百花
 
 家庭版后端服务 + yj CLI 工具，面向本地/局域网使用。
 
@@ -14,7 +14,7 @@ services/
   Core.Shared/          # 共享服务层
   TaskRunner.Data/      # 共享 EF Core 数据层
 libs/
-  BaihuaguSdk/          # 跨平台移动端 SDK（net9.0;net10.0，零 MAUI 依赖）
+  BaihuaSdk/          # 跨平台移动端 SDK（net9.0;net10.0，零 MAUI 依赖）
   MobileContract/       # 移动端契约（DTO、接口定义）
 clients/
   MobileApp.Maui/       # MAUI Blazor Hybrid 移动客户端
@@ -23,7 +23,7 @@ docs/                   # 文档
 docker/                 # Docker 配置
 bhg                     # 极简 CLI 工具（Linux/Mac）
 tests/
-  BaihuaguSdk.Tests/    # SDK 单元测试与集成测试
+  BaihuaSdk.Tests/    # SDK 单元测试与集成测试
   MobileApp.Maui.Tests/ # MAUI DI 回归测试
   e2e/                  # Playwright E2E 测试
 ```

@@ -24,7 +24,7 @@ namespace TaskRunner.Services
     {
         private readonly ILogger<MDnsService> _logger;
         private readonly ServerAddressService _serverAddressService;
-        private readonly string _serviceName = "baihuagu";
+        private readonly string _serviceName = "baihua";
         private readonly string _serviceType = "_http._tcp";
 
         // Avahi (Linux)
