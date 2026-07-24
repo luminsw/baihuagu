@@ -1,4 +1,4 @@
-﻿﻿<#
+﻿<#
 百花谷 Family 版 - Windows (PowerShell) 轻量 CLI
 用法: .\bh.ps1 [command]
   bh.ps1                 打开 dashboard（自动检测代码更新，有新提交时重编译重启）
@@ -7,7 +7,7 @@
   bh.ps1 stop            停止服务
   bh.ps1 status          查看服务状态
   bh.ps1 restart         重启服务
-  bh.ps1 logs <name>     查看日志（taskrunner, webui, ai, vault）
+  bh.ps1 logs [name]     查看日志（taskrunner, webui, ai, vault）
   bh.ps1 open            打开 Web 管理界面 (http://localhost:5177)
   bh.ps1 dev             开发模式（监听文件变动自动重编译重启）
   bh.ps1 observe         启动 OpenObserve 可观测平台（Docker）并打开 Web UI
@@ -15,7 +15,7 @@
 
 说明:
 - 该脚本为简易移植，依赖 PowerShell (推荐 pwsh) 和 dotnet SDK
-- 后台进程 PID 与日志保存在 $env:TEMP\bh-<service>.*
+- 后台进程 PID 与日志保存在 $env:TEMP\bh-[service].*
 - dashboard 命令会比较当前 git HEAD 与上次启动时的 commit，不同则自动重编译重启
 - dev 命令监听 services/ 下 .cs/.razor 文件变动，2秒防抖后自动重编译重启
 - observe 命令使用 docker compose 启动 OpenObserve（端口 5082/5083）
@@ -47,14 +47,14 @@ function Get-Help {
 	Write-Host "  stop                  停止服务"
 	Write-Host "  restart               重启服务"
 	Write-Host "  status                查看服务状态"
-	Write-Host "  logs <name>           查看日志（taskrunner, webui, ai, vault）"
+	Write-Host "  logs [name]           查看日志（taskrunner, webui, ai, vault）"
 	Write-Host "  open                  打开 Web 管理界面 (http://localhost:5177)"
 	Write-Host "  dev                   开发模式（监听文件变动自动重编译重启）"
 	Write-Host "  observe               启动 OpenObserve 可观测平台（Docker）"
 	Write-Host "  all                   启动全部服务（.NET + OpenObserve + hostmetrics）"
 	Write-Host ""
 	Write-Host "说明:"
-	Write-Host "  - 日志与 PID 文件保存在 $env:TEMP\bh-<service>.*"
+	Write-Host "  - 日志与 PID 文件保存在 $env:TEMP\bh-[service].*"
 	Write-Host "  - dashboard 命令会比较 git HEAD，有更新时自动重编译重启"
 	Write-Host ""
 }
