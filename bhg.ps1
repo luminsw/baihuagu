@@ -259,16 +259,20 @@ function Ensure-ServiceRunning($name){
 
 function Wait-For-Url([string]$url, [int]$timeoutSec = 30){
 	$sw = [System.Diagnostics.Stopwatch]::StartNew()
+	$firstAttempt = $true
 	while ($sw.Elapsed.TotalSeconds -lt $timeoutSec){
 		try{
-			$resp = Invoke-WebRequest -Uri $url -UseBasicParsing -TimeoutSec 2 -ErrorAction Stop
+			$resp = Invoke-WebRequest -Uri $url -UseBasicParsing -TimeoutSec 3 -ErrorAction Stop
 			if ($resp.StatusCode -ge 200 -and $resp.StatusCode -lt 400){
 				return $true
 			}
 		} catch {
-			# ignore and retry
+			if ($firstAttempt) {
+				Write-Host "  (waiting for $url ...)" -ForegroundColor DarkGray
+				$firstAttempt = $false
+			}
 		}
-		Start-Sleep -Seconds 1
+		Start-Sleep -Seconds 2
 	}
 	return $false
 }
@@ -368,7 +372,7 @@ function Cmd-Observe {
 		return
 	}
 	Write-Host "Waiting for OpenObserve to be ready..." -ForegroundColor DarkGray
-	if (Wait-For-Url 'http://127.0.0.1:5082' 30) {
+	if (Wait-For-Url 'http://127.0.0.1:5082/web/login' 60) {
 		Write-Host "OpenObserve ready at http://127.0.0.1:5082" -ForegroundColor Green
 		Open-InBrowser 'http://127.0.0.1:5082'
 	} else {
