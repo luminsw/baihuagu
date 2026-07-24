@@ -2,6 +2,7 @@
 @rendermode InteractiveServer
 @inject WebUI.Services.SettingsService SettingsService
 @inject HttpClient Http
+@inject IJSRuntime JS
 
 <PageTitle>日志配置</PageTitle>
 
@@ -178,10 +179,12 @@ docker compose up -d</code></pre>
         }
     }
 
-    private void OpenWebUI()
+    private async Task OpenWebUI()
     {
-        // 在 Blazor Server 中通过 JS interop 打开新窗口
-        // 这里仅作为占位符，实际需要 JS interop
+        if (!string.IsNullOrEmpty(webUrl))
+        {
+            await JS.InvokeVoidAsync("open", webUrl, "_blank");
+        }
     }
 
     private class OpenObserveConfigDto
