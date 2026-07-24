@@ -257,6 +257,16 @@ function Ensure-ServiceRunning($name){
 	}
 }
 
+function Test-TcpPort([string]$host, [int]$port, [int]$timeoutMs = 2000){
+	try {
+		$tcp = New-Object System.Net.Sockets.TcpClient
+		$async = $tcp.BeginConnect($host, $port, $null, $null)
+		$wait = $async.AsyncWaitHandle.WaitOne($timeoutMs, $false)
+		if ($wait -and $tcp.Connected) { $tcp.Close(); return $true }
+		$tcp.Close(); return $false
+	} catch { return $false }
+}
+
 function Wait-For-Url([string]$url, [int]$timeoutSec = 30){
 	$sw = [System.Diagnostics.Stopwatch]::StartNew()
 	$firstAttempt = $true
@@ -371,22 +381,23 @@ function Cmd-Observe {
 		Write-Host "[X] Failed to start OpenObserve" -ForegroundColor Red
 		return
 	}
-	try {
-		$resp = Invoke-WebRequest -Uri 'http://127.0.0.1:5082' -UseBasicParsing -TimeoutSec 3 -ErrorAction Stop
-		if ($resp.StatusCode -ge 200 -and $resp.StatusCode -lt 400) {
-			Write-Host "OpenObserve already running at http://127.0.0.1:5082" -ForegroundColor Green
+	if (Test-TcpPort '127.0.0.1' 5082) {
+		Write-Host "OpenObserve already running at http://127.0.0.1:5082" -ForegroundColor Green
+		Open-InBrowser 'http://127.0.0.1:5082'
+		return
+	}
+	Write-Host "Waiting for OpenObserve to be ready..." -ForegroundColor DarkGray
+	$sw = [System.Diagnostics.Stopwatch]::StartNew()
+	while ($sw.Elapsed.TotalSeconds -lt 60) {
+		if (Test-TcpPort '127.0.0.1' 5082) {
+			Write-Host "OpenObserve ready at http://127.0.0.1:5082" -ForegroundColor Green
 			Open-InBrowser 'http://127.0.0.1:5082'
 			return
 		}
-	} catch {}
-	Write-Host "Waiting for OpenObserve to be ready..." -ForegroundColor DarkGray
-	if (Wait-For-Url 'http://127.0.0.1:5082' 60) {
-		Write-Host "OpenObserve ready at http://127.0.0.1:5082" -ForegroundColor Green
-		Open-InBrowser 'http://127.0.0.1:5082'
-	} else {
-		Write-Host "[!] OpenObserve not responding on port 5082 after 30s" -ForegroundColor Yellow
-		Write-Host "    Check: docker logs bhg-openobserve" -ForegroundColor Yellow
+		Start-Sleep -Seconds 2
 	}
+	Write-Host "[!] OpenObserve not responding on port 5082 after 60s" -ForegroundColor Yellow
+	Write-Host "    Check: docker logs bhg-openobserve" -ForegroundColor Yellow
 }
 
 switch ($Command.ToLower()){
