@@ -1,4 +1,4 @@
-<#
+﻿<#
 百花谷 Family 版 - Windows (PowerShell) 轻量 CLI
 用法: .\bh.ps1 [command]
   bh.ps1                 打开 dashboard（自动检测代码更新，有新提交时重编译重启）
@@ -32,6 +32,32 @@ chcp 65001 | Out-Null
 [Console]::InputEncoding = [System.Text.Encoding]::UTF8
 $OutputEncoding = [System.Text.Encoding]::UTF8
 Set-StrictMode -Version Latest
+
+function Get-Help {
+	Write-Host ""
+	Write-Host "百花谷 Family 版 - Windows (PowerShell) 轻量 CLI" -ForegroundColor Cyan
+	Write-Host "================================================="
+	Write-Host ""
+	Write-Host "用法: .\bh.ps1 [command]"
+	Write-Host ""
+	Write-Host "Commands:"
+	Write-Host "  dashboard             打开管理面板（默认，自动检测更新重编译）"
+	Write-Host "  setup                 首次配置（交互）"
+	Write-Host "  start                 启动服务（后台运行 dotnet run）"
+	Write-Host "  stop                  停止服务"
+	Write-Host "  restart               重启服务"
+	Write-Host "  status                查看服务状态"
+	Write-Host "  logs <name>           查看日志（taskrunner, webui, ai, vault）"
+	Write-Host "  open                  打开 Web 管理界面 (http://localhost:5177)"
+	Write-Host "  dev                   开发模式（监听文件变动自动重编译重启）"
+	Write-Host "  observe               启动 OpenObserve 可观测平台（Docker）"
+	Write-Host "  all                   启动全部服务（.NET + OpenObserve + hostmetrics）"
+	Write-Host ""
+	Write-Host "说明:"
+	Write-Host "  - 日志与 PID 文件保存在 $env:TEMP\bh-<service>.*"
+	Write-Host "  - dashboard 命令会比较 git HEAD，有更新时自动重编译重启"
+	Write-Host ""
+}
 
 function Get-HgRoot {
 	if ($PSScriptRoot) { return $PSScriptRoot }
