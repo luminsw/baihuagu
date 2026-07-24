@@ -1,21 +1,21 @@
 <#
-百花 Family 版 - Windows (PowerShell) 轻量 CLI
-用法: .\bhg.ps1 [command]
-  bhg.ps1                打开 dashboard（自动检测代码更新，有新提交时重编译重启）
-  bhg.ps1 setup          首次配置（交互）
-  bhg.ps1 start          启动服务（在后台运行 dotnet run）
-  bhg.ps1 stop           停止服务
-  bhg.ps1 status         查看服务状态
-  bhg.ps1 restart        重启服务
-  bhg.ps1 logs <name>    查看日志（taskrunner, webui, ai, vault）
-  bhg.ps1 open           打开 Web 管理界面 (http://localhost:5177)
-  bhg.ps1 dev            开发模式（监听文件变动自动重编译重启）
-  bhg.ps1 observe        启动 OpenObserve 可观测平台（Docker）并打开 Web UI
-  bhg.ps1 all            启动全部服务（.NET 服务 + OpenObserve + hostmetrics）
+百花谷 Family 版 - Windows (PowerShell) 轻量 CLI
+用法: .\bh.ps1 [command]
+  bh.ps1                 打开 dashboard（自动检测代码更新，有新提交时重编译重启）
+  bh.ps1 setup           首次配置（交互）
+  bh.ps1 start           启动服务（在后台运行 dotnet run）
+  bh.ps1 stop            停止服务
+  bh.ps1 status          查看服务状态
+  bh.ps1 restart         重启服务
+  bh.ps1 logs <name>     查看日志（taskrunner, webui, ai, vault）
+  bh.ps1 open            打开 Web 管理界面 (http://localhost:5177)
+  bh.ps1 dev             开发模式（监听文件变动自动重编译重启）
+  bh.ps1 observe         启动 OpenObserve 可观测平台（Docker）并打开 Web UI
+  bh.ps1 all             启动全部服务（.NET 服务 + OpenObserve + hostmetrics）
 
 说明:
 - 该脚本为简易移植，依赖 PowerShell (推荐 pwsh) 和 dotnet SDK
-- 后台进程 PID 与日志保存在 $env:TEMP\bhg-<service>.*
+- 后台进程 PID 与日志保存在 $env:TEMP\bh-<service>.*
 - dashboard 命令会比较当前 git HEAD 与上次启动时的 commit，不同则自动重编译重启
 - dev 命令监听 services/ 下 .cs/.razor 文件变动，2秒防抖后自动重编译重启
 - observe 命令使用 docker compose 启动 OpenObserve（端口 5082/5083）
@@ -33,7 +33,7 @@ chcp 65001 | Out-Null
 $OutputEncoding = [System.Text.Encoding]::UTF8
 Set-StrictMode -Version Latest
 
-function Get-BhgRoot {
+function Get-HgRoot {
 	if ($PSScriptRoot) { return $PSScriptRoot }
 	if ($MyInvocation -and $MyInvocation.MyCommand -and $MyInvocation.MyCommand.Path) {
 		return Split-Path -Parent $MyInvocation.MyCommand.Path
@@ -41,7 +41,7 @@ function Get-BhgRoot {
 	return (Get-Location).Path
 }
 
-$BHG_ROOT = Get-BhgRoot
+$HG_ROOT = Get-HgRoot
 $TEMP_DIR = $env:TEMP
 
 # 启动顺序：被依赖的先启动（AI → Vault → TaskRunner → WebUI）
@@ -63,13 +63,13 @@ $HealthUrls = @{
 	webui      = 'http://127.0.0.1:5177/login'
 }
 
-function Get-LogPath($name){ Join-Path $TEMP_DIR "bhg-$name.log" }
-function Get-PidPath($name){ Join-Path $TEMP_DIR "bhg-$name.pid" }
-function Get-CommitPath{ Join-Path $TEMP_DIR "bhg-git-commit.txt" }
+function Get-LogPath($name){ Join-Path $TEMP_DIR "bh-$name.log" }
+function Get-PidPath($name){ Join-Path $TEMP_DIR "bh-$name.pid" }
+function Get-CommitPath{ Join-Path $TEMP_DIR "bh-git-commit.txt" }
 
 function Get-CurrentGitCommit{
 	try {
-		$commit = git -C $BHG_ROOT rev-parse HEAD 2>$null
+		$commit = git -C $HG_ROOT rev-parse HEAD 2>$null
 		if ($commit) { return $commit.Trim() }
 	} catch {}
 	return $null
@@ -98,14 +98,14 @@ function Test-NeedsRebuild{
 	if (-not $saved) { return $true }
 	if ($current -ne $saved) { return $true }
 	try {
-		$dirty = git -C $BHG_ROOT status --short 2>$null
+		$dirty = git -C $HG_ROOT status --short 2>$null
 		if ($dirty -and $dirty.Trim().Length -gt 0) { return $true }
 	} catch {}
 	return $false
 }
 
 function Start-ServiceProc($name, $projRelPath){
-	$projPath = Join-Path $BHG_ROOT $projRelPath
+	$projPath = Join-Path $HG_ROOT $projRelPath
 	if (-not (Test-Path $projPath)){
 		Write-Host "[!] 项目未找到: $projPath" -ForegroundColor Yellow
 		return
@@ -131,7 +131,7 @@ function Start-ServiceProc($name, $projRelPath){
 		$prevEnv = $env:ASPNETCORE_ENVIRONMENT
 		$prevDataDir = $env:YJ_DATA_DIR
 		$env:ASPNETCORE_ENVIRONMENT = 'Development'
-		$env:YJ_DATA_DIR = Join-Path $BHG_ROOT 'data'
+		$env:YJ_DATA_DIR = Join-Path $HG_ROOT 'data'
 		$proc = Start-Process -FilePath 'dotnet' -ArgumentList $args -RedirectStandardOutput $log -RedirectStandardError $errLog -NoNewWindow -PassThru
 		if ($null -ne $prevEnv) { $env:ASPNETCORE_ENVIRONMENT = $prevEnv } else { Remove-Item Env:\ASPNETCORE_ENVIRONMENT -ErrorAction SilentlyContinue }
 		if ($null -ne $prevDataDir) { $env:YJ_DATA_DIR = $prevDataDir } else { Remove-Item Env:\YJ_DATA_DIR -ErrorAction SilentlyContinue }
@@ -220,7 +220,7 @@ function Cmd-Setup {
 	$vault = Read-Host "Enter vault path (e.g. C:\Users\you\MyNotes)"
 	if (-not [string]::IsNullOrWhiteSpace($vault)) {
 		if (-not (Test-Path $vault)) { New-Item -ItemType Directory -Path $vault -Force | Out-Null; Write-Host "Created: $vault" }
-		$cfgPath = Join-Path $BHG_ROOT 'local.config.json'
+		$cfgPath = Join-Path $HG_ROOT 'local.config.json'
 		$obj = @{ vault = $vault }
 		$obj | ConvertTo-Json | Set-Content -Path $cfgPath -Encoding UTF8
 		Write-Host "Saved config: $cfgPath"
@@ -359,7 +359,7 @@ function Cmd-Stop {
 }
 
 function Cmd-Observe {
-	$composeFile = Join-Path $BHG_ROOT 'docker\docker-compose.observability.yml'
+	$composeFile = Join-Path $HG_ROOT 'docker\docker-compose.observability.yml'
 	if (-not (Test-Path $composeFile)) {
 		Write-Host "[!] docker-compose.observability.yml not found: $composeFile" -ForegroundColor Red
 		return
@@ -400,11 +400,11 @@ function Cmd-Observe {
 		Start-Sleep -Seconds 2
 	}
 	Write-Host "[!] OpenObserve not responding on port 5082 after 60s" -ForegroundColor Yellow
-	Write-Host "    Check: docker logs bhg-openobserve" -ForegroundColor Yellow
+	Write-Host "    Check: docker logs bh-openobserve" -ForegroundColor Yellow
 }
 
 function Cmd-Start-Observability {
-	$composeFile = Join-Path $BHG_ROOT 'docker\docker-compose.observability.yml'
+	$composeFile = Join-Path $HG_ROOT 'docker\docker-compose.observability.yml'
 	if (-not (Test-Path $composeFile)) {
 		Write-Host "[!] docker-compose.observability.yml not found: $composeFile" -ForegroundColor Red
 		return $false
@@ -451,7 +451,7 @@ function Cmd-All {
 		Start-Sleep -Seconds 1
 
 		Write-Host "[...] dotnet build..." -ForegroundColor Cyan
-		$buildResult = dotnet build (Join-Path $BHG_ROOT 'services\BaiHua.slnx') -c Release 2>&1
+		$buildResult = dotnet build (Join-Path $HG_ROOT 'services\BaiHua.slnx') -c Release 2>&1
 		$buildExit = $LASTEXITCODE
 		if ($buildExit -ne 0) {
 			Write-Host "[X] 编译失败!" -ForegroundColor Red
@@ -523,7 +523,7 @@ function Cmd-All {
 	if ($failedServices.Count -gt 0) {
 		Write-Host ""
 		Write-Host "! Some services failed: $($failedServices -join ', ')" -ForegroundColor Yellow
-		Write-Host "  Check logs: .\bhg.ps1 logs <name>" -ForegroundColor Yellow
+		Write-Host "  Check logs: .\bh.ps1 logs <name>" -ForegroundColor Yellow
 	}
 }
 
@@ -575,7 +575,7 @@ switch ($Command.ToLower()){
 			Start-Sleep -Seconds 1
 
 			Write-Host "[...] dotnet build..." -ForegroundColor Cyan
-			$buildResult = dotnet build (Join-Path $BHG_ROOT 'services\BaiHua.slnx') -c Release 2>&1
+			$buildResult = dotnet build (Join-Path $HG_ROOT 'services\BaiHua.slnx') -c Release 2>&1
 			$buildExit = $LASTEXITCODE
 			if ($buildExit -ne 0) {
 				Write-Host "[X] 编译失败!" -ForegroundColor Red
@@ -611,7 +611,7 @@ switch ($Command.ToLower()){
 		Write-Host "  webui : " -NoNewline
 		if (-not $webuiWasRunning) { Start-Sleep -Seconds 3 }
 		if (-not (Wait-For-Url 'http://127.0.0.1:5177/login' 20)){
-			Write-Host "  webui : X not ready. Check: .\bhg.ps1 logs webui" -ForegroundColor Red
+			Write-Host "  webui : X not ready. Check: .\bh.ps1 logs webui" -ForegroundColor Red
 			$failedServices += 'webui'
 		} else {
 			Write-Host "  webui : v ready" -ForegroundColor Green
@@ -641,14 +641,14 @@ switch ($Command.ToLower()){
 		if ($failedServices.Count -gt 0) {
 			Write-Host ""
 			Write-Host "! Some services failed: $($failedServices -join ', ')" -ForegroundColor Yellow
-			Write-Host "  Check logs: .\bhg.ps1 logs <name>" -ForegroundColor Yellow
+			Write-Host "  Check logs: .\bh.ps1 logs <name>" -ForegroundColor Yellow
 		}
 		break
 	}
 	default { Open-Dashboard }
 	'dev' {
 		Write-Host "=== 百花 Dev Mode (auto-rebuild on change) ===" -ForegroundColor Cyan
-		Write-Host "  Watching: $BHG_ROOT\services\*.cs, *.razor" -ForegroundColor DarkGray
+		Write-Host "  Watching: $HG_ROOT\services\*.cs, *.razor" -ForegroundColor DarkGray
 		Write-Host "  Press Ctrl+C to stop" -ForegroundColor DarkGray
 		Write-Host ""
 
@@ -656,7 +656,7 @@ switch ($Command.ToLower()){
 		Cmd-Stop
 		Start-Sleep -Seconds 1
 		Write-Host "[...] dotnet build..." -ForegroundColor Cyan
-		dotnet build (Join-Path $BHG_ROOT 'services\BaiHua.slnx') -c Release 2>&1 | Select-Object -Last 3 | ForEach-Object { Write-Host "    $_" }
+		dotnet build (Join-Path $HG_ROOT 'services\BaiHua.slnx') -c Release 2>&1 | Select-Object -Last 3 | ForEach-Object { Write-Host "    $_" }
 		if ($LASTEXITCODE -ne 0) { Write-Host "[X] Build failed" -ForegroundColor Red; break }
 		Write-Host "[v] Build OK" -ForegroundColor Green
 		Save-GitCommit
@@ -678,7 +678,7 @@ switch ($Command.ToLower()){
 
 		# 文件监听
 		$watcher = New-Object System.IO.FileSystemWatcher
-		$watcher.Path = Join-Path $BHG_ROOT 'services'
+		$watcher.Path = Join-Path $HG_ROOT 'services'
 		$watcher.Filter = '*.*'
 		$watcher.IncludeSubdirectories = $true
 		$watcher.EnableRaisingEvents = $true
@@ -698,7 +698,7 @@ switch ($Command.ToLower()){
 					Write-Host "[i] Change detected, rebuilding..." -ForegroundColor Yellow
 					Cmd-Stop
 					Start-Sleep -Seconds 1
-					dotnet build (Join-Path $BHG_ROOT 'services\BaiHua.slnx') -c Release 2>&1 | Select-Object -Last 3 | ForEach-Object { Write-Host "    $_" }
+					dotnet build (Join-Path $HG_ROOT 'services\BaiHua.slnx') -c Release 2>&1 | Select-Object -Last 3 | ForEach-Object { Write-Host "    $_" }
 					if ($script:LASTEXITCODE -ne 0) { Write-Host "[X] Build failed" -ForegroundColor Red; return }
 					Write-Host "[v] Build OK, restarting..." -ForegroundColor Green
 					Save-GitCommit

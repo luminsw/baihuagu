@@ -27,7 +27,7 @@
 - `libs/BaihuaSdk/`：跨平台移动端 SDK（net9.0;net10.0，零 MAUI 依赖，主要 target net10.0）
 - `libs/MobileContract/`：移动端契约（DTO、接口定义）
 - `clients/MobileApp.Maui/`：MAUI Blazor Hybrid 移动客户端
-- `bhg`：极简 CLI 工具（Linux/Mac）
+- `bh`：极简 CLI 工具（Linux/Mac）
 - `docs/`：协议与架构文档
 - `scripts/`：开发、发布、部署脚本
 - `tests/BaihuaSdk.Tests/`：SDK 单元测试与集成测试
@@ -38,16 +38,16 @@
 
 ```bash
 # 一键打开管理面板（自动启动服务）
-./bhg dashboard
+./bh dashboard
 ```
 
-无需密码，无需 IP 白名单。授权基于操作系统用户权限（只有能运行 `bhg` 命令的本机用户才能访问）。
+无需密码，无需 IP 白名单。授权基于操作系统用户权限（只有能运行 `bh` 命令的本机用户才能访问）。
 
 ## 常用命令
 
 ```bash
 # 开发模式（Linux/macOS，一键启动全部 3 个后台 + WebUI）
-./bhg dashboard
+./bh dashboard
 
 # 或手动分别启动
 # 终端 1

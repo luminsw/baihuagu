@@ -1,14 +1,14 @@
 #!/bin/bash
 #
 # 百花谷 Family 版 - 本地管理 CLI (Linux/Mac)
-# 用法: ./bhg [command]
-#   bhg                  默认打开 dashboard（管理面板）
-#   bhg setup            - 首次配置（设置 API Key、知识库路径）
-#   bhg start            - 启动服务
-#   bhg status           - 查看服务状态
-#   bhg stop             - 停止服务
-#   bhg open             - 打开 Web 管理界面
-#   bhg dashboard        - 一键打开管理面板（自动授权）
+# 用法: ./bh [command]
+#   bh                   默认打开 dashboard（管理面板）
+#   bh setup             - 首次配置（设置 API Key、知识库路径）
+#   bh start             - 启动服务
+#   bh status            - 查看服务状态
+#   bh stop              - 停止服务
+#   bh open              - 打开 Web 管理界面
+#   bh dashboard         - 一键打开管理面板（自动授权）
 
 set -e
 
@@ -17,14 +17,14 @@ if [ -f "$HOME/.env.secrets" ]; then
   source "$HOME/.env.secrets"
 fi
 
-BHG_ROOT="$(cd "$(dirname "$0")" && pwd)"
-TASK_RUNNER_DIR="$BHG_ROOT/services/TaskRunner.Family"
-PID_FILE="/tmp/bhg-service.pid"
+HG_ROOT="$(cd "$(dirname "$0")" && pwd)"
+TASK_RUNNER_DIR="$HG_ROOT/services/TaskRunner.Family"
+PID_FILE="/tmp/bh-service.pid"
 
 # 检测是自包含版本还是源码版本
-if [ -f "$BHG_ROOT/bhg-service" ]; then
+if [ -f "$HG_ROOT/bh-service" ]; then
     IS_SELF_CONTAINED=1
-    SERVICE_EXE="$BHG_ROOT/bhg-service"
+    SERVICE_EXE="$HG_ROOT/bh-service"
 else
     IS_SELF_CONTAINED=0
 fi
@@ -60,7 +60,7 @@ show_help() {
 
 少即是多。知识进脑子，不是存电脑。
 
-用法: bhg [command]
+用法: bh [command]
 
 Commands:
   setup              首次配置向导（API Key、知识库路径）
@@ -74,12 +74,12 @@ Commands:
   help               显示帮助
 
 示例:
-  ./bhg                    # 默认打开 dashboard
-  ./bhg setup              # 第一次使用时运行
-  ./bhg start              # 启动服务
-  ./bhg restart            # 重启服务
-  ./bhg logs taskrunner    # 查看 TaskRunner 日志
-  ./bhg dashboard          # 一键打开管理面板（无需密码）
+  ./bh                     # 默认打开 dashboard
+  ./bh setup               # 第一次使用时运行
+  ./bh start               # 启动服务
+  ./bh restart             # 重启服务
+  ./bh logs taskrunner     # 查看 TaskRunner 日志
+  ./bh dashboard           # 一键打开管理面板（无需密码）
 
 EOF
 }
@@ -117,7 +117,7 @@ _needs_rebuild() {
     fi
 
     local git_head
-    git_head=$(cd "$BHG_ROOT" && git rev-parse HEAD 2>/dev/null || echo "unknown")
+    git_head=$(cd "$HG_ROOT" && git rev-parse HEAD 2>/dev/null || echo "unknown")
 
     local image_commit
     image_commit=$(docker inspect "$image" --format='{{index .Config.Labels "git.commit"}}' 2>/dev/null || echo "")
@@ -134,9 +134,9 @@ _needs_rebuild() {
 
     # commit 匹配，但检查工作区是否有未 commit 的变更（包括新增、修改、删除的文件）
     # 这能捕获开发中新增文件但未 commit 的情况
-    if [ -d "$BHG_ROOT/.git" ]; then
+    if [ -d "$HG_ROOT/.git" ]; then
         local dirty
-        dirty=$(cd "$BHG_ROOT" && git status --short 2>/dev/null)
+        dirty=$(cd "$HG_ROOT" && git status --short 2>/dev/null)
         if [ -n "$dirty" ]; then
             return 0
         fi
@@ -164,7 +164,7 @@ show_features_without_ai() {
 │  ❌ AI 生成笔记                      │
 └──────────────────────────────────────┘
 
-如需 AI 功能，请运行: ./bhg setup
+如需 AI 功能，请运行: ./bh setup
 
 EOF
 }
@@ -235,7 +235,7 @@ EOF
     echo "【2/2】保存配置..."
 
     if [ "$IS_SELF_CONTAINED" -eq 1 ]; then
-        SETTINGS_FILE="$BHG_ROOT/appsettings.json"
+        SETTINGS_FILE="$HG_ROOT/appsettings.json"
     else
         SETTINGS_FILE="$TASK_RUNNER_DIR/appsettings.json"
     fi
@@ -270,7 +270,7 @@ EOF
 └──────────────────────────────────────────────────────────────┘
 
 现在可以启动服务了：
-  ./bhg start
+  ./bh start
 
 EOF
 }
@@ -282,8 +282,8 @@ cmd_start() {
     if docker ps --format '{{.Names}}' 2>/dev/null | grep -qE "yj-family-(webui|taskrunner|taskrunner-ai|taskrunner-vault|nginx)"; then
         echo "[!] 检测到 Docker 容器正在运行"
         echo "    Family 版不支持同时运行 Docker 和裸机进程"
-        echo "    请先停止 Docker 容器: ./bhg stop"
-        echo "    或直接使用 Docker 模式: ./bhg dashboard"
+        echo "    请先停止 Docker 容器: ./bh stop"
+        echo "    或直接使用 Docker 模式: ./bh dashboard"
         return 1
     fi
 
@@ -296,13 +296,13 @@ cmd_start() {
     # 启动 TaskRunner.AI（如果未运行）
     if ! lsof -ti:8791 -sTCP:LISTEN &> /dev/null 2>&1; then
         echo "  → 启动 TaskRunner.AI (端口 8791)…"
-        nohup dotnet run --project "$BHG_ROOT/services/TaskRunner.AI" --no-launch-profile > /tmp/bhg-taskrunner-ai.log 2>&1 &
+        nohup dotnet run --project "$HG_ROOT/services/TaskRunner.AI" --no-launch-profile > /tmp/bh-taskrunner-ai.log 2>&1 &
     fi
 
     # 启动 TaskRunner.Vault（如果未运行）
     if ! lsof -ti:8790 -sTCP:LISTEN &> /dev/null 2>&1; then
         echo "  → 启动 TaskRunner.Vault (端口 8790)…"
-        nohup dotnet run --project "$BHG_ROOT/services/TaskRunner.Vault" --no-launch-profile > /tmp/bhg-taskrunner-vault.log 2>&1 &
+        nohup dotnet run --project "$HG_ROOT/services/TaskRunner.Vault" --no-launch-profile > /tmp/bh-taskrunner-vault.log 2>&1 &
     fi
 
     # 检查运行环境
@@ -319,14 +319,14 @@ cmd_start() {
 
     # 检查配置
     if [ "$IS_SELF_CONTAINED" -eq 1 ]; then
-        SETTINGS_FILE="$BHG_ROOT/appsettings.json"
+        SETTINGS_FILE="$HG_ROOT/appsettings.json"
     else
         SETTINGS_FILE="$TASK_RUNNER_DIR/appsettings.json"
     fi
 
     if [ ! -f "$SETTINGS_FILE" ]; then
         echo "[提示] 检测到首次使用，请先运行配置向导："
-        echo "  ./bhg setup"
+        echo "  ./bh setup"
         return
     fi
 
@@ -338,10 +338,10 @@ cmd_start() {
 
     # 启动服务
     if [ "$IS_SELF_CONTAINED" -eq 1 ]; then
-        nohup "$SERVICE_EXE" > /tmp/bhg-service.log 2>&1 &
+        nohup "$SERVICE_EXE" > /tmp/bh-service.log 2>&1 &
     else
         cd "$TASK_RUNNER_DIR"
-        nohup dotnet run --configuration Release > /tmp/bhg-service.log 2>&1 &
+        nohup dotnet run --configuration Release > /tmp/bh-service.log 2>&1 &
     fi
     echo $! > "$PID_FILE"
 
@@ -358,7 +358,7 @@ cmd_start() {
         echo "  - TaskRunner.AI      http://localhost:8791"
         echo "  - TaskRunner.Vault   http://localhost:8790"
         echo ""
-        echo "管理面板：运行 './bhg dashboard' 打开 WebUI"
+        echo "管理面板：运行 './bh dashboard' 打开 WebUI"
         echo ""
         
         if [ "$HAS_API_KEY" -eq 0 ]; then
@@ -367,16 +367,16 @@ cmd_start() {
 │  ⚠️  未配置 API Key，以下功能不可用：                  │
 │     AI 辅助查询、AI 生成笔记                           │
 ├────────────────────────────────────────────────────────┤
-│  如需启用 AI 功能，请运行: ./bhg setup                  │
+│  如需启用 AI 功能，请运行: ./bh setup                  │
 └────────────────────────────────────────────────────────┘
 
 EOF
         fi
     else
         echo "[✗] 服务启动失败，请检查日志:"
-        echo "  cat /tmp/bhg-taskrunner-ai.log"
-        echo "  cat /tmp/bhg-taskrunner-vault.log"
-        echo "  cat /tmp/bhg-service.log"
+        echo "  cat /tmp/bh-taskrunner-ai.log"
+        echo "  cat /tmp/bh-taskrunner-vault.log"
+        echo "  cat /tmp/bh-service.log"
     fi
 }
 
@@ -469,7 +469,7 @@ cmd_stop() {
     # 总是尝试停止 Docker（即使检测到的模式不是 docker，防止残留）
     if docker ps --format '{{.Names}}' 2>/dev/null | grep -qE "yj-family-(webui|taskrunner|taskrunner-ai|taskrunner-vault|nginx)"; then
         echo "[模式] Docker 容器"
-        cd "$BHG_ROOT/docker"
+        cd "$HG_ROOT/docker"
         if docker compose down --remove-orphans >/dev/null 2>&1; then
             echo "[✓] 已停止 Docker 容器"
             stopped=1
@@ -534,7 +534,7 @@ cmd_restart() {
 
     if [ "$mode" = "docker" ]; then
         echo "[模式] Docker 容器"
-        cd "$BHG_ROOT/docker"
+        cd "$HG_ROOT/docker"
         local services="taskrunner taskrunner-ai taskrunner-vault webui nginx"
         # 检测是否需要重建（代码有变更才 --build）
         local build_flag=""
@@ -590,29 +590,29 @@ cmd_logs() {
     else
         case "$service" in
             taskrunner|tr)
-                tail -f /tmp/bhg-taskrunner-family.log 2>/dev/null || tail -f /tmp/bhg-service.log 2>/dev/null
+                tail -f /tmp/bh-taskrunner-family.log 2>/dev/null || tail -f /tmp/bh-service.log 2>/dev/null
                 ;;
             ai|taskrunner-ai)
-                tail -f /tmp/bhg-taskrunner-ai.log 2>/dev/null
+                tail -f /tmp/bh-taskrunner-ai.log 2>/dev/null
                 ;;
             vault|taskrunner-vault)
-                tail -f /tmp/bhg-taskrunner-vault.log 2>/dev/null
+                tail -f /tmp/bh-taskrunner-vault.log 2>/dev/null
                 ;;
             webui|wuf)
-                tail -f /tmp/bhg-webui-family.log 2>/dev/null
+                tail -f /tmp/bh-webui-family.log 2>/dev/null
                 ;;
             all|*)
                 echo "=== TaskRunner ==="
-                tail -n 50 /tmp/bhg-taskrunner-family.log 2>/dev/null || tail -n 50 /tmp/bhg-service.log 2>/dev/null
+                tail -n 50 /tmp/bh-taskrunner-family.log 2>/dev/null || tail -n 50 /tmp/bh-service.log 2>/dev/null
                 echo ""
                 echo "=== TaskRunner.AI ==="
-                tail -n 50 /tmp/bhg-taskrunner-ai.log 2>/dev/null
+                tail -n 50 /tmp/bh-taskrunner-ai.log 2>/dev/null
                 echo ""
                 echo "=== TaskRunner.Vault ==="
-                tail -n 50 /tmp/bhg-taskrunner-vault.log 2>/dev/null
+                tail -n 50 /tmp/bh-taskrunner-vault.log 2>/dev/null
                 echo ""
                 echo "=== WebUI ==="
-                tail -n 50 /tmp/bhg-webui-family.log 2>/dev/null
+                tail -n 50 /tmp/bh-webui-family.log 2>/dev/null
                 ;;
         esac
     fi
@@ -669,8 +669,8 @@ cmd_dashboard() {
         if [ $webui_running -eq 0 ] && (lsof -ti:8788 -sTCP:LISTEN &>/dev/null || lsof -ti:8791 -sTCP:LISTEN &>/dev/null || lsof -ti:8790 -sTCP:LISTEN &>/dev/null || lsof -ti:5177 -sTCP:LISTEN &>/dev/null); then
             echo "[!] 检测到裸机进程正在运行（端口 8788/8791/8790/5177）"
             echo "    Family 版不支持同时运行 Docker 和裸机进程"
-            echo "    请先停止裸机进程: ./bhg stop"
-            echo "    或直接使用裸机模式: ./bhg start"
+            echo "    请先停止裸机进程: ./bh stop"
+            echo "    或直接使用裸机模式: ./bh start"
             exit 1
         fi
 
@@ -700,11 +700,11 @@ cmd_dashboard() {
 
             # 复制 nginx 配置（如果不存在）
             if [ ! -f /opt/yj-family/config/nginx/nginx.conf ]; then
-                cp "$BHG_ROOT/docker/nginx/nginx.conf" /opt/yj-family/config/nginx/nginx.conf 2>/dev/null || true
+                cp "$HG_ROOT/docker/nginx/nginx.conf" /opt/yj-family/config/nginx/nginx.conf 2>/dev/null || true
             fi
 
             # 进入 docker 目录并启动
-            cd "$BHG_ROOT/docker"
+            cd "$HG_ROOT/docker"
 
             # 确定 build 标志
             local build_flag=""
@@ -718,8 +718,8 @@ cmd_dashboard() {
             fi
 
             # 导出构建参数，确保镜像携带版本信息用于下次比对
-            export GIT_COMMIT=$(cd "$BHG_ROOT" && git rev-parse HEAD 2>/dev/null || echo "unknown")
-            export GIT_BRANCH=$(cd "$BHG_ROOT" && git rev-parse --abbrev-ref HEAD 2>/dev/null || echo "unknown")
+            export GIT_COMMIT=$(cd "$HG_ROOT" && git rev-parse HEAD 2>/dev/null || echo "unknown")
+            export GIT_BRANCH=$(cd "$HG_ROOT" && git rev-parse --abbrev-ref HEAD 2>/dev/null || echo "unknown")
 
             # 智能清理：只删除异常状态的 yj-family 容器，保留正常运行的
             # 避免手动操作单个容器后导致的 compose 状态不一致
@@ -792,25 +792,25 @@ cmd_dashboard() {
             local ai_url="http://localhost:8791/health"
             if ! curl -s --max-time 2 "$ai_url" > /dev/null 2>&1; then
                 echo "  → 启动 TaskRunner.AI (端口 8791)…"
-                nohup dotnet run --project "$BHG_ROOT/services/TaskRunner.AI" --no-launch-profile > /tmp/bhg-taskrunner-ai.log 2>&1 &
+                nohup dotnet run --project "$HG_ROOT/services/TaskRunner.AI" --no-launch-profile > /tmp/bh-taskrunner-ai.log 2>&1 &
             fi
 
             # 启动 TaskRunner.Vault（如果未运行）
             local vault_url="http://localhost:8790/health"
             if ! curl -s --max-time 2 "$vault_url" > /dev/null 2>&1; then
                 echo "  → 启动 TaskRunner.Vault (端口 8790)…"
-                nohup dotnet run --project "$BHG_ROOT/services/TaskRunner.Vault" --no-launch-profile > /tmp/bhg-taskrunner-vault.log 2>&1 &
+                nohup dotnet run --project "$HG_ROOT/services/TaskRunner.Vault" --no-launch-profile > /tmp/bh-taskrunner-vault.log 2>&1 &
             fi
 
             # 启动 TaskRunner.Family（如果未运行）
             if ! curl -s --max-time 2 "$taskrunner_url" > /dev/null 2>&1; then
                 echo "  → 启动 TaskRunner.Family (端口 $taskrunner_port)…"
-                nohup dotnet run --project "$BHG_ROOT/services/TaskRunner.Family" --no-launch-profile > /tmp/bhg-taskrunner-family.log 2>&1 &
+                nohup dotnet run --project "$HG_ROOT/services/TaskRunner.Family" --no-launch-profile > /tmp/bh-taskrunner-family.log 2>&1 &
             fi
 
             # 启动 WebUI
             echo "  → 启动 WebUI.Family (端口 $port)…"
-            nohup dotnet run --project "$BHG_ROOT/services/WebUI.Family" --no-launch-profile > /tmp/bhg-webui-family.log 2>&1 &
+            nohup dotnet run --project "$HG_ROOT/services/WebUI.Family" --no-launch-profile > /tmp/bh-webui-family.log 2>&1 &
 
             # 等待服务就绪（最多 60 秒）
             echo "  → 等待服务就绪…"
@@ -832,10 +832,10 @@ cmd_dashboard() {
             if ! curl -s --max-time 2 "$health_url" > /dev/null 2>&1; then
                 echo "[✗] 服务启动超时（60秒）"
                 echo "请查看日志："
-                echo "  cat /tmp/bhg-taskrunner-ai.log"
-                echo "  cat /tmp/bhg-taskrunner-vault.log"
-                echo "  cat /tmp/bhg-taskrunner-family.log"
-                echo "  cat /tmp/bhg-webui-family.log"
+                echo "  cat /tmp/bh-taskrunner-ai.log"
+                echo "  cat /tmp/bh-taskrunner-vault.log"
+                echo "  cat /tmp/bh-taskrunner-family.log"
+                echo "  cat /tmp/bh-webui-family.log"
                 exit 1
             fi
         else
@@ -900,10 +900,10 @@ cmd_dashboard() {
     if command -v docker &> /dev/null && docker ps --format '{{.Names}}' | grep -q "yj-family-webui"; then
         echo "  • Docker 容器已在运行，关闭终端不会停止服务"
         echo "  • 查看日志：docker logs yj-family-webui"
-        echo "  • 停止服务：cd $BHG_ROOT/docker && docker compose down"
+        echo "  • 停止服务：cd $HG_ROOT/docker && docker compose down"
     else
         echo "  • 后台进程已在运行，关闭终端不会停止服务"
-        echo "  • 查看日志：cat /tmp/bhg-webui-family.log"
+        echo "  • 查看日志：cat /tmp/bh-webui-family.log"
         echo "  • 停止服务：lsof -ti:$port | xargs kill -9"
     fi
 }
