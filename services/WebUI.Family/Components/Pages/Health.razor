@@ -9,6 +9,7 @@
 @inject ComponentPerformanceService ComponentPerformanceService
 @inject ApiCallMetricsService ApiMetricsService
 @inject ILogger<Health> Logger
+@inject NavigationManager Navigation
 
 <PageTitle>系统健康检查</PageTitle>
 
@@ -461,6 +462,17 @@
 {
     private string activeTab = "health";
     private string perfTab = "e2e";
+
+    protected override void OnInitialized()
+    {
+        var uri = Navigation.ToAbsoluteUri(Navigation.Uri);
+        var query = System.Web.HttpUtility.ParseQueryString(uri.Query);
+        var tabParam = query.Get("tab");
+        if (tabParam == "performance")
+        {
+            activeTab = "performance";
+        }
+    }
 
     private SystemHealthReportDto? report;
     private bool isLoading = true;
