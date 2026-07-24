@@ -10,12 +10,14 @@
   bhg.ps1 logs <name>    查看日志（taskrunner, webui, ai, vault）
   bhg.ps1 open           打开 Web 管理界面 (http://localhost:5177)
   bhg.ps1 dev            开发模式（监听文件变动自动重编译重启）
+  bhg.ps1 observe        启动 OpenObserve 可观测平台（Docker）并打开 Web UI
 
 说明:
 - 该脚本为简易移植，依赖 PowerShell (推荐 pwsh) 和 dotnet SDK
 - 后台进程 PID 与日志保存在 $env:TEMP\bhg-<service>.*
 - dashboard 命令会比较当前 git HEAD 与上次启动时的 commit，不同则自动重编译重启
 - dev 命令监听 services/ 下 .cs/.razor 文件变动，2秒防抖后自动重编译重启
+- observe 命令使用 docker compose 启动 OpenObserve（端口 5082/5083）
 #>
 param(
 	[string]$Command = 'dashboard',
@@ -339,6 +341,42 @@ function Cmd-Stop {
 	foreach ($k in $StopOrder){ Stop-ServiceProc $k }
 }
 
+function Cmd-Observe {
+	$composeFile = Join-Path $BHG_ROOT 'docker\docker-compose.observability.yml'
+	if (-not (Test-Path $composeFile)) {
+		Write-Host "[!] docker-compose.observability.yml not found: $composeFile" -ForegroundColor Red
+		return
+	}
+	$dockerCmd = $null
+	foreach ($cmd in @('docker', 'docker.exe')) {
+		try { Get-Command $cmd -ErrorAction Stop | Out-Null; $dockerCmd = $cmd; break } catch {}
+	}
+	if (-not $dockerCmd) {
+		Write-Host "[!] Docker not found. Install Docker Desktop first." -ForegroundColor Red
+		return
+	}
+	try {
+		$null = & $dockerCmd info 2>&1
+	} catch {
+		Write-Host "[!] Docker daemon not running. Start Docker Desktop first." -ForegroundColor Red
+		return
+	}
+	Write-Host "Starting OpenObserve..." -ForegroundColor Cyan
+	& $dockerCmd compose -f $composeFile up -d openobserve 2>&1 | ForEach-Object { Write-Host "    $_" }
+	if ($LASTEXITCODE -ne 0) {
+		Write-Host "[X] Failed to start OpenObserve" -ForegroundColor Red
+		return
+	}
+	Write-Host "Waiting for OpenObserve to be ready..." -ForegroundColor DarkGray
+	if (Wait-For-Url 'http://127.0.0.1:5082' 30) {
+		Write-Host "OpenObserve ready at http://127.0.0.1:5082" -ForegroundColor Green
+		Open-InBrowser 'http://127.0.0.1:5082'
+	} else {
+		Write-Host "[!] OpenObserve not responding on port 5082 after 30s" -ForegroundColor Yellow
+		Write-Host "    Check: docker logs bhg-openobserve" -ForegroundColor Yellow
+	}
+}
+
 switch ($Command.ToLower()){
 	'help' { Get-Help; break }
 	'setup' { Cmd-Setup; break }
@@ -363,6 +401,7 @@ switch ($Command.ToLower()){
 		Tail-Log $Arg; break
 	}
 	'open' { Open-Dashboard; break }
+	'observe' { Cmd-Observe; break }
 	'dashboard' {
 		Write-Host "=== 百花谷 Dashboard ===" -ForegroundColor Cyan
 
