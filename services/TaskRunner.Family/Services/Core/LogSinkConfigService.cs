@@ -9,9 +9,6 @@ namespace TaskRunner.Services;
 /// </summary>
 public class OpenObserveConfig
 {
-    /// <summary>OTLP gRPC 端点（用于 Metrics/Traces 推送）</summary>
-    public string OtlpGrpcUrl { get; set; } = "";
-    
     /// <summary>Web UI 地址</summary>
     public string WebUrl { get; set; } = "";
     

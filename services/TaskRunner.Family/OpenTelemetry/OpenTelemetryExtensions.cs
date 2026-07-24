@@ -104,8 +104,6 @@ public static class OpenTelemetryExtensions
 
         builder.WithLogging(logging =>
         {
-            if (!enabled)
-                return;
             logging.AddOtlpExporter(options =>
             {
                 options.Endpoint = logsEndpoint;

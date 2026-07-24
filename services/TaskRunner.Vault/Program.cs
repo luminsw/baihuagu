@@ -3,11 +3,17 @@ using System.Net;
 using Microsoft.AspNetCore.HttpOverrides;
 using System.Text.Encodings.Web;
 using System.Text.Unicode;
+using System.Text;
 using Serilog;
 using TaskRunner.Core.Shared;
 using TaskRunner.Core.Shared.Notifications;
 using TaskRunner.Core.Shared.Security;
 using TaskRunner.Services;
+using OpenTelemetry.Exporter;
+using OpenTelemetry.Metrics;
+using OpenTelemetry.Logs;
+using OpenTelemetry.Resources;
+using OpenTelemetry.Trace;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -163,6 +169,70 @@ builder.Logging.AddFilter("Microsoft.AspNetCore", LogLevel.Warning);
 builder.Logging.AddFilter("System.Net.Http", LogLevel.Warning);
 builder.Logging.AddFilter("Microsoft.EntityFrameworkCore", LogLevel.Warning);
 builder.Logging.AddFilter("TaskRunner.Vault", LogLevel.Information);
+
+// OpenTelemetry 导出到 OpenObserve
+var openobserveEnabled = builder.Configuration.GetValue<bool?>("OpenObserve:Enabled") ?? true;
+var openobserveUrl = builder.Configuration["OpenObserve:WebUrl"] ?? "";
+var openobserveUser = builder.Configuration["OpenObserve:User"] ?? "";
+var openobservePass = builder.Configuration["OpenObserve:Password"] ?? "";
+
+{
+    var otelBuilder = builder.Services.AddOpenTelemetry()
+        .ConfigureResource(resource => resource.AddService("TaskRunner.Vault"));
+
+    if (openobserveEnabled && !string.IsNullOrWhiteSpace(openobserveUrl))
+    {
+        var baseUrl = openobserveUrl.TrimEnd('/');
+        var authValue = Convert.ToBase64String(Encoding.UTF8.GetBytes($"{openobserveUser}:{openobservePass}"));
+        var authHeader = $"Authorization=Basic {authValue}";
+        var isDevelopment = builder.Environment.IsDevelopment();
+
+        otelBuilder.WithMetrics(metrics =>
+        {
+            metrics.AddMeter("TaskRunner.AI")
+                   .AddView("search.latency_ms", new OpenTelemetry.Metrics.ExplicitBucketHistogramConfiguration
+                   {
+                       Boundaries = new double[] { 0, 10, 25, 50, 100, 250, 500, 1000, 2500 }
+                   })
+                   .AddView("sync.operation_duration_ms", new OpenTelemetry.Metrics.ExplicitBucketHistogramConfiguration
+                   {
+                       Boundaries = new double[] { 0, 100, 500, 1000, 5000, 15000, 30000, 60000, 120000 }
+                   })
+                   .AddOtlpExporter(options =>
+                   {
+                       options.Endpoint = new Uri($"{baseUrl}/api/default/v1/metrics");
+                       options.Protocol = OtlpExportProtocol.HttpProtobuf;
+                       options.TimeoutMilliseconds = 30000;
+                       options.Headers = authHeader;
+                   });
+        })
+        .WithLogging(logging =>
+        {
+            logging.AddOtlpExporter(options =>
+            {
+                options.Endpoint = new Uri($"{baseUrl}/api/default/v1/logs");
+                options.Protocol = OtlpExportProtocol.HttpProtobuf;
+                options.TimeoutMilliseconds = 30000;
+                options.Headers = authHeader;
+            });
+        })
+        .WithTracing(tracing =>
+        {
+            tracing
+                .AddSource("TaskRunner.Vault")
+                .SetSampler(isDevelopment
+                    ? new AlwaysOnSampler()
+                    : new ParentBasedSampler(new TraceIdRatioBasedSampler(0.1)))
+                .AddOtlpExporter(options =>
+                {
+                    options.Endpoint = new Uri($"{baseUrl}/api/default/v1/traces");
+                    options.Protocol = OtlpExportProtocol.HttpProtobuf;
+                    options.TimeoutMilliseconds = 30000;
+                    options.Headers = authHeader;
+                });
+        });
+    }
+}
 
 // API Key 加密保护（EmbeddingService 依赖）
 builder.Services.AddDataProtection();

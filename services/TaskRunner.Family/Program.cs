@@ -402,7 +402,7 @@ builder.Logging.AddSerilog(serilogConfig.CreateLogger(), dispose: true);
 builder.Services.AddSingleton<LogSinkConfigService>(logSinkConfig);
 
 var openobserveEnabled = builder.Configuration.GetValue<bool?>("OpenObserve:Enabled") ?? true;
-var ooBaseUrl = string.IsNullOrWhiteSpace(ooConfig.WebUrl) ? "http://localhost:5082/openobserve" : ooConfig.WebUrl.TrimEnd('/');
+var ooBaseUrl = string.IsNullOrWhiteSpace(ooConfig.WebUrl) ? "http://localhost:5082" : ooConfig.WebUrl.TrimEnd('/');
 
 // 注册业务指标（单例，全局共享）
 builder.Services.AddSingleton<ServiceMetrics>();
@@ -448,7 +448,8 @@ if (app.Environment.IsDevelopment())
 }
 
 app.UseForwardedHeaders();
-app.UseCorrelationId(); // 为每个请求分配 X-Correlation-Id，贯穿日志和追踪
+app.UseCorrelationId();
+app.UseServiceMetrics();
 app.UseHealthChecks("/health");
 app.UseRateLimiter();
 app.UseCors("AllowAll");

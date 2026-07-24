@@ -10,7 +10,10 @@ var ooEmail = Environment.GetEnvironmentVariable("OPENOBSERVE_ROOT_EMAIL") ?? ""
 Console.WriteLine($"Email: {ooEmail}, Pass: {(ooPass.Length > 4 ? ooPass[..4] + "..." : "(empty)")}");
 if (string.IsNullOrEmpty(ooPass)) { Console.WriteLine("ERROR: OPENOBSERVE_ROOT_PASSWORD not set"); return; }
 var remoteCred = Convert.ToBase64String(Encoding.UTF8.GetBytes($"{ooEmail}:{ooPass}"));
-var localCred = Convert.ToBase64String(Encoding.UTF8.GetBytes("root@localhost.com:Complexpass#123"));
+
+var localEmail = Environment.GetEnvironmentVariable("LOCAL_OPENOBSERVE_EMAIL") ?? "root@localhost.com";
+var localPass = Environment.GetEnvironmentVariable("LOCAL_OPENOBSERVE_PASSWORD") ?? "Complexpass#123";
+var localCred = Convert.ToBase64String(Encoding.UTF8.GetBytes($"{localEmail}:{localPass}"));
 
 var ids = new[] { "7459266129253367808", "7459266168595939328", "7459266196630667264", "7459666781049716736" };
 

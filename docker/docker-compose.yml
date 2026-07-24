@@ -186,7 +186,7 @@ services:
   openobserve:
     # 可观测性服务（日志/指标），非核心，默认不自动启动
     profiles: ["observability"]
-    image: public.ecr.aws/zinclabs/openobserve:v0.80.1
+    image: public.ecr.aws/zinclabs/openobserve:latest
     container_name: yj-family-openobserve
     restart: unless-stopped
     ports:

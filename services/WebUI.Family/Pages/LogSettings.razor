@@ -10,7 +10,7 @@
 
 <div class="settings-form">
     <p class="form-description">
-        OpenObserve 是高性能的可观测性平台，支持日志、指标、追踪。应用日志通过 REST API（/_multi）推送到 OpenObserve 进行集中查询和分析。
+        OpenObserve 是高性能的可观测性平台，支持日志、指标、追踪。应用通过 OpenTelemetry OTLP 协议推送日志、指标和追踪数据到 OpenObserve 进行集中查询和分析。
     </p>
 
     @if (isLoading)
@@ -27,12 +27,6 @@
     {
         <div class="sink-config-section">
             <h4>OpenObserve 配置</h4>
-            <div class="form-group">
-                <label>OpenObserve URL（已弃用）</label>
-                <input type="text" class="form-control" @bind="otlpGrpcUrl"
-                       placeholder="http://localhost:5083" disabled />
-                <small class="form-text">当前使用 REST API 直接推送，此字段保留仅用于向后兼容</small>
-            </div>
             <div class="form-group">
                 <label>用户名</label>
                 <input type="text" class="form-control" @bind="user"
@@ -78,8 +72,8 @@
             <summary>🐳 Docker 部署命令</summary>
             <div class="hint-content">
                 <p>在项目目录运行以下命令启动 OpenObserve：</p>
-                <pre><code>cd docker/logging
-docker compose up -d</code></pre>
+                <pre><code>cd docker
+docker compose -f docker-compose.observability.yml up -d</code></pre>
                 <table class="port-table">
                     <thead>
                         <tr><th>服务</th><th>端口</th><th>说明</th></tr>
@@ -101,7 +95,6 @@ docker compose up -d</code></pre>
     private string? saveMessage;
     private string saveMessageClass = "";
 
-    private string otlpGrpcUrl = "";
     private string user = "";
     private string password = "";
     private string webUrl = "";
@@ -120,7 +113,6 @@ docker compose up -d</code></pre>
 
                 if (config != null)
                 {
-                    otlpGrpcUrl = config.OtlpGrpcUrl ?? otlpGrpcUrl;
                     user = config.User ?? user;
                     password = config.Password ?? password;
                     webUrl = config.WebUrl ?? webUrl;
@@ -145,7 +137,6 @@ docker compose up -d</code></pre>
         {
             var config = new OpenObserveConfigDto
             {
-                OtlpGrpcUrl = otlpGrpcUrl,
                 User = user,
                 Password = password,
                 WebUrl = webUrl
@@ -189,7 +180,6 @@ docker compose up -d</code></pre>
 
     private class OpenObserveConfigDto
     {
-        public string? OtlpGrpcUrl { get; set; }
         public string? User { get; set; }
         public string? Password { get; set; }
         public string? WebUrl { get; set; }

@@ -12,6 +12,7 @@ using OpenTelemetry.Exporter;
 using OpenTelemetry.Metrics;
 using OpenTelemetry.Logs;
 using OpenTelemetry.Resources;
+using OpenTelemetry.Trace;
 
 using Serilog;
 using WebUI.Logging;
@@ -166,28 +167,50 @@ builder.Services.AddScoped<WebUI.Services.SimpleStatusService>();
 
     if (openobserveEnabled && !string.IsNullOrWhiteSpace(openobserveUrl))
     {
+        var baseUrl = openobserveUrl.TrimEnd('/');
+        var authValue = Convert.ToBase64String(Encoding.UTF8.GetBytes($"{openobserveUser}:{openobservePass}"));
+        var authHeader = $"Authorization=Basic {authValue}";
+        var isDevelopment = builder.Environment.IsDevelopment();
+
         otelBuilder.WithMetrics(metrics =>
         {
             metrics.AddMeter("TaskRunner.WebUI")
+                   .AddView("http.request.duration_ms", new ExplicitBucketHistogramConfiguration
+                   {
+                       Boundaries = new double[] { 0, 10, 25, 50, 100, 200, 500, 1000, 2000, 5000, 10000 }
+                   })
                    .AddOtlpExporter(options =>
                    {
-                       var baseUrl = openobserveUrl.TrimEnd('/');
                        options.Endpoint = new Uri($"{baseUrl}/api/default/v1/metrics");
                        options.Protocol = OtlpExportProtocol.HttpProtobuf;
-                       var authValue = Convert.ToBase64String(Encoding.UTF8.GetBytes($"{openobserveUser}:{openobservePass}"));
-                       options.Headers = $"Authorization=Basic {authValue}";
+                       options.TimeoutMilliseconds = 30000;
+                       options.Headers = authHeader;
                    });
         })
         .WithLogging(logging =>
         {
             logging.AddOtlpExporter(options =>
             {
-                var baseUrl = openobserveUrl.TrimEnd('/');
                 options.Endpoint = new Uri($"{baseUrl}/api/default/v1/logs");
                 options.Protocol = OtlpExportProtocol.HttpProtobuf;
-                var authValue = Convert.ToBase64String(Encoding.UTF8.GetBytes($"{openobserveUser}:{openobservePass}"));
-                options.Headers = $"Authorization=Basic {authValue}";
+                options.TimeoutMilliseconds = 30000;
+                options.Headers = authHeader;
             });
+        })
+        .WithTracing(tracing =>
+        {
+            tracing
+                .AddSource("WebUI")
+                .SetSampler(isDevelopment
+                    ? new AlwaysOnSampler()
+                    : new ParentBasedSampler(new TraceIdRatioBasedSampler(0.1)))
+                .AddOtlpExporter(options =>
+                {
+                    options.Endpoint = new Uri($"{baseUrl}/api/default/v1/traces");
+                    options.Protocol = OtlpExportProtocol.HttpProtobuf;
+                    options.TimeoutMilliseconds = 30000;
+                    options.Headers = authHeader;
+                });
         });
     }
 }
