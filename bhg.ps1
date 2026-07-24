@@ -371,8 +371,16 @@ function Cmd-Observe {
 		Write-Host "[X] Failed to start OpenObserve" -ForegroundColor Red
 		return
 	}
+	try {
+		$resp = Invoke-WebRequest -Uri 'http://127.0.0.1:5082' -UseBasicParsing -TimeoutSec 3 -ErrorAction Stop
+		if ($resp.StatusCode -ge 200 -and $resp.StatusCode -lt 400) {
+			Write-Host "OpenObserve already running at http://127.0.0.1:5082" -ForegroundColor Green
+			Open-InBrowser 'http://127.0.0.1:5082'
+			return
+		}
+	} catch {}
 	Write-Host "Waiting for OpenObserve to be ready..." -ForegroundColor DarkGray
-	if (Wait-For-Url 'http://127.0.0.1:5082/web/login' 60) {
+	if (Wait-For-Url 'http://127.0.0.1:5082' 60) {
 		Write-Host "OpenObserve ready at http://127.0.0.1:5082" -ForegroundColor Green
 		Open-InBrowser 'http://127.0.0.1:5082'
 	} else {
