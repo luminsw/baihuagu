@@ -1,4 +1,4 @@
-﻿<#
+﻿﻿<#
 百花谷 Family 版 - Windows (PowerShell) 轻量 CLI
 用法: .\bhg.ps1 [command]
   bhg.ps1                打开 dashboard（自动检测代码更新，有新提交时重编译重启）
@@ -11,6 +11,7 @@
   bhg.ps1 open           打开 Web 管理界面 (http://localhost:5177)
   bhg.ps1 dev            开发模式（监听文件变动自动重编译重启）
   bhg.ps1 observe        启动 OpenObserve 可观测平台（Docker）并打开 Web UI
+  bhg.ps1 all            启动全部服务（.NET 服务 + OpenObserve + hostmetrics）
 
 说明:
 - 该脚本为简易移植，依赖 PowerShell (推荐 pwsh) 和 dotnet SDK
@@ -18,6 +19,7 @@
 - dashboard 命令会比较当前 git HEAD 与上次启动时的 commit，不同则自动重编译重启
 - dev 命令监听 services/ 下 .cs/.razor 文件变动，2秒防抖后自动重编译重启
 - observe 命令使用 docker compose 启动 OpenObserve（端口 5082/5083）
+- all 命令启动所有 .NET 服务（ai, vault, taskrunner, webui）和 Docker 监控容器（openobserve, hostmetrics）
 #>
 param(
 	[string]$Command = 'dashboard',
@@ -25,6 +27,7 @@ param(
 	[string]$Browser = ''
 )
 
+chcp 65001 | Out-Null
 [Console]::OutputEncoding = [System.Text.Encoding]::UTF8
 [Console]::InputEncoding = [System.Text.Encoding]::UTF8
 $OutputEncoding = [System.Text.Encoding]::UTF8
@@ -257,10 +260,10 @@ function Ensure-ServiceRunning($name){
 	}
 }
 
-function Test-TcpPort([string]$host, [int]$port, [int]$timeoutMs = 2000){
+function Test-TcpPort([string]$hostname, [int]$port, [int]$timeoutMs = 2000){
 	try {
 		$tcp = New-Object System.Net.Sockets.TcpClient
-		$async = $tcp.BeginConnect($host, $port, $null, $null)
+		$async = $tcp.BeginConnect($hostname, $port, $null, $null)
 		$wait = $async.AsyncWaitHandle.WaitOne($timeoutMs, $false)
 		if ($wait -and $tcp.Connected) { $tcp.Close(); return $true }
 		$tcp.Close(); return $false
@@ -400,6 +403,130 @@ function Cmd-Observe {
 	Write-Host "    Check: docker logs bhg-openobserve" -ForegroundColor Yellow
 }
 
+function Cmd-Start-Observability {
+	$composeFile = Join-Path $BHG_ROOT 'docker\docker-compose.observability.yml'
+	if (-not (Test-Path $composeFile)) {
+		Write-Host "[!] docker-compose.observability.yml not found: $composeFile" -ForegroundColor Red
+		return $false
+	}
+	$dockerCmd = $null
+	foreach ($cmd in @('docker', 'docker.exe')) {
+		try { Get-Command $cmd -ErrorAction Stop | Out-Null; $dockerCmd = $cmd; break } catch {}
+	}
+	if (-not $dockerCmd) {
+		Write-Host "  Docker: ⚠ not found, skipping observability" -ForegroundColor Yellow
+		return $false
+	}
+	try {
+		$null = & $dockerCmd info 2>&1
+	} catch {
+		Write-Host "  Docker: ⚠ daemon not running, skipping observability" -ForegroundColor Yellow
+		return $false
+	}
+	Write-Host "  Starting OpenObserve + hostmetrics..." -ForegroundColor Cyan
+	& $dockerCmd compose -f $composeFile up -d 2>&1 | ForEach-Object { Write-Host "    $_" }
+	if ($LASTEXITCODE -ne 0) {
+		Write-Host "  Docker: ⚠ failed (network issue or image not available)" -ForegroundColor Yellow
+		Write-Host "  Docker:   Try again later, or start manually: docker compose -f docker/docker-compose.observability.yml up -d" -ForegroundColor DarkGray
+		return $false
+	}
+	return $true
+}
+
+function Cmd-All {
+	Write-Host "=== 百花谷 - 启动全部服务 ===" -ForegroundColor Cyan
+	Write-Host ""
+
+	$needsRebuild = Test-NeedsRebuild
+	if ($needsRebuild) {
+		$curr = Get-CurrentGitCommit
+		$saved = Get-SavedGitCommit
+		Write-Host "[i] 检测到代码更新" -ForegroundColor Yellow
+		if ($saved) {
+			Write-Host "    上次: $($saved.Substring(0,8))"
+			Write-Host "    当前: $($curr.Substring(0,8))"
+		}
+		Write-Host "[...] 停止旧服务并重新编译..." -ForegroundColor Cyan
+		Cmd-Stop
+		Start-Sleep -Seconds 1
+
+		Write-Host "[...] dotnet build..." -ForegroundColor Cyan
+		$buildResult = dotnet build (Join-Path $BHG_ROOT 'services\BaiHuaGu.slnx') -c Release 2>&1
+		$buildExit = $LASTEXITCODE
+		if ($buildExit -ne 0) {
+			Write-Host "[X] 编译失败!" -ForegroundColor Red
+			$buildResult | Select-Object -Last 10 | ForEach-Object { Write-Host "    $_" }
+			return
+		}
+		Write-Host "[v] 编译成功" -ForegroundColor Green
+		Save-GitCommit
+	}
+
+	foreach ($name in $ServiceOrder) {
+		$pidFile = Get-PidPath $name
+		if (Test-Path $pidFile) {
+			$srvPid = Get-Content $pidFile -ErrorAction SilentlyContinue
+			if ($srvPid -and -not (Get-Process -Id $srvPid -ErrorAction SilentlyContinue)) {
+				Remove-Item $pidFile -ErrorAction SilentlyContinue
+			}
+		}
+	}
+
+	Write-Host ""
+	Write-Host "[1/2] 启动 .NET 服务..." -ForegroundColor Cyan
+	$failedServices = @()
+	foreach ($name in @('ai', 'vault', 'taskrunner')) {
+		$wasRunning = Ensure-ServiceRunning $name
+		Write-Host "  $name : " -NoNewline
+		if (-not (Wait-For-Service $name 30 -wasJustStarted:(-not $wasRunning))) { $failedServices += $name }
+	}
+
+	$webuiWasRunning = Ensure-ServiceRunning 'webui'
+	Write-Host "  webui : " -NoNewline
+	if (-not $webuiWasRunning) { Start-Sleep -Seconds 3 }
+	if (-not (Wait-For-Url 'http://127.0.0.1:5177/login' 20)){
+		Write-Host "X not ready" -ForegroundColor Red
+		$failedServices += 'webui'
+	} else {
+		Write-Host "v ready" -ForegroundColor Green
+	}
+
+	if (-not $needsRebuild) { Save-GitCommit }
+
+	Write-Host ""
+	Write-Host "[2/2] 启动可观测性服务 (Docker)..." -ForegroundColor Cyan
+	if (Cmd-Start-Observability) {
+		if (Test-TcpPort '127.0.0.1' 5082) {
+			Write-Host "  OpenObserve: v running at http://127.0.0.1:5082" -ForegroundColor Green
+		} else {
+			Write-Host "  OpenObserve: ⚠ starting..." -ForegroundColor Yellow
+		}
+	}
+
+	Write-Host ""
+	try {
+		$resp = Invoke-WebRequest -Uri 'http://127.0.0.1:5177/api/auth/cli-token' -Method POST -UseBasicParsing -TimeoutSec 5 -ErrorAction Stop
+		$json = $resp.Content | ConvertFrom-Json
+		$token = $json.token
+		if ($token) {
+			$dashboardUrl = "http://127.0.0.1:5177/?cli-token=$token"
+			Write-Host "Opening dashboard with CLI token..."
+			Open-InBrowser $dashboardUrl
+		} else {
+			Open-Dashboard
+		}
+	} catch {
+		Write-Host "Failed to get CLI token, opening without auto-login"
+		Open-Dashboard
+	}
+
+	if ($failedServices.Count -gt 0) {
+		Write-Host ""
+		Write-Host "! Some services failed: $($failedServices -join ', ')" -ForegroundColor Yellow
+		Write-Host "  Check logs: .\bhg.ps1 logs <name>" -ForegroundColor Yellow
+	}
+}
+
 switch ($Command.ToLower()){
 	'help' { Get-Help; break }
 	'setup' { Cmd-Setup; break }
@@ -425,6 +552,7 @@ switch ($Command.ToLower()){
 	}
 	'open' { Open-Dashboard; break }
 	'observe' { Cmd-Observe; break }
+	'all' { Cmd-All; break }
 	'dashboard' {
 		Write-Host "=== 百花谷 Dashboard ===" -ForegroundColor Cyan
 

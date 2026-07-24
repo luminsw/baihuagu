@@ -17,7 +17,6 @@ services:
   hostmetrics:
     image: otel/opentelemetry-collector-contrib:0.120.0
     container_name: bhg-hostmetrics
-    profiles: ["linux"]
     restart: unless-stopped
     pid: host
     volumes:
